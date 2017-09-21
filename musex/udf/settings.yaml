@@ -1,5 +1,5 @@
 
-db: /muse/UDF/private/analysis/mouse.db
+db: /muse/UDF/private/analysis/musex.db
 data_dir: /muse/UDF/public/dataproducts
 data_version: '1.0b1'
 
