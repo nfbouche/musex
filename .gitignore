@@ -4,6 +4,7 @@
 *~
 ._*
 .DS_Store
+_githash.py
 api/
 build/
 doc/_build
