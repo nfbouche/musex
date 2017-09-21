@@ -24,4 +24,4 @@ def load_db(filename, verbose=False, **kwargs):
 
 
 conf = load_yaml_config(os.path.join(DIRNAME, 'udf', 'settings.yaml'))
-db = load_db(conf['db'])
+db = load_db(conf['db'], verbose=True)
