@@ -1,3 +1,8 @@
 db: /muse/UDF/private/analysis/musex.db
 data_dir: /muse/UDF/public/dataproducts
 show_banner: true
+
+extractors:
+  hstprior:
+    class: musex.hstprior.HstPriorExtractor
+    settings: hstprior.yaml

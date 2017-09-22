@@ -23,5 +23,6 @@ def load_db(filename, verbose=False, **kwargs):
     return dataset.connect('sqlite:///{}'.format(filename), **kwargs)
 
 
-conf = load_yaml_config(os.path.join(DIRNAME, 'udf', 'settings.yaml'))
+conf_dir = os.path.join(DIRNAME, 'udf')
+conf = load_yaml_config(os.path.join(conf_dir, 'settings.yaml'))
 db = load_db(conf['db'], verbose=True)
