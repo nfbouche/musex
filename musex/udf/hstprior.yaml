@@ -1,6 +1,7 @@
 # HST images & catalogs
 version: '1.0'
 catalog: '/muse/UDF/private/HST/Catalogs/uvudf_rafelski_2015.fits'
+limit: 100
 segmap: '/muse/UDF/private/HST/SegMap'
 filters: '/muse/UDF/private/HST/Filters'
 images_dir: '/muse/UDF/private/HST/XUDF'

@@ -10,13 +10,17 @@ from .settings import db
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 
-__all__ = ['HstPriorExtractor']
+__all__ = ['PriorExtractor']
 
 
-class HstPriorExtractor(Extractor):
+class PriorExtractor(Extractor):
 
-    def ingest_hstprior_data(self):
+    def ingest_catalog(self):
+        logger.info('ingesting catalog from %s', self._conf['catalog'])
         cat = Table.read(self._conf['catalog'])
+        if self._conf.get('limit'):
+            logger.info('keeping only %d rows', self._conf['limit'])
+            cat = cat[:self._conf['limit']]
         cat.rename_column('ID', 'RAF_ID')
         cat.add_column(Column(name='version',
                               data=[self._conf['version']] * len(cat)),

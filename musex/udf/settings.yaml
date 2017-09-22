@@ -4,5 +4,5 @@ show_banner: true
 
 extractors:
   hstprior:
-    class: musex.hstprior.HstPriorExtractor
+    class: musex.prior.PriorExtractor
     settings: hstprior.yaml
