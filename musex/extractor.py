@@ -31,5 +31,8 @@ class Extractor:
 
     @lazyproperty
     def images(self):
+        # with warnings.catch_warnings():
+        #     warnings.simplefilter('ignore', AstropyWarning)
+        # TODO ? strip header
         return {k: Image(v, copy=False)
                 for k, v in self.conf['images'].items()}
