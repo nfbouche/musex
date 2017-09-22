@@ -1,6 +1,8 @@
 import importlib
 import logging
 import os
+from astropy.utils.decorators import lazyproperty
+from mpdaf.obj import Image
 
 from .settings import load_yaml_config
 
@@ -22,10 +24,12 @@ class Extractor:
         self.name = name
         self.config_file = config_file
         self.logger = logging.getLogger(__name__)
-        self._conf = None
 
-    @property
+    @lazyproperty
     def conf(self):
-        if self._conf is None and self.config_file is not None:
-            self._conf = load_yaml_config(self.config_file)
-        return self._conf
+        return load_yaml_config(self.config_file)
+
+    @lazyproperty
+    def images(self):
+        return {k: Image(v, copy=False)
+                for k, v in self.conf['images'].items()}

@@ -1,16 +1,17 @@
 version: '1.0b1'
+data_dir: /muse/UDF/public/dataproducts
 data:
   # Data release information
   UDF-10:
-    datacube: '{data_dir}/{data_version}/DATACUBE_UDF-10.fits'
-    expcube: '{data_dir}/{data_version}/EXPMAP_UDF-10.fits'
-    expima: '{data_dir}/{data_version}/EXPMAP-IMAGE_UDF-10.fits'
-    white: '{data_dir}/{data_version}/IMAGE_UDF-10.fits'
+    datacube: '{data_dir}/{version}/DATACUBE_UDF-10.fits'
+    expcube: '{data_dir}/{version}/EXPMAP_UDF-10.fits'
+    expima: '{data_dir}/{version}/EXPMAP-IMAGE_UDF-10.fits'
+    white: '{data_dir}/{version}/IMAGE_UDF-10.fits'
   UDF-MOSAIC:
-    datacube: '{data_dir}/{data_version}/DATACUBE_UDF-MOSAIC.fits'
-    expcube: '{data_dir}/{data_version}/EXPMAP_UDF-MOSAIC.fits'
-    expima: '{data_dir}/{data_version}/EXPMAP-IMAGE_UDF-MOSAIC.fits'
-    white: '{data_dir}/{data_version}/IMAGE_UDF-MOSAIC.fits'
+    datacube: '{data_dir}/{version}/DATACUBE_UDF-MOSAIC.fits'
+    expcube: '{data_dir}/{version}/EXPMAP_UDF-MOSAIC.fits'
+    expima: '{data_dir}/{version}/EXPMAP-IMAGE_UDF-MOSAIC.fits'
+    white: '{data_dir}/{version}/IMAGE_UDF-MOSAIC.fits'
 
   # NoiseChisel segmentation map and catalog
   # ncseg: /muse/UDF/private/analysis/NoiseChisel/NewSeg_2.fits
