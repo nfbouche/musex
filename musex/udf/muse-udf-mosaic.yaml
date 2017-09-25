@@ -1,0 +1,26 @@
+version: '1.0b1'
+data_dir: /muse/UDF/public/dataproducts
+
+# Data release information
+datacube: '{data_dir}/{version}/DATACUBE_UDF-MOSAIC.fits'
+expcube: '{data_dir}/{version}/EXPMAP_UDF-MOSAIC.fits'
+expima: '{data_dir}/{version}/EXPMAP-IMAGE_UDF-MOSAIC.fits'
+
+images:
+  white: '{data_dir}/{version}/IMAGE_UDF-MOSAIC.fits'
+
+# NoiseChisel segmentation map and catalog
+# ncseg: /muse/UDF/private/analysis/NoiseChisel/NewSeg_2.fits
+# nccat: /muse/UDF/private/analysis/NoiseChisel/Output_NewSeg_2.fits
+
+# MUSE catalogs
+# mastercat: /muse/UDF/private/catalogs/master/master_idlist.vot
+# colid: ID
+# colz: UDF10_Z
+# coltype: UDF10_TYPE
+# colactive: ACTIVE
+# colhasz: UDF10_HASZ
+# colconfid: UDF10_CONFID
+
+# name of sky spectra fits file
+sky: /muse/UDF/private/analysis/UDF-10/refdata/sky-ref-spectra.fits
