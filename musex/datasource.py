@@ -1,33 +1,26 @@
-import importlib
 import logging
-import os
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
-
-from .settings import load_yaml_config, conf_dir
 
 
 def load_datasources(settings):
     datasources = {}
-    for name, ext in settings['datasources'].items():
-        config_file = os.path.join(conf_dir, ext['settings'])
-        # mod, class_ = ext['class'].rsplit('.', 1)
-        # mod = importlib.import_module(mod)
-        # inst = getattr(mod, class_)(name, config_file=config_file)
-        datasources[name] = DataSource(name, config_file=config_file)
+    for name, settings in settings['datasources'].items():
+        datasources[name] = DataSource(name, settings=settings)
     return datasources
 
 
 class DataSource:
 
-    def __init__(self, name, config_file=None):
+    def __init__(self, name, settings):
         self.name = name
-        self.config_file = config_file
+        self.settings = settings
         self.logger = logging.getLogger(__name__)
 
-    @lazyproperty
-    def conf(self):
-        return load_yaml_config(self.config_file)
+    # @lazyproperty
+    # def conf(self):
+    #     from .settings import load_yaml_config
+    #     return load_yaml_config(self.settings)
 
     @lazyproperty
     def images(self):
