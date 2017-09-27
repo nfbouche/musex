@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 from astropy.table import Table, Column
@@ -5,42 +6,69 @@ from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 
-from .extractor import Extractor
 from .settings import db
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 
-__all__ = ['PriorExtractor']
+__all__ = ['load_sourcefinders', 'SourceFinder', 'PriorCatalog']
 
 
-class PriorExtractor(Extractor):
+def load_sourcefinders(settings):
+    sourcefinders = {}
+    for name, conf in settings['sourcefinders'].items():
+        mod, class_ = conf['class'].rsplit('.', 1)
+        mod = importlib.import_module(mod)
+        sourcefinders[name] = getattr(mod, class_)(name, conf)
+    return sourcefinders
 
-    def ingest_catalog(self):
-        logger.info('ingesting catalog from %s', self._conf['catalog'])
-        cat = Table.read(self._conf['catalog'])
-        if self._conf.get('limit'):
-            logger.info('keeping only %d rows', self._conf['limit'])
-            cat = cat[:self._conf['limit']]
 
-        # TODO: Use ID as primary index
-        cat.rename_column('ID', 'RAF_ID')
-        cat.add_column(Column(name='version',
-                              data=[self._conf['version']] * len(cat)),
-                       index=1)
+class SourceFinder:
 
-        table = db[self.name]
+    def __init__(self, name, settings):
+        self.name = name
+        self.settings = settings
+        self.logger = logging.getLogger(__name__)
+        for key in ('catalog', 'id_name', 'version'):
+            print('set', key, self.settings.get(key))
+            setattr(self, key, self.settings.get(key))
+
+    @lazyproperty
+    def table(self):
+        return db.create_table(self.name, primary_id='_id')
+
+    def ingest_catalog(self, limit=None):
+        logger.info('ingesting catalog %s', self.catalog)
+        cat = Table.read(self.catalog)
+        if limit:
+            logger.info('keeping only %d rows', limit)
+            cat = cat[:limit]
+
+        # TODO: Use ID as primary key ?
+        cat.add_column(Column(name='version', data=[self.version] * len(cat)))
+
+        table = self.table
         colnames = cat.colnames
-        # TODO: skip already inserted sources
+        count_inserted = 0
+        count_updated = 0
         for row in ProgressBar(cat):
-            table.insert(OrderedDict(zip(colnames, row.as_void())))
-        # table.insert_many((OrderedDict(zip(cat.colnames, row.as_void()))
-        #                    for row in cat))
-        table.create_index('RAF_ID')
-        logger.info('%d rows ingested', len(cat))
+            res = table.upsert(OrderedDict(zip(colnames, row.as_void())),
+                               [self.id_name, 'version'])
+            if res is True:
+                count_updated += 1
+            else:
+                count_inserted += 1
+
+        table.create_index(self.id_name)
+        logger.info('%d rows inserted, %s updated', count_inserted,
+                    count_updated)
+
+
+class PriorCatalog(SourceFinder):
 
     @lazyproperty
     def segmap(self):
+        from mpdaf.obj import Image
         im = Image(self.conf['segmap'], copy=False)
         idx = im.data_header.index('D001VER')
         im.data_header = im.data_header[:idx]

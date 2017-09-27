@@ -39,10 +39,12 @@ datasources:
     images:
       white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
 
-# extractors:
-#   hstprior:
-#     class: musex.prior.PriorExtractor
-#     settings: hstprior.yaml
-#   muse:
-#     class: musex.muse.MuseExtractor
-#     settings: muse.yaml
+sourcefinders:
+  hstprior:
+    class: musex.detection.PriorCatalog
+    version: '1.0'
+    catalog: '/muse/UDF/private/HST/Catalogs/uvudf_rafelski_2015.fits'
+    id_name: 'ID'
+    segmap: '/muse/UDF/private/HST/SegMap/segmentation_map_rafelski_2015.fits'
+  # muse:
+  #   class: musex.detection.Origin
