@@ -11,19 +11,19 @@ from .settings import db
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 
-__all__ = ['load_sourcefinders', 'SourceFinder', 'PriorCatalog']
+__all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 
 
-def load_sourcefinders(settings):
-    sourcefinders = {}
-    for name, conf in settings['sourcefinders'].items():
+def load_catalogs(settings):
+    catalogs = {}
+    for name, conf in settings['catalogs'].items():
         mod, class_ = conf['class'].rsplit('.', 1)
         mod = importlib.import_module(mod)
-        sourcefinders[name] = getattr(mod, class_)(name, conf)
-    return sourcefinders
+        catalogs[name] = getattr(mod, class_)(name, conf)
+    return catalogs
 
 
-class SourceFinder:
+class Catalog:
 
     def __init__(self, name, settings):
         self.name = name
@@ -64,7 +64,7 @@ class SourceFinder:
                     count_updated)
 
 
-class PriorCatalog(SourceFinder):
+class PriorCatalog(Catalog):
 
     @lazyproperty
     def segmap(self):
