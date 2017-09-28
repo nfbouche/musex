@@ -3,14 +3,14 @@ from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 
 
-def load_datasources(settings):
-    datasources = {}
-    for name, conf in settings['datasources'].items():
-        datasources[name] = DataSource(name, settings=conf)
-    return datasources
+def load_datasets(settings):
+    datasets = {}
+    for name, conf in settings['datasets'].items():
+        datasets[name] = DataSet(name, settings=conf)
+    return datasets
 
 
-class DataSource:
+class DataSet:
 
     def __init__(self, name, settings):
         self.name = name

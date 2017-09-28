@@ -4,7 +4,7 @@ show_banner: true
 hst_data_dir: '/muse/UDF/private/HST/XUDF'
 muse_data_dir: '/muse/UDF/public/dataproducts'
 
-datasources:
+datasets:
   hst:
     # HST data (images)
     version: '1.0'
