@@ -6,6 +6,8 @@ from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 
+from .settings import isnotebook
+
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,29 @@ def load_catalogs(settings, db):
         mod = importlib.import_module(mod)
         catalogs[name] = getattr(mod, class_)(name, conf, db)
     return catalogs
+
+
+class ResultSet(list):
+
+    def __init__(self, results, whereclause=None):
+        self.results = list(results)
+        self.whereclause = whereclause
+
+    def __repr__(self):
+        return (f'<{self.__class__.__name__}({self.whereclause})>, '
+                f'{len(self)} results')
+
+    def __len__(self):
+        return len(self.results)
+
+    def as_table(self):
+        t = Table(data=self.results, names=self.results[0].keys())
+        if '_id' in t.columns:
+            t.remove_column('_id')
+        return t
+
+    def as_sourcelist(self):
+        raise NotImplementedError
 
 
 class Catalog:
@@ -49,17 +74,31 @@ class Catalog:
         colnames = cat.colnames
         count_inserted = 0
         count_updated = 0
-        for row in ProgressBar(cat):
-            res = table.upsert(OrderedDict(zip(colnames, row.as_void())),
-                               [self.id_name, 'version'])
-            if res is True:
-                count_updated += 1
-            else:
-                count_inserted += 1
+        rows = list(zip(*[c.tolist() for c in cat.columns.values()]))
+        with self.db as tx:
+            table = tx[self.name]
+            for row in ProgressBar(rows, ipython_widget=isnotebook()):
+                res = table.upsert(OrderedDict(zip(colnames, row)),
+                                   [self.id_name, 'version'])
+                if res is True:
+                    count_updated += 1
+                else:
+                    count_inserted += 1
 
         table.create_index(self.id_name)
         logger.info('%d rows inserted, %s updated', count_inserted,
                     count_updated)
+
+    @property
+    def c(self):
+        return self.table.table.c
+
+    def select(self, whereclause=None, **params):
+        return ResultSet(
+            self.db.query(
+                self.table.table.select(whereclause=whereclause, **params)),
+            whereclause=whereclause
+        )
 
 
 class PriorCatalog(Catalog):

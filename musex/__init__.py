@@ -17,7 +17,7 @@ def init(settings_file=None, verbose=True):
         settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
 
     conf = load_yaml_config(settings_file)
-    db = load_db(conf['db'], verbose=True)
+    db = load_db(conf['db'])
     datasets = load_datasets(conf)
     catalogs = load_catalogs(conf, db)
 
