@@ -6,35 +6,34 @@ from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 
-from .settings import db
-
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 
 __all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 
 
-def load_catalogs(settings):
+def load_catalogs(settings, db):
     catalogs = {}
     for name, conf in settings['catalogs'].items():
         mod, class_ = conf['class'].rsplit('.', 1)
         mod = importlib.import_module(mod)
-        catalogs[name] = getattr(mod, class_)(name, conf)
+        catalogs[name] = getattr(mod, class_)(name, conf, db)
     return catalogs
 
 
 class Catalog:
 
-    def __init__(self, name, settings):
+    def __init__(self, name, settings, db):
         self.name = name
         self.settings = settings
+        self.db = db
         self.logger = logging.getLogger(__name__)
         for key in ('catalog', 'id_name', 'version'):
             setattr(self, key, self.settings.get(key))
 
     @lazyproperty
     def table(self):
-        return db.create_table(self.name, primary_id='_id')
+        return self.db.create_table(self.name, primary_id='_id')
 
     def ingest_catalog(self, limit=None):
         logger.info('ingesting catalog %s', self.catalog)

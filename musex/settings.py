@@ -1,11 +1,8 @@
 import dataset
 import logging
-import os
 import yaml
 
-DIRNAME = os.path.abspath(os.path.dirname(__file__))
-
-__all__ = ('conf', 'db', 'load_yaml_config', 'load_db')
+__all__ = ('load_yaml_config', 'load_db')
 
 
 def load_yaml_config(filename):
@@ -21,8 +18,3 @@ def load_db(filename, verbose=False, **kwargs):
     if not verbose:
         dataset.persistence.database.log.addHandler(logging.NullHandler())
     return dataset.connect('sqlite:///{}'.format(filename), **kwargs)
-
-
-conf_dir = os.path.join(DIRNAME, 'udf')
-conf = load_yaml_config(os.path.join(conf_dir, 'settings.yaml'))
-db = load_db(conf['db'], verbose=True)
