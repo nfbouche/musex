@@ -30,7 +30,6 @@ class Catalog:
         self.settings = settings
         self.logger = logging.getLogger(__name__)
         for key in ('catalog', 'id_name', 'version'):
-            print('set', key, self.settings.get(key))
             setattr(self, key, self.settings.get(key))
 
     @lazyproperty
