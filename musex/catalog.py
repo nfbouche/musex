@@ -5,8 +5,10 @@ from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
+from collections.abc import Sequence
 
 from .settings import isnotebook
+from .source import SourceListX
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
@@ -23,18 +25,24 @@ def load_catalogs(settings, db):
     return catalogs
 
 
-class ResultSet(list):
+class ResultSet(Sequence):
 
-    def __init__(self, results, whereclause=None):
+    def __init__(self, results, whereclause=None, catalog=None):
         self.results = list(results)
         self.whereclause = whereclause
+        # TODO: use weakref here ?
+        self.catalog = catalog
 
     def __repr__(self):
-        return (f'<{self.__class__.__name__}({self.whereclause})>, '
+        return (f'<{self.__class__.__name__}({self.whereclause}, '
+                f'{self.whereclause.compile().params})>, '
                 f'{len(self)} results')
 
     def __len__(self):
         return len(self.results)
+
+    def __getitem__(self, index):
+        return self.results[index]
 
     def as_table(self):
         t = Table(data=self.results, names=self.results[0].keys())
@@ -43,7 +51,12 @@ class ResultSet(list):
         return t
 
     def as_sourcelist(self):
-        raise NotImplementedError
+        # 1- Name of the detector software which creates this object
+        # 2- Version of the detector software which creates this object
+        # 3- Name of the FITS data cube
+        # 4- Version of the FITS data cube
+        # origin = (self.catalog.name, self.catalog.version, '', '')
+        return SourceListX.from_coords(self, idname=self.catalog.id_name)
 
 
 class Catalog:
@@ -94,11 +107,9 @@ class Catalog:
         return self.table.table.c
 
     def select(self, whereclause=None, **params):
-        return ResultSet(
-            self.db.query(
-                self.table.table.select(whereclause=whereclause, **params)),
-            whereclause=whereclause
-        )
+        query = self.db.query(self.table.table.select(whereclause=whereclause,
+                                                      **params))
+        return ResultSet(query, whereclause=whereclause, catalog=self)
 
 
 class PriorCatalog(Catalog):

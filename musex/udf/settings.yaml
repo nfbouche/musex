@@ -8,6 +8,7 @@ datasets:
   hst:
     # HST data (images)
     version: '1.0'
+    prefix: 'HST'
     # filters: '/muse/UDF/private/HST/Filters'
     images:
       'F225W': '{hst_data_dir}/hlsp_uvudf_hst_wfc3-uvis-30mas_udf-epoch3_f225w_v2.0_drz.fits'
@@ -25,6 +26,7 @@ datasets:
 
   muse-udf-10:
     version: '1.0b1'
+    prefix: 'MUSE'
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-10.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-10.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-10.fits'
@@ -33,6 +35,7 @@ datasets:
 
   muse-udf-mosaic:
     version: '1.0b1'
+    prefix: 'MUSE'
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-MOSAIC.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-MOSAIC.fits'

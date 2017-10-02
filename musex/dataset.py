@@ -16,6 +16,8 @@ class DataSet:
         self.name = name
         self.settings = settings
         self.logger = logging.getLogger(__name__)
+        for key in ('prefix', 'version'):
+            setattr(self, key, self.settings.get(key))
 
     # @lazyproperty
     # def settings(self):
@@ -31,7 +33,7 @@ class DataSet:
                 for k, v in self.settings['images'].items()}
 
     @lazyproperty
-    def datacube(self):
+    def cube(self):
         return Cube(self.settings['datacube'], copy=False)
 
     @lazyproperty
@@ -41,3 +43,4 @@ class DataSet:
     @lazyproperty
     def expima(self):
         return Image(self.settings['expima'], copy=False)
+
