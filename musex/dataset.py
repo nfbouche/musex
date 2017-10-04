@@ -43,4 +43,3 @@ class DataSet:
     @lazyproperty
     def expima(self):
         return Image(self.settings['expima'], copy=False)
-

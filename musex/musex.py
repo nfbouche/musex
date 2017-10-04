@@ -8,6 +8,13 @@ from .version import __version__, __description__
 
 
 class MuseX:
+    """
+    TODO:
+    - mean to choose catalog
+    - save catalog name in source header (src.CATALOG)
+    - save history of operations in source
+
+    """
 
     def __init__(self, settings_file=None, **kwargs):
         if settings_file is None:

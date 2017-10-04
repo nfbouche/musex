@@ -23,6 +23,9 @@ datasets:
       'F140W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f140w_v1_sci.fits'
       'F125W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f125w_v1_sci.fits'
       'F160W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f160w_v1_sci.fits'
+    extended_images:
+      width: 2.0
+      images: ['F775W']
 
   muse-udf-10:
     version: '1.0b1'
