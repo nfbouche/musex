@@ -6,9 +6,9 @@ from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 from collections.abc import Sequence
+from sqlalchemy.sql import select
 
 from .settings import isnotebook
-from .source import SourceListX
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
@@ -50,14 +50,6 @@ class ResultSet(Sequence):
             t.remove_column('_id')
         return t
 
-    def as_sourcelist(self):
-        # 1- Name of the detector software which creates this object
-        # 2- Version of the detector software which creates this object
-        # 3- Name of the FITS data cube
-        # 4- Version of the FITS data cube
-        # origin = (self.catalog.name, self.catalog.version, '', '')
-        return SourceListX.from_coords(self, idname=self.catalog.id_name)
-
 
 class Catalog:
 
@@ -66,8 +58,10 @@ class Catalog:
         self.settings = settings
         self.db = db
         self.logger = logging.getLogger(__name__)
-        for key in ('catalog', 'id_name', 'version'):
+        for key in ('catalog', 'colnames', 'version'):
             setattr(self, key, self.settings.get(key))
+        for key, val in self.settings['colnames'].items():
+            setattr(self, key, val)
 
     @lazyproperty
     def table(self):
@@ -92,13 +86,13 @@ class Catalog:
             table = tx[self.name]
             for row in ProgressBar(rows, ipython_widget=isnotebook()):
                 res = table.upsert(OrderedDict(zip(colnames, row)),
-                                   [self.id_name, 'version'])
+                                   [self.idname, 'version'])
                 if res is True:
                     count_updated += 1
                 else:
                     count_inserted += 1
 
-        table.create_index(self.id_name)
+        table.create_index(self.idname)
         logger.info('%d rows inserted, %s updated', count_inserted,
                     count_updated)
 
@@ -106,9 +100,13 @@ class Catalog:
     def c(self):
         return self.table.table.c
 
-    def select(self, whereclause=None, **params):
-        query = self.db.query(self.table.table.select(whereclause=whereclause,
-                                                      **params))
+    def select(self, whereclause=None, columns=None, **params):
+        if columns is not None:
+            columns = [self.c[col] for col in columns]
+        else:
+            columns = [self.table.table]
+        query = self.db.query(select(columns=columns, whereclause=whereclause,
+                                     **params))
         return ResultSet(query, whereclause=whereclause, catalog=self)
 
 

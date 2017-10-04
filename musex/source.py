@@ -151,28 +151,28 @@ class SourceListX(SourceList):
         self.logger = logging.getLogger(__name__)
 
     @classmethod
-    def from_coords(cls, coords, origin=None, idname='ID'):
+    def from_coords(cls, coords, origin=None, idname='ID', raname='RA',
+                    decname='DEC', srcvers=''):
         origin = origin or ('MuseX', __version__, '', '')
         srclist = cls()
         for res in coords:
-            src = cls.source_class.from_data(res[idname], res['RA'],
-                                             res['DEC'], origin)
+            src = cls.source_class.from_data(res[idname], res[raname],
+                                             res[decname], origin)
+            src.SRC_V = srcvers
             srclist.append(src)
         return srclist
 
-    def add_datasets(self, muse_dataset, additional_datasets=None, size=5):
+    def add_datasets(self, muse_dataset, additional_datasets=None, size=5,
+                     extended_images=None):
         logger = self.logger
 
         if additional_datasets is None:
             additional_datasets = []
-        elif not isinstance(additional_datasets, (list, tuple)):
-            additional_datasets = [additional_datasets]
 
         # TODO: ProgressBar, parallelize ?
         for src in self:
             # TODO!
             # src.SIZE = size
-            # src.SRC_V = srcvers
 
             # FIXME: create white when adding cube
             logger.debug('Adding white light image')
@@ -190,7 +190,7 @@ class SourceListX(SourceList):
             # add expmap image + average and dispersion value of expmap
             logger.debug('Adding expmap image')
             src.add_image(muse_dataset.expima, f'{muse_dataset.prefix}_EXPMAP')
-            ima = src.images['MUSE_EXPMAP']
+            ima = src.images[f'{muse_dataset.prefix}_EXPMAP']
             src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
             src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
             src.EXPMAX = (np.ma.max(ima.data), 'Maximum value of EXPMAP')
@@ -202,30 +202,34 @@ class SourceListX(SourceList):
                 logger.debug('Adding FSF info from the datacube')
                 src.add_FSF(muse_dataset.cube)
 
-            for dataset in [muse_dataset] + additional_datasets:
-                for name, img in getattr(dataset, 'images', {}).items():
-                    if name == 'white':
-                        # white image is handled separately
+            for ds in [muse_dataset] + additional_datasets:
+                for name, img in getattr(ds, 'images', {}).items():
+                    name = name.upper()
+                    if name == 'WHITE':  # white image is handled separately
                         continue
-                    tagname = getattr(img, 'name', name.upper())
+                    tagname = getattr(img, 'name', name)
                     logger.debug('Adding image %s', tagname)
                     order = 0 if name == 'SEGMAP' else 1
-                    src.add_image(img, f'{dataset.prefix}_{tagname}',
+                    src.add_image(img, f'{ds.prefix}_{tagname}',
                                   rotate=True, order=order)
 
                 # add extended images
-                ext_images = dataset.settings.get('extended_images')
-                if ext_images is not None:
-                    for name in ext_images['images']:
+                if extended_images is not None and ds.name in extended_images:
+                    conf = extended_images[ds.name]
+                    for name in conf['images']:
                         logger.debug('Adding extended image for %s', name)
-                        src.add_image(dataset.images[name], f'{name}_E',
-                                      size + ext_images['size'], rotate=True)
+                        src.add_image(ds.images[name], f'{ds.prefix}_{name}_E',
+                                      size + conf['size'], rotate=True)
 
-                        # # add the list of objects found in the extended field
-                        # # of view
-                        # scat = hstcat['ID', 'RA', 'DEC', 'MAG_F775W']
-                        # scat = in_catalog(scat, src.images['HST_F775W_E'], quiet=True)
-                        # src.add_table(scat, 'HST_CAT')
+    def add_catalog(self, cat, select_in_image, name='CAT', **select_kw):
+        for src in self:
+            wcs = src.images[select_in_image].wcs
+            scat = cat.select(wcs, **select_kw)
+            # FIXME: is it the same ?
+            # FIXME: add margin column
+            # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
+            self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
+            src.add_table(scat, name)
 
     def extract_spectra(self, apertures):
         self.logger.debug('Extract spectra for apertures %s', apertures)
