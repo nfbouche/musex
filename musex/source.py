@@ -120,26 +120,20 @@ class SourceX(Source):
         self.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
         return nobj, nfracobj, nsky, nfracobj
 
-    def add_mask(self, images, mask_mode, iden_hst=None, radius=0):
-        if (mask_mode == 'HST') and (iden_hst is not None):
+    def add_mask(self, mask_mode, segmap=None, iden_hst=None, radius=0):
+        self._logger.debug('Computing mask, mode %s', mask_mode)
+        if mask_mode == 'HST':
             # compute mask from HST
-            if 'SEGMAP' in images:
-                self._logger.debug('Computing Mask from HST Segmap')
-                if self.add_mask_from_hst(images['SEGMAP'], iden_hst) is None:
-                    self._logger.error('Mask computation from HST failed')
-                    return
+            if segmap and iden_hst is not None:
+                self.add_mask_from_hst(segmap, iden_hst)
             else:
-                self._logger.error('No HST segmentation map found, cannot '
-                                   'compute Mask')
+                self._logger.error('No HST segmentation map found')
         elif mask_mode == 'WHITE':
-            self._logger.debug('Computing Mask from White light image')
             self.add_mask_from_white()
         elif mask_mode == 'APERTURE':
-            self._logger.debug('Computing Mask from Aperture Only')
             self.add_mask_from_aperture(radius)
         elif mask_mode == 'APERHST':
-            self._logger.debug('Computing Mask from Aperture and HST SegMap')
-            self.add_mask_from_aperture(radius, images['SEGMAP'])
+            self.add_mask_from_aperture(radius, segmap)
 
 
 class SourceListX(SourceList):

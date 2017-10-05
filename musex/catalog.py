@@ -8,6 +8,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from sqlalchemy.sql import select
 
+from .segmap import SegMap
 from .settings import isnotebook
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
@@ -114,8 +115,4 @@ class PriorCatalog(Catalog):
 
     @lazyproperty
     def segmap(self):
-        from mpdaf.obj import Image
-        im = Image(self.conf['segmap'], copy=False)
-        idx = im.data_header.index('D001VER')
-        im.data_header = im.data_header[:idx]
-        return im
+        return SegMap(self.settings['segmap'])
