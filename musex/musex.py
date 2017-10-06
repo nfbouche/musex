@@ -48,6 +48,7 @@ catalogs: {', '.join(self.catalogs.keys())}
                                         **resultset.catalog.colnames)
 
         muse_dataset = muse_dataset or settings['dataset']
+        self.logger.info('Exporting results with %s dataset', muse_dataset)
         add_datasets = settings.get('additional_datasets')
         if add_datasets:
             if not isinstance(add_datasets, (list, tuple)):

@@ -7,6 +7,7 @@ from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 from collections.abc import Sequence
+from mpdaf.obj import Image
 from pathlib import Path
 from sqlalchemy.sql import select
 
@@ -127,16 +128,22 @@ class PriorCatalog(Catalog):
 
         # sky mask
         sky_path = outpath / 'sky.fits'
-        if not sky_path.exists():
+        if sky_path.exists():
+            self.logger.debug('sky mask exists, skipping')
+            sky = None
+        else:
             self.logger.debug('creating sky mask')
             sky = self.segmap.get_mask(0)
             sky.align_with_image(dataset.white, inplace=True)
             sky.write(str(sky_path), savemask='none')
 
         skyconv_path = outpath / 'sky_convolved.fits'
-        if not sky_path.exists():
+        if skyconv_path.exists():
+            self.logger.debug('convolved sky mask exists, skipping')
+        else:
             fsf = dataset.meanfsf
-            logger.debug('convolve with Gaussian FSF %.1f', fsf)
+            self.logger.debug('creating convolve sky mask, fsf=%.1f', fsf)
+            sky = sky or Image(str(sky_path))
             skyconv = sky.fftconvolve_gauss(fwhm=(fsf, fsf))
             skyconv._data = np.where(skyconv._data > 0.1, 1, 0)
             skyconv.write(str(skyconv_path), savemask='none')
