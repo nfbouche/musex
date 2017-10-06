@@ -120,7 +120,7 @@ class PriorCatalog(Catalog):
     def segmap(self):
         return SegMap(self.settings['segmap'])
 
-    def preprocess_segmap(self, dataset):
+    def preprocess_segmap(self, dataset, skip=True):
         """Create masks from the segmap, adapted to a given dataset."""
 
         outpath = Path(self.settings['masks_dir']) / dataset.name
@@ -128,24 +128,26 @@ class PriorCatalog(Catalog):
 
         # sky mask
         sky_path = outpath / 'sky.fits'
-        if sky_path.exists():
+        if sky_path.exists() and skip:
             self.logger.debug('sky mask exists, skipping')
             sky = None
         else:
             self.logger.debug('creating sky mask')
             sky = self.segmap.get_mask(0)
             sky.align_with_image(dataset.white, inplace=True)
+            sky._data = np.where(sky._data > 0.5, 1, 0)
             sky.write(str(sky_path), savemask='none')
 
         skyconv_path = outpath / 'sky_convolved.fits'
-        if skyconv_path.exists():
+        if skyconv_path.exists() and skip:
             self.logger.debug('convolved sky mask exists, skipping')
         else:
             fsf = dataset.meanfsf
             self.logger.debug('creating convolve sky mask, fsf=%.1f', fsf)
             sky = sky or Image(str(sky_path))
+            sky._data = np.logical_not(sky._data).astype(float)
             skyconv = sky.fftconvolve_gauss(fwhm=(fsf, fsf))
-            skyconv._data = np.where(skyconv._data > 0.1, 1, 0)
+            skyconv._data = np.where(skyconv._data > 0.1, 0, 1)
             skyconv.write(str(skyconv_path), savemask='none')
 
         # source masks
