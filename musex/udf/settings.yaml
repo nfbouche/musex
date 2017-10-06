@@ -1,4 +1,5 @@
-db: /muse/UDF/private/analysis/musex.db
+workdir: '/muse/UDF/private/analysis'
+db: '{workdir}/muse.db'
 show_banner: true
 
 hst_data_dir: '/muse/UDF/private/HST/XUDF'
@@ -8,7 +9,7 @@ datasets:
   hst:
     # HST data (images)
     version: '1.0'
-    prefix: 'HST'
+    prefix: HST
     # filters: '/muse/UDF/private/HST/Filters'
     images:
       'F225W': '{hst_data_dir}/hlsp_uvudf_hst_wfc3-uvis-30mas_udf-epoch3_f225w_v2.0_drz.fits'
@@ -23,34 +24,48 @@ datasets:
       'F140W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f140w_v1_sci.fits'
       'F125W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f125w_v1_sci.fits'
       'F160W': '{hst_data_dir}/hlsp_xdf_hst_wfc3ir-60mas_hudf_f160w_v1_sci.fits'
-    extended_images:
-      width: 2.0
-      images: ['F775W']
 
   muse-udf-10:
     version: '1.0b1'
-    prefix: 'MUSE'
+    prefix: MUSE
+    meanfsf: 0.6
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-10.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-10.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-10.fits'
-    images:
-      white: '{muse_data_dir}/1.0b1/IMAGE_UDF-10.fits'
+    white: '{muse_data_dir}/1.0b1/IMAGE_UDF-10.fits'
 
   muse-udf-mosaic:
     version: '1.0b1'
-    prefix: 'MUSE'
+    prefix: MUSE
+    meanfsf: 0.6
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-MOSAIC.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-MOSAIC.fits'
-    images:
-      white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
+    white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
 
 catalogs:
   hstprior:
     class: musex.catalog.PriorCatalog
     version: '1.0'
-    catalog: '/muse/UDF/private/HST/Catalogs/uvudf_rafelski_2015.fits'
-    id_name: 'ID'
-    segmap: '/muse/UDF/private/HST/SegMap/segmentation_map_rafelski_2015.fits'
+    catalog: '{hst_data_dir}/uvudf_rafelski_2015.fits'
+    colnames:
+      idname: ID
+      raname: RA
+      decname: DEC
+    segmap: '{hst_data_dir}/segmentation_map_rafelski_2015.fits'
+    masks_dir: '{workdir}/hstprior'
   # muse:
   #   class: musex.catalog.Origin
+
+extraction:
+  dataset: muse-udf-10
+  additional_datasets: [hst]
+  extended_images:
+    hst:
+      size: 2.0
+      images: [F775W]
+  catalog:
+    from: hstprior
+    name: HST_CAT
+    columns: [ID, RA, DEC, MAG_F775W]
+    select_in: HST_F775W_E

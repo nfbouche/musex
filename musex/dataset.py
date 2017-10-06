@@ -15,14 +15,18 @@ class DataSet:
     def __init__(self, name, settings):
         self.name = name
         self.settings = settings
+        self.settings.setdefault('images', {})
         self.logger = logging.getLogger(__name__)
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
 
-    # @lazyproperty
-    # def settings(self):
-    #     from .settings import load_yaml_config
-    #     return load_yaml_config(self.settings)
+    @property
+    def meanfsf(self):
+        try:
+            return self.settings['meanfsf']
+        except KeyError:
+            self.logger.warning('meanfsf not found in settings, using 0.6')
+            return 0.6
 
     @lazyproperty
     def images(self):
@@ -35,6 +39,10 @@ class DataSet:
     @lazyproperty
     def cube(self):
         return Cube(self.settings['datacube'], copy=False)
+
+    @lazyproperty
+    def white(self):
+        return Image(self.settings['white'], copy=False)
 
     @lazyproperty
     def expcube(self):

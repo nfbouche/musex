@@ -1,3 +1,5 @@
+import astropy.units as u
+import numpy as np
 from mpdaf.obj import Image
 
 
@@ -11,12 +13,17 @@ class SegMap:
 
     def __init__(self, path, cut_header_after='D001VER'):
         self.path = path
-        self.img = Image(path, copy=False)
+        self.img = Image(path, copy=False, mask=np.ma.nomask)
         if cut_header_after:
             idx = self.img.data_header.index(cut_header_after)
             self.img.data_header = self.img.data_header[:idx]
 
-    def create_sky_mask(self, outpath, sky_value=0):
-        sky = Image.new_from_obj(self.img,
-                                 self.img.data.filled(-1) == sky_value)
-        sky.write(outpath, savemask='none')
+    def get_mask(self, value):
+        return Image.new_from_obj(self.img, self.img._data == value)
+
+    def get_source_mask(self, iden, center, size, unit_center=u.deg,
+                        unit_size=u.arcsec):
+        im = self.img.subimage(center, size, minsize=size,
+                               unit_center=unit_center, unit_size=unit_size)
+        im.data = im._data == iden
+        return im

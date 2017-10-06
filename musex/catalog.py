@@ -1,11 +1,13 @@
 import importlib
 import logging
+import numpy as np
 import os
 from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 from collections.abc import Sequence
+from pathlib import Path
 from sqlalchemy.sql import select
 
 from .segmap import SegMap
@@ -116,3 +118,27 @@ class PriorCatalog(Catalog):
     @lazyproperty
     def segmap(self):
         return SegMap(self.settings['segmap'])
+
+    def preprocess_segmap(self, dataset):
+        """Create masks from the segmap, adapted to a given dataset."""
+
+        outpath = Path(self.settings['masks_dir']) / dataset.name
+        outpath.mkdir(exist_ok=True)
+
+        # sky mask
+        sky_path = outpath / 'sky.fits'
+        if not sky_path.exists():
+            self.logger.debug('creating sky mask')
+            sky = self.segmap.get_mask(0)
+            sky.align_with_image(dataset.white, inplace=True)
+            sky.write(str(sky_path), savemask='none')
+
+        skyconv_path = outpath / 'sky_convolved.fits'
+        if not sky_path.exists():
+            fsf = dataset.meanfsf
+            logger.debug('convolve with Gaussian FSF %.1f', fsf)
+            skyconv = sky.fftconvolve_gauss(fwhm=(fsf, fsf))
+            skyconv._data = np.where(skyconv._data > 0.1, 1, 0)
+            skyconv.write(str(skyconv_path), savemask='none')
+
+        # source masks
