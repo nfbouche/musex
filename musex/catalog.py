@@ -38,9 +38,11 @@ class ResultSet(Sequence):
         self.catalog = catalog
 
     def __repr__(self):
-        return (f'<{self.__class__.__name__}({self.whereclause}, '
-                f'{self.whereclause.compile().params})>, '
-                f'{len(self)} results')
+        out = f'<{self.__class__.__name__}('
+        if self.whereclause is not None:
+            out += f'{self.whereclause}, {self.whereclause.compile().params}'
+        out += f')>, {len(self)} results'
+        return out
 
     def __len__(self):
         return len(self.results)
