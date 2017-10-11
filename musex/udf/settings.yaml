@@ -65,12 +65,9 @@ catalogs:
 
 extraction:
   additional_datasets: [hst]
-  extended_images:
-    hst:
-      size: 2.0
-      images: [F775W]
   catalog:
     from: hstprior
     name: HST_CAT
     columns: [ID, RA, DEC, MAG_F775W]
-    select_in: HST_F775W_E
+    select_in: HST_F775W
+    margin: 10

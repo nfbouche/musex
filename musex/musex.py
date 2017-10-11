@@ -65,8 +65,7 @@ catalogs: {', '.join(self.catalogs.keys())}
                 add_datasets = [add_datasets]
             add_datasets = [self.datasets[a] for a in add_datasets]
 
-        slist.add_datasets(self.muse_dataset, additional_datasets=add_datasets,
-                           extended_images=settings.get('extended_images'))
+        slist.add_datasets(self.muse_dataset, additional_datasets=add_datasets)
 
         if 'catalog' in settings:
             conf = settings['catalog']
@@ -75,7 +74,7 @@ catalogs: {', '.join(self.catalogs.keys())}
             scat = Catalog(rows=[list(r.values()) for r in res],
                            names=list(res[0].keys()))
             slist.add_catalog(scat, select_in_image=conf['select_in'],
-                              name=conf['name'],
+                              name=conf['name'], margin=conf['margin'],
                               ra=cat.raname, dec=cat.decname)
 
         return slist

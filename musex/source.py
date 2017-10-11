@@ -156,8 +156,7 @@ class SourceListX(SourceList):
             srclist.append(src)
         return srclist
 
-    def add_datasets(self, muse_dataset, additional_datasets=None, size=5,
-                     extended_images=None):
+    def add_datasets(self, muse_dataset, additional_datasets=None, size=5):
         logger = self.logger
 
         if additional_datasets is None:
@@ -206,14 +205,6 @@ class SourceListX(SourceList):
                     order = 0 if name == 'SEGMAP' else 1
                     src.add_image(img, f'{ds.prefix}_{tagname}',
                                   rotate=True, order=order)
-
-                # add extended images
-                if extended_images is not None and ds.name in extended_images:
-                    conf = extended_images[ds.name]
-                    for name in conf['images']:
-                        logger.debug('Adding extended image for %s', name)
-                        src.add_image(ds.images[name], f'{ds.prefix}_{name}_E',
-                                      size + conf['size'], rotate=True)
 
     def add_catalog(self, cat, select_in_image, name='CAT', **select_kw):
         for src in self:
