@@ -2,12 +2,16 @@ import importlib
 import logging
 import numpy as np
 import os
+
+import astropy.units as u
 from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
+
 from collections import OrderedDict
 from collections.abc import Sequence
 from mpdaf.obj import Image
+from mpdaf.sdetect import Catalog as _Catalog
 from pathlib import Path
 from sqlalchemy.sql import select
 
@@ -51,7 +55,7 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self):
-        t = Table(data=self.results, names=self.results[0].keys())
+        t = _Catalog(data=self.results, names=self.results[0].keys())
         if '_id' in t.columns:
             t.remove_column('_id')
         return t
@@ -125,7 +129,7 @@ class PriorCatalog(Catalog):
     def preprocess_segmap(self, dataset, skip=True):
         """Create masks from the segmap, adapted to a given dataset."""
 
-        outpath = Path(self.settings['masks_dir']) / dataset.name
+        outpath = Path(self.settings['masks']['outpath']) / dataset.name
         outpath.mkdir(exist_ok=True)
 
         # sky mask
@@ -140,11 +144,11 @@ class PriorCatalog(Catalog):
             sky._data = np.where(sky._data > 0.5, 1, 0)
             sky.write(str(sky_path), savemask='none')
 
+        fsf = dataset.meanfsf
         skyconv_path = outpath / 'sky_convolved.fits'
         if skyconv_path.exists() and skip:
             self.logger.debug('convolved sky mask exists, skipping')
         else:
-            fsf = dataset.meanfsf
             self.logger.debug('creating convolve sky mask, fsf=%.1f', fsf)
             sky = sky or Image(str(sky_path))
             sky._data = np.logical_not(sky._data).astype(float)
@@ -152,4 +156,29 @@ class PriorCatalog(Catalog):
             skyconv._data = np.where(skyconv._data > 0.1, 0, 1)
             skyconv.write(str(skyconv_path), savemask='none')
 
-        # source masks
+        # extract source masks
+        size = self.settings['masks']['size']
+        outname = str(outpath / self.settings['masks']['outname'])
+        columns = [self.idname, self.raname, self.decname]
+
+        # check sources inside dataset
+        tab = self.select(columns=columns).as_table()
+        ntot = len(tab)
+        tab = tab.select(dataset.white.wcs, ra=self.raname, dec=self.decname)
+        self.logger.info('%d sources inside dataset out of %d', len(tab), ntot)
+
+        for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
+            self.logger.debug('extract mask - source %05d', id_)
+            mask = self.segmap.get_source_mask(
+                id_, (dec, ra), size, unit_center=u.deg, unit_size=u.arcsec)
+            mask.align_with_image(dataset.white, inplace=True)
+            mask.crop()
+            mask.data /= mask.data.max()
+            mask._data = np.where(mask._data > 0.01, 1, 0)
+            mask.write(outname.format(id_) + '-test.fits', savemask='none')
+
+            # TODO: create gaussian image only once
+            maskconv = mask.fftconvolve_gauss(fwhm=(fsf, fsf))
+            maskconv._data = np.where(maskconv._data > 0.1, 0, 1)
+            maskconv.write(outname.format(id_), savemask='none')
+            break

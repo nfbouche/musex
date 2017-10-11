@@ -53,7 +53,11 @@ catalogs:
       raname: RA
       decname: DEC
     segmap: '{hst_data_dir}/SegMap/segmentation_map_rafelski_2015.fits'
-    masks_dir: '{workdir}/hstprior'
+    masks:
+      # path, name and size (arcseconds) of the extracted masks
+      outpath: '{workdir}/hstprior'
+      outname: 'mask-source-{{:05d}}.fits'
+      size: [20, 20]
   # muse:
   #   class: musex.catalog.Origin
 
