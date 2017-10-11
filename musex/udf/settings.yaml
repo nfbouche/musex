@@ -28,7 +28,6 @@ datasets:
   muse-udf-10:
     version: '1.0b1'
     prefix: MUSE
-    meanfsf: 0.6
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-10.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-10.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-10.fits'
@@ -37,7 +36,6 @@ datasets:
   muse-udf-mosaic:
     version: '1.0b1'
     prefix: MUSE
-    meanfsf: 0.6
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-MOSAIC.fits'
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-MOSAIC.fits'
@@ -57,6 +55,7 @@ catalogs:
       # path, name and size (arcseconds) of the extracted masks
       outpath: '{workdir}/hstprior'
       outname: 'mask-source-{{:05d}}.fits'
+      convolve_fsf: 0.6
       size: [20, 20]
   # muse:
   #   class: musex.catalog.Origin

@@ -20,14 +20,6 @@ class DataSet:
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
 
-    @property
-    def meanfsf(self):
-        try:
-            return self.settings['meanfsf']
-        except KeyError:
-            self.logger.warning('meanfsf not found in settings, using 0.6')
-            return 0.6
-
     @lazyproperty
     def images(self):
         # with warnings.catch_warnings():

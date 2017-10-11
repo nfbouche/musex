@@ -144,12 +144,12 @@ class PriorCatalog(Catalog):
             sky._data = np.where(sky._data > 0.5, 1, 0)
             sky.write(str(sky_path), savemask='none')
 
-        fsf = dataset.meanfsf
+        fsf = self.settings['masks']['convolve_fsf']
         skyconv_path = outpath / 'sky_convolved.fits'
         if skyconv_path.exists() and skip:
             self.logger.debug('convolved sky mask exists, skipping')
         else:
-            self.logger.debug('creating convolve sky mask, fsf=%.1f', fsf)
+            self.logger.debug('creating convolved sky mask, fsf=%.1f', fsf)
             sky = sky or Image(str(sky_path))
             sky._data = np.logical_not(sky._data).astype(float)
             skyconv = sky.fftconvolve_gauss(fwhm=(fsf, fsf))
