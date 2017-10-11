@@ -2,7 +2,7 @@ import logging
 import os
 from mpdaf.sdetect import Catalog
 
-from .dataset import load_datasets
+from .dataset import load_datasets, DataSet
 from .catalog import load_catalogs
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
@@ -18,7 +18,7 @@ class MuseX:
 
     """
 
-    def __init__(self, settings_file=None, **kwargs):
+    def __init__(self, settings_file=None, muse_dataset=None, **kwargs):
         if settings_file is None:
             dirname = os.path.abspath(os.path.dirname(__file__))
             settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
@@ -31,6 +31,11 @@ class MuseX:
         self.datasets = load_datasets(self.conf)
         self.catalogs = load_catalogs(self.conf, self.db)
 
+        settings = self.conf['muse_datasets']
+        muse_dataset = muse_dataset or settings['default']
+        self.muse_dataset = DataSet(muse_dataset,
+                                    settings=settings[muse_dataset])
+
         if self.conf['show_banner']:
             self.info()
 
@@ -38,25 +43,29 @@ class MuseX:
         print(f"""
 MUSEX, {__description__} - v{__version__}
 
+muse:     {self.muse_dataset.name}
 datasets: {', '.join(self.datasets.keys())}
 catalogs: {', '.join(self.catalogs.keys())}
 """)
 
-    def export_resultset(self, resultset, muse_dataset=None):
+    def preprocess(self, skip=True):
+        for cat in self.catalogs.values():
+            cat.preprocess(self.muse_dataset, skip=skip)
+
+    def export_resultset(self, resultset):
         settings = self.conf['extraction']
         slist = SourceListX.from_coords(resultset,
                                         **resultset.catalog.colnames)
 
-        muse_dataset = muse_dataset or settings['dataset']
-        self.logger.info('Exporting results with %s dataset', muse_dataset)
+        self.logger.info('Exporting results with %s dataset',
+                         self.muse_dataset.name)
         add_datasets = settings.get('additional_datasets')
         if add_datasets:
             if not isinstance(add_datasets, (list, tuple)):
                 add_datasets = [add_datasets]
             add_datasets = [self.datasets[a] for a in add_datasets]
 
-        slist.add_datasets(self.datasets[muse_dataset],
-                           additional_datasets=add_datasets,
+        slist.add_datasets(self.muse_dataset, additional_datasets=add_datasets,
                            extended_images=settings.get('extended_images'))
 
         if 'catalog' in settings:

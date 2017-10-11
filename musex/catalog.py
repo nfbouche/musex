@@ -77,6 +77,9 @@ class Catalog:
     def table(self):
         return self.db.create_table(self.name, primary_id='_id')
 
+    def preprocess(self, dataset, skip=True):
+        pass
+
     def ingest_catalog(self, limit=None):
         logger.info('ingesting catalog %s', self.catalog)
         cat = Table.read(self.catalog)
@@ -126,9 +129,10 @@ class PriorCatalog(Catalog):
     def segmap(self):
         return SegMap(self.settings['segmap'])
 
-    def preprocess_segmap(self, dataset, skip=True):
+    def preprocess(self, dataset, skip=True):
         """Create masks from the segmap, adapted to a given dataset."""
 
+        super().preprocess(dataset, skip=skip)
         outpath = Path(self.settings['masks']['outpath']) / dataset.name
         outpath.mkdir(exist_ok=True)
 

@@ -25,6 +25,9 @@ datasets:
       'F125W': '{hst_data_dir}/XUDF/hlsp_xdf_hst_wfc3ir-60mas_hudf_f125w_v1_sci.fits'
       'F160W': '{hst_data_dir}/XUDF/hlsp_xdf_hst_wfc3ir-60mas_hudf_f160w_v1_sci.fits'
 
+muse_datasets:
+  default: muse-udf-10
+
   muse-udf-10:
     version: '1.0b1'
     prefix: MUSE
@@ -61,7 +64,6 @@ catalogs:
   #   class: musex.catalog.Origin
 
 extraction:
-  dataset: muse-udf-10
   additional_datasets: [hst]
   extended_images:
     hst:
