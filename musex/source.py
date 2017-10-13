@@ -4,7 +4,7 @@ import numpy as np
 from mpdaf.sdetect import Source, SourceList
 from os.path import basename
 
-from .hstutils import skymask_from_hst, objmask_from_hst
+# from .hstutils import skymask_from_hst, objmask_from_hst
 from .version import __version__
 
 
@@ -164,19 +164,14 @@ class SourceListX(SourceList):
 
         # TODO: ProgressBar, parallelize ?
         for src in self:
-            # TODO!
-            # src.SIZE = size
-
-            # FIXME: create white when adding cube
-            logger.debug('Adding white light image')
-            src.add_white_image(muse_dataset.cube, size)
-
             # set PA: FIXME - useful ?
             # src.set_pa(muse_dataset.cube)
 
-            logger.debug('Adding Datacube')
+            logger.debug('Adding Datacube and white light image')
+            src.default_size = size
+            src.SIZE = size
             src.add_cube(muse_dataset.cube, f'{muse_dataset.prefix}_CUBE',
-                         size=size, unit_wave=None)
+                         size=size, unit_wave=None, add_white=True)
             src.CUBE = basename(muse_dataset.settings['datacube'])
             src.CUBE_V = muse_dataset.version
 
