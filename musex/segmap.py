@@ -14,7 +14,7 @@ class SegMap:
     def __init__(self, path, cut_header_after='D001VER'):
         self.path = path
         self.img = Image(path, copy=False, mask=np.ma.nomask)
-        if cut_header_after:
+        if cut_header_after and cut_header_after in self.img.data_header:
             idx = self.img.data_header.index(cut_header_after)
             self.img.data_header = self.img.data_header[:idx]
 
