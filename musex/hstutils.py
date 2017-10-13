@@ -1,13 +1,10 @@
 import astropy.units as u
-import logging
 import numpy as np
 
 
 def align_with_image(img, other, inplace=False, order=1, fsf_conv=None):
     """Align `img` to match `ref` (rotation, fsf convolution, and resampling).
     """
-    logger = logging.getLogger(__name__)
-
     # Do nothing if the images are already aligned.
     if img.wcs.isEqual(other.wcs):
         return img if inplace else img.copy()
@@ -34,13 +31,10 @@ def align_with_image(img, other, inplace=False, order=1, fsf_conv=None):
     # perform this step even if no rotation is otherwise needed.
     out._rotate(other.wcs.get_rot() - out.wcs.get_rot(), reshape=True,
                 regrid=True, flux=False, order=order)
-    if order == 0:
-        out._data = out._data.astype(int)
 
     # convolve with FSF
     if fsf_conv:
         # TODO: replace with dilatation ?
-        logger.debug('Convolve with Gaussian FSF %.1f', fsf_conv)
         out.fftconvolve_gauss(fwhm=(fsf_conv, fsf_conv), inplace=True)
 
     # Get the pixel index and Dec,Ra coordinate at the center of
