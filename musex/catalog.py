@@ -10,7 +10,7 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
-from mpdaf.obj import gauss_image
+# from mpdaf.obj import gauss_image
 from mpdaf.sdetect import Catalog as _Catalog
 from os.path import exists
 from pathlib import Path

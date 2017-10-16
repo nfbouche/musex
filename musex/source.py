@@ -1,6 +1,7 @@
 import astropy.units as u
 import logging
 import numpy as np
+from astropy.table import Column
 from mpdaf.sdetect import Source, SourceList
 from os.path import basename
 
@@ -205,8 +206,9 @@ class SourceListX(SourceList):
         for src in self:
             wcs = src.images[select_in_image].wcs
             scat = cat.select(wcs, **select_kw)
+            dist = scat.edgedist(wcs, **select_kw)
+            scat.add_column(Column(name='DIST', data=dist))
             # FIXME: is it the same ?
-            # FIXME: add margin column
             # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
             self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
             src.add_table(scat, name)
