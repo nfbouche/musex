@@ -46,6 +46,7 @@ muse_datasets:
 
 catalogs:
   hstprior:
+    prefix: HST
     class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'

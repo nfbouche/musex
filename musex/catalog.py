@@ -21,7 +21,6 @@ from .segmap import SegMap
 from .settings import isnotebook
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
-logger = logging.getLogger(__name__)
 
 __all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 
@@ -84,10 +83,10 @@ class Catalog:
         pass
 
     def ingest_catalog(self, limit=None):
-        logger.info('ingesting catalog %s', self.catalog)
+        self.logger.info('ingesting catalog %s', self.catalog)
         cat = Table.read(self.catalog)
         if limit:
-            logger.info('keeping only %d rows', limit)
+            self.logger.info('keeping only %d rows', limit)
             cat = cat[:limit]
 
         # TODO: Use ID as primary key ?
@@ -109,8 +108,8 @@ class Catalog:
                     count_inserted += 1
 
         table.create_index(self.idname)
-        logger.info('%d rows inserted, %s updated', count_inserted,
-                    count_updated)
+        self.logger.info('%d rows inserted, %s updated', count_inserted,
+                         count_updated)
 
     @property
     def c(self):
@@ -158,19 +157,21 @@ class PriorCatalog(Catalog):
         return join(self.settings['masks']['outpath'], dataset.name,
                     self.settings['masks']['outname']).format(source_id)
 
-    def get_sky_mask(self, dataset, source_id, size, unit_size=u.arcsec):
+    def get_sky_mask(self, dataset, source_id, size, center=None):
         sky = self._skyim.get(dataset)
         if sky is None:
             sky = self._skyim[dataset] = Image(self.get_sky_mask_path(dataset))
-        s = self.select(self.c[self.idname] == source_id)[0]
-        return sky.subimage((s[self.decname], s[self.raname]), size,
-                            minsize=size, unit_size=unit_size)
+        if center is None:
+            s = self.select(self.c[self.idname] == source_id)[0]
+            center = (s[self.decname], s[self.raname])
+        return sky.subimage(center, size, minsize=size, unit_size=u.arcsec)
 
-    def get_source_mask(self, dataset, source_id, size, unit_size=u.arcsec):
+    def get_source_mask(self, dataset, source_id, size, center=None):
         src = Image(self.get_source_mask_path(dataset, source_id))
-        s = self.select(self.c[self.idname] == source_id)[0]
-        return src.subimage((s[self.decname], s[self.raname]), size,
-                            minsize=size, unit_size=unit_size)
+        if center is None:
+            s = self.select(self.c[self.idname] == source_id)[0]
+            center = (s[self.decname], s[self.raname])
+        return src.subimage(center, size, minsize=size, unit_size=u.arcsec)
 
     def preprocess(self, dataset, skip=True):
         """Create masks from the segmap, adapted to a given dataset.
@@ -236,3 +237,43 @@ class PriorCatalog(Catalog):
             mask.data /= mask.data.max()
             mask._data = np.where(mask._data > 0.1, 1, 0)
             mask.write(source_path, savemask='none')
+
+    def add_to_source(self, src, dataset, nskywarn=(50, 5)):
+        super().add_to_source(src)
+
+        size = src.default_size
+        center = (src.DEC, src.RA)
+        seg_obj = self.get_source_mask(dataset, src.ID, size, center=center)
+        seg_sky = self.get_sky_mask(dataset, src.ID, size, center=center)
+
+        # add segmentation map
+        src.images['SEG_HST'] = seg_obj
+        src.images['SEG_HST_ALL'] = seg_sky
+
+        # create masks
+        src.find_sky_mask(['SEG_HST_ALL'], sky_mask='MASK_SKY')
+        src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
+
+        # delete temporary segmentation masks
+        del src.images['SEG_HST_ALL'], src.images['SEG_HST']
+
+        # compute surface of each masks and compare to field of view, save
+        # values in header
+        nsky = np.count_nonzero(src.images['MASK_SKY']._data)
+        nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
+        nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
+        nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
+        min_nsky_abs, min_nsky_rel = nskywarn
+        if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
+            self.logger.warning('Sky Mask is too small. Size is %d spaxel or '
+                                '%.1f %% of total area', nsky, nfracsky)
+
+        fsf = self.settings['masks']['convolve_fsf']
+        src.add_attr('FSFMSK', fsf, 'HST Mask Conv Gauss FWHM in arcsec')
+        src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+        src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
+        src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+        src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
+        # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
+        # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
+        return nobj, nfracobj, nsky, nfracobj

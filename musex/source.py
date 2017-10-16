@@ -64,61 +64,6 @@ class SourceX(Source):
         self.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
         return nobj, nfracobj, nsky, nfracobj
 
-    def add_mask_from_hst(self, hstsegmap, idlist, fsf=0.6, thres=(0.05, 0.1),
-                          nskywarn=(50, 5)):
-        """
-        hstsegmap: hst segmentation map
-        idlist: list of IDs
-        fsf: fwhm of fsf in arcsec
-        thres: threshold value for masking
-        nskywarn: used to write up warnings if sky mask is too small
-        """
-        if 'MUSE_WHITE' not in self.images:
-            raise ValueError('MUSE_WHITE image not found')
-        shape = self.images['MUSE_WHITE'].shape
-        step = self.images['MUSE_WHITE'].wcs.get_step(unit=u.arcsec)
-        if self.images['MUSE_WHITE'].wcs.sameStep(hstsegmap.wcs):
-            size = shape
-        else:
-            size = step[0] * shape[0]
-
-        seg_obj = objmask_from_hst((self.ra, self.dec), idlist, hstsegmap,
-                                   self.images['MUSE_WHITE'], size, fsf=fsf,
-                                   thres=thres)
-        seg_sky = skymask_from_hst((self.ra, self.dec), hstsegmap,
-                                   self.images['MUSE_WHITE'], size, fsf=fsf,
-                                   thres=thres)
-
-        # add segmentation map
-        self.images['SEG_HST'] = seg_obj
-        self.images['SEG_HST_ALL'] = seg_sky
-
-        # create masks
-        self.find_sky_mask(['SEG_HST_ALL'], 'MASK_SKY')
-        self.find_union_mask(['SEG_HST'], 'MASK_OBJ')
-
-        # delete temporary segmentation masks
-        del self.images['SEG_HST_ALL'], self.images['SEG_HST']
-
-        # compute surface of each masks and compare to field of view, save
-        # values in header
-        nsky = np.count_nonzero(self.images['MASK_SKY']._data)
-        nobj = np.count_nonzero(self.images['MASK_OBJ']._data)
-        nfracsky = 100.0 * nsky / np.prod(self.images['MASK_OBJ'].shape)
-        nfracobj = 100.0 * nobj / np.prod(self.images['MASK_OBJ'].shape)
-        min_nsky_abs, min_nsky_rel = nskywarn
-        if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
-            self._logger.warning('Sky Mask is too small. Size is %d spaxel or '
-                                 '%.1f %% of total area', nsky, nfracsky)
-        self.add_attr('FSFMSK', fsf, 'HST Mask Conv Gauss FWHM in arcsec')
-        self.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-        self.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
-        self.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-        self.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
-        self.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
-        self.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-        return nobj, nfracobj, nsky, nfracobj
-
     def add_mask(self, mask_mode, segmap=None, iden_hst=None, radius=0):
         self._logger.debug('Computing mask, mode %s', mask_mode)
         if mask_mode == 'HST':

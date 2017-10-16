@@ -70,6 +70,6 @@ catalogs: {', '.join(self.catalogs.keys())}
             for ds in datasets:
                 ds.add_to_source(src, size)
 
-            cat.add_to_source(src)
+            cat.add_to_source(src, self.muse_dataset)
 
         return slist
