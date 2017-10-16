@@ -10,9 +10,9 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
-# from mpdaf.obj import gauss_image
+from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog as _Catalog
-from os.path import exists
+from os.path import exists, join
 from pathlib import Path
 from sqlalchemy.sql import select
 
@@ -56,8 +56,9 @@ class ResultSet(Sequence):
     def __getitem__(self, index):
         return self.results[index]
 
-    def as_table(self):
-        t = _Catalog(data=self.results, names=self.results[0].keys())
+    def as_table(self, mpdaf_catalog=True):
+        cls = _Catalog if mpdaf_catalog else Table
+        t = cls(data=self.results, names=self.results[0].keys())
         if '_id' in t.columns:
             t.remove_column('_id')
         return t
@@ -70,7 +71,7 @@ class Catalog:
         self.settings = settings
         self.db = db
         self.logger = logging.getLogger(__name__)
-        for key in ('catalog', 'colnames', 'version'):
+        for key in ('catalog', 'colnames', 'version', 'prefix'):
             setattr(self, key, self.settings.get(key))
         for key, val in self.settings['colnames'].items():
             setattr(self, key, val)
@@ -124,27 +125,73 @@ class Catalog:
                                      **params))
         return ResultSet(query, whereclause=whereclause, catalog=self)
 
+    def add_to_source(self, src):
+        conf = self.settings['extract']
+        cat = self.select(columns=conf['columns']).as_table()
+        wcs = src.images[conf.get('select_in', 'WHITE')].wcs
+        scat = cat.select(wcs, ra=self.raname, dec=self.decname,
+                          margin=conf['margin'])
+        dist = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
+        scat.add_column(Column(name='DIST', data=dist))
+        # FIXME: is it the same ?
+        # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
+        name = conf.get('name', 'CAT')
+        self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
+        src.add_table(scat, f'{self.prefix}_{name}')
+
 
 class PriorCatalog(Catalog):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._skyim = {}
 
     @lazyproperty
     def segmap(self):
         return SegMap(self.settings['segmap'])
 
-    def preprocess(self, dataset, skip=True):
-        """Create masks from the segmap, adapted to a given dataset."""
+    def get_sky_mask_path(self, dataset):
+        return join(self.settings['masks']['outpath'], dataset.name,
+                    'sky.fits')
 
+    def get_source_mask_path(self, dataset, source_id):
+        return join(self.settings['masks']['outpath'], dataset.name,
+                    self.settings['masks']['outname']).format(source_id)
+
+    def get_sky_mask(self, dataset, source_id, size, unit_size=u.arcsec):
+        sky = self._skyim.get(dataset)
+        if sky is None:
+            sky = self._skyim[dataset] = Image(self.get_sky_mask_path(dataset))
+        s = self.select(self.c[self.idname] == source_id)[0]
+        return sky.subimage((s[self.decname], s[self.raname]), size,
+                            minsize=size, unit_size=unit_size)
+
+    def get_source_mask(self, dataset, source_id, size, unit_size=u.arcsec):
+        src = Image(self.get_source_mask_path(dataset, source_id))
+        s = self.select(self.c[self.idname] == source_id)[0]
+        return src.subimage((s[self.decname], s[self.raname]), size,
+                            minsize=size, unit_size=unit_size)
+
+    def preprocess(self, dataset, skip=True):
+        """Create masks from the segmap, adapted to a given dataset.
+
+        TODO: store in the database for each source: the sky and source mask
+        paths, and preprocessing status
+
+        """
         super().preprocess(dataset, skip=skip)
+
+        # create output path if needed
         outpath = Path(self.settings['masks']['outpath']) / dataset.name
         outpath.mkdir(exist_ok=True)
 
         debug = self.logger.debug
 
         # sky mask
-        sky_path = outpath / 'sky.fits'
+        sky_path = self.get_sky_mask_path(dataset)
         fsf = self.settings['masks']['convolve_fsf']
 
-        if sky_path.exists() and skip:
+        if exists(sky_path) and skip:
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
@@ -154,11 +201,10 @@ class PriorCatalog(Catalog):
                              fsf_conv=fsf)
             sky.data /= np.max(sky.data)
             sky._data = np.where(sky._data > 0.1, 0, 1)
-            sky.write(str(sky_path), savemask='none')
+            sky.write(sky_path, savemask='none')
 
         # extract source masks
         size = self.settings['masks']['size']
-        outname = str(outpath / self.settings['masks']['outname'])
         columns = [self.idname, self.raname, self.decname]
 
         # check sources inside dataset
@@ -176,7 +222,7 @@ class PriorCatalog(Catalog):
         # ima.norm(typ='sum')
 
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
-            source_path = outname.format(id_)
+            source_path = self.get_source_mask_path(dataset, id_)
             if exists(source_path):
                 debug('source %05d exists, skipping', id_)
                 continue

@@ -1,8 +1,7 @@
 import logging
 import os
-from mpdaf.sdetect import Catalog
 
-from .dataset import load_datasets, DataSet
+from .dataset import load_datasets, MuseDataSet
 from .catalog import load_catalogs
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
@@ -33,8 +32,8 @@ class MuseX:
 
         settings = self.conf['muse_datasets']
         muse_dataset = muse_dataset or settings['default']
-        self.muse_dataset = DataSet(muse_dataset,
-                                    settings=settings[muse_dataset])
+        self.muse_dataset = MuseDataSet(muse_dataset,
+                                        settings=settings[muse_dataset])
 
         if self.conf['show_banner']:
             self.info()
@@ -52,29 +51,25 @@ catalogs: {', '.join(self.catalogs.keys())}
         for cat in self.catalogs.values():
             cat.preprocess(self.muse_dataset, skip=skip)
 
-    def export_resultset(self, resultset):
+    def export_resultset(self, resultset, size=5):
         settings = self.conf['extraction']
-        slist = SourceListX.from_coords(resultset,
-                                        **resultset.catalog.colnames)
+        cat = resultset.catalog
+        slist = SourceListX.from_coords(resultset, **cat.colnames)
 
-        self.logger.info('Exporting results with %s dataset',
-                         self.muse_dataset.name)
+        self.logger.info('Exporting results with %s dataset, size=%.1f',
+                         self.muse_dataset.name, size)
+        datasets = [self.muse_dataset]
         add_datasets = settings.get('additional_datasets')
         if add_datasets:
             if not isinstance(add_datasets, (list, tuple)):
                 add_datasets = [add_datasets]
-            add_datasets = [self.datasets[a] for a in add_datasets]
+            datasets += [self.datasets[a] for a in add_datasets]
 
-        slist.add_datasets(self.muse_dataset, additional_datasets=add_datasets)
+        for src in slist:
+            self.logger.info('source %05d', src.ID)
+            for ds in datasets:
+                ds.add_to_source(src, size)
 
-        if 'catalog' in settings:
-            conf = settings['catalog']
-            cat = self.catalogs[conf['from']]
-            res = cat.select(columns=conf['columns'])
-            scat = Catalog(rows=[list(r.values()) for r in res],
-                           names=list(res[0].keys()))
-            slist.add_catalog(scat, select_in_image=conf['select_in'],
-                              name=conf['name'], margin=conf['margin'],
-                              ra=cat.raname, dec=cat.decname)
+            cat.add_to_source(src)
 
         return slist

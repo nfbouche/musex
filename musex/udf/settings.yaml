@@ -60,14 +60,12 @@ catalogs:
       outname: 'mask-source-{{:05d}}.fits'
       convolve_fsf: 0.6
       size: [20, 20]
+    extract:
+      columns: [ID, RA, DEC, MAG_F775W]
+      select_in: HST_F775W
+      margin: 10
   # muse:
   #   class: musex.catalog.Origin
 
 extraction:
   additional_datasets: [hst]
-  catalog:
-    from: hstprior
-    name: HST_CAT
-    columns: [ID, RA, DEC, MAG_F775W]
-    select_in: HST_F775W
-    margin: 10

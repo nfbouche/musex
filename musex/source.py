@@ -1,9 +1,7 @@
 import astropy.units as u
 import logging
 import numpy as np
-from astropy.table import Column
 from mpdaf.sdetect import Source, SourceList
-from os.path import basename
 
 # from .hstutils import skymask_from_hst, objmask_from_hst
 from .version import __version__
@@ -156,62 +154,6 @@ class SourceListX(SourceList):
             src.SRC_V = srcvers
             srclist.append(src)
         return srclist
-
-    def add_datasets(self, muse_dataset, additional_datasets=None, size=5):
-        logger = self.logger
-
-        if additional_datasets is None:
-            additional_datasets = []
-
-        # TODO: ProgressBar, parallelize ?
-        for src in self:
-            # set PA: FIXME - useful ?
-            # src.set_pa(muse_dataset.cube)
-
-            logger.debug('Adding Datacube and white light image')
-            src.default_size = size
-            src.SIZE = size
-            src.add_cube(muse_dataset.cube, f'{muse_dataset.prefix}_CUBE',
-                         size=size, unit_wave=None, add_white=True)
-            src.CUBE = basename(muse_dataset.settings['datacube'])
-            src.CUBE_V = muse_dataset.version
-
-            # add expmap image + average and dispersion value of expmap
-            logger.debug('Adding expmap image')
-            src.add_image(muse_dataset.expima, f'{muse_dataset.prefix}_EXPMAP')
-            ima = src.images[f'{muse_dataset.prefix}_EXPMAP']
-            src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
-            src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
-            src.EXPMAX = (np.ma.max(ima.data), 'Maximum value of EXPMAP')
-            logger.debug('Expmap mean %.2f min %.2f max %.2f',
-                         src.EXPMEAN, src.EXPMIN, src.EXPMAX)
-
-            # add fsf info
-            if muse_dataset.cube.primary_header.get('FSFMODE') == 'MOFFAT1':
-                logger.debug('Adding FSF info from the datacube')
-                src.add_FSF(muse_dataset.cube)
-
-            for ds in [muse_dataset] + additional_datasets:
-                for name, img in getattr(ds, 'images', {}).items():
-                    name = name.upper()
-                    if name == 'WHITE':  # white image is handled separately
-                        continue
-                    tagname = getattr(img, 'name', name)
-                    logger.debug('Adding image %s', tagname)
-                    order = 0 if name == 'SEGMAP' else 1
-                    src.add_image(img, f'{ds.prefix}_{tagname}',
-                                  rotate=True, order=order)
-
-    def add_catalog(self, cat, select_in_image, name='CAT', **select_kw):
-        for src in self:
-            wcs = src.images[select_in_image].wcs
-            scat = cat.select(wcs, **select_kw)
-            dist = scat.edgedist(wcs, **select_kw)
-            scat.add_column(Column(name='DIST', data=dist))
-            # FIXME: is it the same ?
-            # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-            self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
-            src.add_table(scat, name)
 
     def extract_spectra(self, apertures):
         self.logger.debug('Extract spectra for apertures %s', apertures)
