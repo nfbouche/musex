@@ -69,4 +69,5 @@ catalogs:
   #   class: musex.catalog.Origin
 
 extraction:
+  apertures: [0.4]
   additional_datasets: [hst]

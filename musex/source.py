@@ -79,6 +79,30 @@ class SourceX(Source):
         elif mask_mode == 'APERHST':
             self.add_mask_from_aperture(radius, segmap)
 
+    def get_fsf(self):
+        if 'FSFMODE' not in self.header:
+            return
+        for field in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 99]:
+            if 'FSF{:02d}BET'.format(field) in self.header:
+                beta = self.header['FSF{:02d}BET'.format(field)]
+                a = self.header['FSF{:02d}FWA'.format(field)]
+                b = self.header['FSF{:02d}FWB'.format(field)]
+                return a, b, beta, field
+
+    def extract_all_spectra(self, cube=None, apertures=None):
+        self._logger.debug('Extract spectra for apertures %s', apertures)
+        cube = cube or self.cubes['MUSE_CUBE']
+        kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY', unit_wave=None)
+        self.extract_spectra(cube, skysub=False, apertures=apertures, **kw)
+        self.extract_spectra(cube, skysub=True, apertures=apertures, **kw)
+        if 'FSFMODE' in self.header:
+            a, b, beta, field = self.get_fsf()
+            fwhm = b * cube.wave.coord() + a
+            self.extract_spectra(cube, skysub=False, psf=fwhm, beta=beta,
+                                 apertures=None, **kw)
+            self.extract_spectra(cube, skysub=True, psf=fwhm, beta=beta,
+                                 apertures=None, **kw)
+
 
 class SourceListX(SourceList):
 
@@ -100,8 +124,3 @@ class SourceListX(SourceList):
             srclist.append(src)
         return srclist
 
-    def extract_spectra(self, apertures):
-        self.logger.debug('Extract spectra for apertures %s', apertures)
-        for src in self:
-            src.extract_all_spectra(src.cubes['MUSE_CUBE'],
-                                    apertures=apertures)

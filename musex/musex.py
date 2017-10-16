@@ -71,5 +71,6 @@ catalogs: {', '.join(self.catalogs.keys())}
                 ds.add_to_source(src, size)
 
             cat.add_to_source(src, self.muse_dataset)
+            src.extract_all_spectra(apertures=settings['apertures'])
 
         return slist
