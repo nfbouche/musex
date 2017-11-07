@@ -64,6 +64,8 @@ class ResultSet(Sequence):
 
 
 class Catalog:
+    """Handle Catalogs by the way of a database table.
+    """
 
     def __init__(self, name, settings, db):
         self.name = name
@@ -77,12 +79,20 @@ class Catalog:
 
     @lazyproperty
     def table(self):
+        """The Dataset Table object.
+
+        https://dataset.readthedocs.io/en/latest/api.html#table
+        """
         return self.db.create_table(self.name, primary_id='_id')
 
     def preprocess(self, dataset, skip=True):
+        """Generate intermediate results linked to a given dataset."""
         pass
 
     def ingest_catalog(self, limit=None):
+        """Ingest the source catalog (given in the settings file). Existing
+        records are updated.
+        """
         self.logger.info('ingesting catalog %s', self.catalog)
         cat = Table.read(self.catalog)
         if limit:
@@ -113,9 +123,20 @@ class Catalog:
 
     @property
     def c(self):
+        """The list of columns from the SQLAlchemy table object."""
         return self.table.table.c
 
     def select(self, whereclause=None, columns=None, **params):
+        """Select rows in the catalog.
+
+        Parameters
+        ----------
+        whereclause:
+            The SQLAlchemy selection clause.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+
+        """
         if columns is not None:
             columns = [self.c[col] for col in columns]
         else:
@@ -125,6 +146,7 @@ class Catalog:
         return ResultSet(query, whereclause=whereclause, catalog=self)
 
     def add_to_source(self, src):
+        """Add information to the Source object."""
         conf = self.settings['extract']
         cat = self.select(columns=conf['columns']).as_table()
         wcs = src.images[conf.get('select_in', 'WHITE')].wcs
@@ -138,6 +160,16 @@ class Catalog:
         self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
         src.add_table(scat, f'{self.prefix}_{name}')
 
+#     def merge_close_sources(self, maxdist=0.2*u.arcsec):
+#         from astropy.coordinates import SkyCoord
+#         columns = [self.idname, self.raname, self.decname]
+#         tab = self.select(columns=columns).as_table()
+#         coords = SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
+#                           unit=(u.deg, u.deg), frame='fk5')
+#         dist = coords.separation(coords[:, None])
+#         ind = np.where(np.sum(dist < maxdist, axis=0) > 1)
+#         # FIXME: find how to merge close sources ...
+
 
 class PriorCatalog(Catalog):
 
@@ -147,6 +179,7 @@ class PriorCatalog(Catalog):
 
     @lazyproperty
     def segmap(self):
+        """The segmentation map."""
         return SegMap(self.settings['segmap'])
 
     def get_sky_mask_path(self, dataset):
@@ -181,12 +214,11 @@ class PriorCatalog(Catalog):
 
         """
         super().preprocess(dataset, skip=skip)
+        debug = self.logger.debug
 
         # create output path if needed
         outpath = Path(self.settings['masks']['outpath']) / dataset.name
         outpath.mkdir(exist_ok=True)
-
-        debug = self.logger.debug
 
         # sky mask
         sky_path = self.get_sky_mask_path(dataset)
