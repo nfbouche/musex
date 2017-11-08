@@ -279,15 +279,14 @@ class PriorCatalog(Catalog):
         seg_sky = self.get_sky_mask(dataset, src.ID, size, center=center)
 
         # add segmentation map
-        src.images['SEG_HST'] = seg_obj
-        src.images['SEG_HST_ALL'] = seg_sky
+        src.images['MASK_SKY'] = seg_sky
 
-        # create masks
-        src.find_sky_mask(['SEG_HST_ALL'], sky_mask='MASK_SKY')
-        src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
-
-        # delete temporary segmentation masks
-        del src.images['SEG_HST_ALL'], src.images['SEG_HST']
+        # FIXME: check that this is enough (no need to use find_union_mask)
+        src.images['MASK_OBJ'] = seg_obj
+        # src.images['SEG_HST'] = seg_obj
+        # src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
+        # # delete temporary segmentation masks
+        # del src.images['SEG_HST']
 
         # compute surface of each masks and compare to field of view, save
         # values in header
