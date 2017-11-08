@@ -1,9 +1,12 @@
 import astropy.units as u
 import logging
 import numpy as np
+import os
+import shutil
 from mpdaf.sdetect import Source, SourceList
 
 # from .hstutils import skymask_from_hst, objmask_from_hst
+from .pdf import create_pdf
 from .version import __version__
 
 
@@ -103,6 +106,10 @@ class SourceX(Source):
             self.extract_spectra(cube, skysub=True, psf=fwhm, beta=beta,
                                  apertures=None, **kw)
 
+        # FIXME: handle this correctly... (set_refspec)
+        self.add_attr('REFSPEC', 'MUSE_PSF_SKYSUB',
+                      desc='Name of reference spectra')
+
 
 class SourceListX(SourceList):
 
@@ -124,3 +131,29 @@ class SourceListX(SourceList):
             srclist.append(src)
         return srclist
 
+    def export_to_pdf(self, name, white, path='.'):
+        path = os.path.join(os.path.normpath(path), name)
+        os.makedirs(path, exist_ok=True)
+
+        # TODO: pdf filename with infos
+        # if info:
+        #     # f = os.path.splitext(os.path.basename(src.filename))[0]
+        #     confid = str(src.CONFID) if hasattr(src, 'CONFID') else 'u'
+        #     stype = str(src.TYPE) if hasattr(src, 'TYPE') else 'u'
+        #     z = src.get_zmuse()
+        #     if z is None:
+        #         zval = 'uu'
+        #     else:
+        #         if z < 0:
+        #             zval = '00'
+        #         else:
+        #             zval = '{:.1f}'.format(z)
+        #             zval = zval[0] + zval[2]
+        #     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
+
+        info = self.logger.info
+        nfiles = len(self)
+        for k, src in enumerate(self):
+            outf = f'{path}/{name}-{src.ID:04d}.pdf'
+            info('%d/%d: PDF source %s -> %s', k + 1, nfiles, src.ID, outf)
+            create_pdf(src, white, outf)
