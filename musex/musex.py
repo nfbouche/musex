@@ -50,11 +50,12 @@ catalogs: {', '.join(self.catalogs.keys())}
         for cat in self.catalogs.values():
             cat.preprocess(self.muse_dataset, skip=skip)
 
-    def export_resultset(self, resultset, size=5):
+    def export_resultset(self, resultset, size=5, srcvers=''):
         """Export a catalog selection (`ResultSet`) to a SourceList."""
         settings = self.conf['extraction']
         cat = resultset.catalog
-        slist = SourceListX.from_coords(resultset, **cat.colnames)
+        slist = SourceListX.from_coords(resultset, srcvers=srcvers,
+                                        **cat.colnames)
 
         self.logger.info('Exporting results with %s dataset, size=%.1f',
                          self.muse_dataset.name, size)

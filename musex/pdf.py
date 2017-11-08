@@ -1,6 +1,7 @@
+import datetime
 import logging
 import matplotlib.pylab as plt
-# import os
+import os
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
@@ -38,7 +39,7 @@ def get_hstkeys(src,
     return hsttags
 
 
-def create_pdf(src, white, outfile, mastercat=None, date=None, debug=False):
+def create_pdf(src, white, outfile, mastercat=None, debug=False):
     logger = logging.getLogger(__name__)
 
     pdf_pages = PdfPages(outfile)
@@ -69,7 +70,8 @@ def create_pdf(src, white, outfile, mastercat=None, date=None, debug=False):
     # title box
     gs = GridSpec(1, 1, left=0.02, right=0.75, top=0.95, bottom=0.935)
     ax['TITLE'] = plt.subplot(gs[0])
-    show_title(ax['TITLE'], src, outfile, date, pagenum)
+    date = datetime.date.today().isoformat()
+    show_title(ax['TITLE'], src, os.path.basename(outfile), date, pagenum)
     # info box
     gs = GridSpec(1, 1, left=0.02, right=0.75, top=0.935, bottom=0.85)
     ax['INFO'] = plt.subplot(gs[0])
