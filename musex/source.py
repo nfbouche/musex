@@ -2,7 +2,7 @@ import astropy.units as u
 import logging
 import numpy as np
 import os
-import shutil
+# import shutil
 from mpdaf.sdetect import Source, SourceList
 
 # from .hstutils import skymask_from_hst, objmask_from_hst

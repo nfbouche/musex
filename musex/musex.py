@@ -12,7 +12,6 @@ class MuseX:
     """
     TODO:
     - mean to choose catalog
-    - save catalog name in source header (src.CATALOG)
     - save history of operations in source
 
     """
@@ -68,6 +67,9 @@ catalogs: {', '.join(self.catalogs.keys())}
 
         for src in slist:
             self.logger.info('source %05d', src.ID)
+            src.CATALOG = os.path.basename(cat.name)
+            src.add_history('New source created',
+                            author='')  # FIXME: how to get author here ?
             for ds in datasets:
                 ds.add_to_source(src, size)
 
