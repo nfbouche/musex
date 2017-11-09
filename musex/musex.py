@@ -18,8 +18,10 @@ class MuseX:
 
     def __init__(self, settings_file=None, muse_dataset=None, **kwargs):
         if settings_file is None:
-            dirname = os.path.abspath(os.path.dirname(__file__))
-            settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
+            settings_file = os.path.expanduser('~/.musex/settings.yaml')
+            if not os.path.exists(settings_file):
+                dirname = os.path.abspath(os.path.dirname(__file__))
+                settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
 
         self.logger = logging.getLogger(__name__)
         self.logger.debug('Loading settings %s', settings_file)
