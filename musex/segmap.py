@@ -19,11 +19,14 @@ class SegMap:
             self.img.data_header = self.img.data_header[:idx]
 
     def get_mask(self, value):
-        return Image.new_from_obj(self.img, self.img._data == value)
+        return Image.new_from_obj(
+            self.img, (self.img._data == value).astype(np.uint8))
 
-    def get_source_mask(self, iden, center, size, unit_center=u.deg,
-                        unit_size=u.arcsec):
-        im = self.img.subimage(center, size, minsize=size,
+    def get_source_mask(self, iden, center, size, minsize=None,
+                        unit_center=u.deg, unit_size=u.arcsec):
+        if minsize is None:
+            minsize = size
+        im = self.img.subimage(center, size, minsize=minsize,
                                unit_center=unit_center, unit_size=unit_size)
-        im.data = im._data == iden
+        im.data = (im._data == iden).astype(np.uint8)
         return im

@@ -57,7 +57,6 @@ catalogs:
     segmap: '{hst_data_dir}/SegMap/segmentation_map_rafelski_2015.fits'
     masks:
       # path, name and size (arcseconds) of the extracted masks
-      outpath: '{workdir}/hstprior'
       outname: 'mask-source-{{:05d}}.fits'
       convolve_fsf: 0.6
       size: [20, 20]
@@ -67,6 +66,24 @@ catalogs:
       margin: 10
   # muse:
   #   class: musex.catalog.Origin
+  photutils:
+    prefix: PHU
+    class: musex.catalog.PriorCatalog
+    version: '1.0'
+    catalog: '{workdir}/photutils-catalog.fits'
+    colnames:
+      idname: id
+      raname: ra
+      decname: dec
+    segmap: '{workdir}/photutils-segmap.fits'
+    masks:
+      # path, name and size (arcseconds) of the extracted masks
+      outname: 'mask-source-{{:05d}}.fits'
+      size: [20, 20]
+    extract:
+      columns: [id, ra, dec, source_sum, area]
+      select_in: HST_F775W
+      margin: 10
 
 extraction:
   apertures: [0.4]

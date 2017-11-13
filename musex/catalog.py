@@ -12,7 +12,6 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog as _Catalog
-from os.path import exists, join
 from pathlib import Path
 from sqlalchemy.sql import select
 
@@ -28,6 +27,7 @@ __all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 def load_catalogs(settings, db):
     catalogs = {}
     for name, conf in settings['catalogs'].items():
+        conf.setdefault('workdir', settings['workdir'])
         mod, class_ = conf['class'].rsplit('.', 1)
         mod = importlib.import_module(mod)
         catalogs[name] = getattr(mod, class_)(name, conf, db)
@@ -56,8 +56,11 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self, mpdaf_catalog=True):
-        cls = _Catalog if mpdaf_catalog else Table
-        t = cls(data=self.results, names=self.results[0].keys())
+        names = self.results[0].keys()
+        if mpdaf_catalog:
+            t = _Catalog(data=self.results, names=names, rename_columns=False)
+        else:
+            t = Table(data=self.results, names=names)
         if '_id' in t.columns:
             t.remove_column('_id')
         return t
@@ -72,6 +75,11 @@ class Catalog:
         self.settings = settings
         self.db = db
         self.logger = logging.getLogger(__name__)
+
+        # Work dir for intermediate files
+        self.workdir = Path(self.settings['workdir']) / self.name
+        self.workdir.mkdir(exist_ok=True)
+
         for key in ('catalog', 'colnames', 'version', 'prefix'):
             setattr(self, key, self.settings.get(key))
         for key, val in self.settings['colnames'].items():
@@ -87,7 +95,6 @@ class Catalog:
 
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""
-        pass
 
     def ingest_catalog(self, limit=None):
         """Ingest the source catalog (given in the settings file). Existing
@@ -178,33 +185,41 @@ class PriorCatalog(Catalog):
         self._skyim = {}
 
     @lazyproperty
+    def has_segmap(self):
+        """True if a segmentation map is available."""
+        return 'segmap' in self.settings
+
+    @lazyproperty
     def segmap(self):
         """The segmentation map."""
-        return SegMap(self.settings['segmap'])
+        if self.has_segmap:
+            return SegMap(self.settings['segmap'])
 
     def get_sky_mask_path(self, dataset):
-        return join(self.settings['masks']['outpath'], dataset.name,
-                    'sky.fits')
+        return self.workdir / dataset.name / 'sky.fits'
 
     def get_source_mask_path(self, dataset, source_id):
-        return join(self.settings['masks']['outpath'], dataset.name,
-                    self.settings['masks']['outname']).format(source_id)
+        return (self.workdir / dataset.name /
+                self.settings['masks']['outname'].format(source_id))
 
     def get_sky_mask(self, dataset, source_id, size, center=None):
         sky = self._skyim.get(dataset)
         if sky is None:
-            sky = self._skyim[dataset] = Image(self.get_sky_mask_path(dataset))
+            sky = self._skyim[dataset] = Image(
+                str(self.get_sky_mask_path(dataset)))
         if center is None:
             s = self.select(self.c[self.idname] == source_id)[0]
             center = (s[self.decname], s[self.raname])
-        return sky.subimage(center, size, minsize=size, unit_size=u.arcsec)
+        minsize = min(*size) // 2
+        return sky.subimage(center, size, minsize=minsize, unit_size=u.arcsec)
 
     def get_source_mask(self, dataset, source_id, size, center=None):
-        src = Image(self.get_source_mask_path(dataset, source_id))
+        src = Image(str(self.get_source_mask_path(dataset, source_id)))
         if center is None:
             s = self.select(self.c[self.idname] == source_id)[0]
             center = (s[self.decname], s[self.raname])
-        return src.subimage(center, size, minsize=size, unit_size=u.arcsec)
+        minsize = min(*size) // 2
+        return src.subimage(center, size, minsize=minsize, unit_size=u.arcsec)
 
     def preprocess(self, dataset, skip=True):
         """Create masks from the segmap, adapted to a given dataset.
@@ -216,15 +231,19 @@ class PriorCatalog(Catalog):
         super().preprocess(dataset, skip=skip)
         debug = self.logger.debug
 
+        if self.segmap is None:
+            self.logger.info('No segmap available, skipping masks creation')
+            return
+
         # create output path if needed
-        outpath = Path(self.settings['masks']['outpath']) / dataset.name
+        outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
         # sky mask
         sky_path = self.get_sky_mask_path(dataset)
-        fsf = self.settings['masks']['convolve_fsf']
+        fsf = self.settings['masks'].get('convolve_fsf')
 
-        if exists(sky_path) and skip:
+        if sky_path.exists() and skip:
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
@@ -234,7 +253,7 @@ class PriorCatalog(Catalog):
                              fsf_conv=fsf)
             sky.data /= np.max(sky.data)
             sky._data = np.where(sky._data > 0.1, 0, 1)
-            sky.write(sky_path, savemask='none')
+            sky.write(str(sky_path), savemask='none')
 
         # extract source masks
         size = self.settings['masks']['size']
@@ -256,24 +275,25 @@ class PriorCatalog(Catalog):
 
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
             source_path = self.get_source_mask_path(dataset, id_)
-            if exists(source_path):
+            if source_path.exists() and skip:
                 debug('source %05d exists, skipping', id_)
                 continue
 
-            debug('source %05d, extract mask', id_)
+            debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
             mask = self.segmap.get_source_mask(
-                id_, (dec, ra), size, unit_center=ucent, unit_size=usize)
+                id_, (dec, ra), size, minsize=minsize, unit_center=ucent,
+                unit_size=usize)
             subref = dataset.white.subimage((dec, ra), size, minsize=minsize,
                                             unit_center=ucent, unit_size=usize)
             align_with_image(mask, subref, order=0, inplace=True, fsf_conv=fsf)
-            mask.data /= mask.data.max()
-            mask._data = np.where(mask._data > 0.1, 1, 0)
-            mask.write(source_path, savemask='none')
+            data = mask.data.filled(0)
+            mask._data = np.where(data / data.max() > 0.1, 1, 0)
+            mask.write(str(source_path), savemask='none')
 
     def add_to_source(self, src, dataset, nskywarn=(50, 5)):
         super().add_to_source(src)
 
-        size = src.default_size
+        size = (src.default_size, src.default_size)
         center = (src.DEC, src.RA)
         seg_obj = self.get_source_mask(dataset, src.ID, size, center=center)
         seg_sky = self.get_sky_mask(dataset, src.ID, size, center=center)
@@ -299,12 +319,12 @@ class PriorCatalog(Catalog):
             self.logger.warning('Sky Mask is too small. Size is %d spaxel or '
                                 '%.1f %% of total area', nsky, nfracsky)
 
-        fsf = self.settings['masks']['convolve_fsf']
-        src.add_attr('FSFMSK', fsf, 'HST Mask Conv Gauss FWHM in arcsec')
+        fsf = self.settings['masks'].get('convolve_fsf', 0)
+        src.add_attr('FSFMSK', fsf, 'Mask Conv Gauss FWHM in arcsec')
         src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
         src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
         src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
         src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
         # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
         # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-        return nobj, nfracobj, nsky, nfracobj
+        # return nobj, nfracobj, nsky, nfracobj

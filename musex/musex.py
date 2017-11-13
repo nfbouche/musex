@@ -48,9 +48,9 @@ datasets: {', '.join(self.datasets.keys())}
 catalogs: {', '.join(self.catalogs.keys())}
 """)
 
-    def preprocess(self, skip=True):
-        for cat in self.catalogs.values():
-            cat.preprocess(self.muse_dataset, skip=skip)
+    def preprocess(self, catalog_names=None, skip=True):
+        for name in (catalog_names or self.catalogs):
+            self.catalogs[name].preprocess(self.muse_dataset, skip=skip)
 
     def export_resultset(self, resultset, size=5, srcvers=''):
         """Export a catalog selection (`ResultSet`) to a SourceList."""
