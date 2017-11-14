@@ -56,11 +56,8 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self, mpdaf_catalog=True):
-        names = self.results[0].keys()
-        if mpdaf_catalog:
-            t = _Catalog(data=self.results, names=names, rename_columns=False)
-        else:
-            t = Table(data=self.results, names=names)
+        cls = _Catalog if mpdaf_catalog else Table
+        t = cls(data=self.results, names=self.results[0].keys())
         if '_id' in t.columns:
             t.remove_column('_id')
         return t
