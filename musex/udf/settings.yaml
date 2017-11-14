@@ -50,10 +50,10 @@ catalogs:
     class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'
-    colnames: [ID, RA, DEC]
-      # idname: ID
-      # raname: RA
-      # decname: DEC
+    colnames:
+      idname: ID
+      raname: RA
+      decname: DEC
     segmap: '{hst_data_dir}/SegMap/segmentation_map_rafelski_2015.fits'
     masks:
       # path, name and size (arcseconds) of the extracted masks
@@ -71,17 +71,17 @@ catalogs:
     class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{workdir}/photutils-catalog.fits'
-    colnames: [id, ra, dec]
-      # idname: id
-      # raname: ra
-      # decname: dec
+    colnames:
+      idname: id
+      raname: ra
+      decname: dec
     segmap: '{workdir}/photutils-segmap.fits'
     masks:
       # path, name and size (arcseconds) of the extracted masks
       outname: 'mask-source-{{:05d}}.fits'
       size: [20, 20]
     extract:
-      columns: [ID, RA, DEC, source_sum, area]
+      columns: [id, ra, dec, source_sum, area]
       select_in: HST_F775W
       margin: 10
 

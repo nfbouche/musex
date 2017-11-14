@@ -58,7 +58,7 @@ class ResultSet(Sequence):
     def as_table(self, mpdaf_catalog=True):
         names = self.results[0].keys()
         if mpdaf_catalog:
-            t = _Catalog(data=self.results, names=names)
+            t = _Catalog(data=self.results, names=names, rename_columns=False)
         else:
             t = Table(data=self.results, names=names)
         if '_id' in t.columns:
@@ -80,14 +80,10 @@ class Catalog:
         self.workdir = Path(self.settings['workdir']) / self.name
         self.workdir.mkdir(exist_ok=True)
 
-        for key in ('catalog', 'version', 'prefix'):
+        for key in ('catalog', 'colnames', 'version', 'prefix'):
             setattr(self, key, self.settings.get(key))
-        # for key, val in self.settings['colnames'].items():
-        #     setattr(self, key, val)
-        self.idname = 'ID'
-        self.raname = 'RA'
-        self.decname = 'DEC'
-        self.colnames = [self.idname, self.raname, self.decname]
+        for key, val in self.settings['colnames'].items():
+            setattr(self, key, val)
 
     @lazyproperty
     def table(self):
@@ -112,11 +108,6 @@ class Catalog:
 
         # TODO: Use ID as primary key ?
         cat.add_column(Column(name='version', data=[self.version] * len(cat)))
-
-        for in_, out in zip(self.settings['colnames'], self.colnames):
-            if in_ != out:
-                self.logger.debug('rename column %03s → %s', in_, out)
-                cat.rename_column(in_, out)
 
         table = self.table
         colnames = cat.colnames
