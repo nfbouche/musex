@@ -93,7 +93,41 @@ class Catalog:
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""
 
-    def ingest_catalog(self, limit=None):
+    def insert_from_table(self, table, version=None, show_progress=True):
+        if not isinstance(table, Table):
+            raise ValueError('table should be an Astropy Table object')
+
+        if version is not None:
+            if 'version' in table.colnames:
+                table['version'][:] = version
+            else:
+                table.add_column(Column(name='version',
+                                        data=[version] * len(table)))
+        elif 'version' not in table.colnames:
+            raise ValueError('version should be specified')
+
+        colnames = table.colnames
+        count_inserted = 0
+        count_updated = 0
+        rows = list(zip(*[c.tolist() for c in table.columns.values()]))
+        if show_progress:
+            rows = ProgressBar(rows, ipython_widget=isnotebook())
+        with self.db as tx:
+            tbl = tx[self.name]
+            for row in rows:
+                res = tbl.upsert(OrderedDict(zip(colnames, row)),
+                                 [self.idname, 'version'])
+                if res is True:
+                    count_updated += 1
+                else:
+                    count_inserted += 1
+
+        if not tbl.has_index(self.idname):
+            tbl.create_index(self.idname)
+        self.logger.info('%d rows inserted, %s updated', count_inserted,
+                         count_updated)
+
+    def ingest_input_catalog(self, limit=None, show_progress=True):
         """Ingest the source catalog (given in the settings file). Existing
         records are updated.
         """
@@ -102,27 +136,8 @@ class Catalog:
         if limit:
             self.logger.info('keeping only %d rows', limit)
             cat = cat[:limit]
-
-        cat.add_column(Column(name='version', data=[self.version] * len(cat)))
-
-        table = self.table
-        colnames = cat.colnames
-        count_inserted = 0
-        count_updated = 0
-        rows = list(zip(*[c.tolist() for c in cat.columns.values()]))
-        with self.db as tx:
-            table = tx[self.name]
-            for row in ProgressBar(rows, ipython_widget=isnotebook()):
-                res = table.upsert(OrderedDict(zip(colnames, row)),
-                                   [self.idname, 'version'])
-                if res is True:
-                    count_updated += 1
-                else:
-                    count_inserted += 1
-
-        table.create_index(self.idname)
-        self.logger.info('%d rows inserted, %s updated', count_inserted,
-                         count_updated)
+        self.insert_from_table(cat, version=self.version,
+                               show_progress=show_progress)
 
     @property
     def c(self):
