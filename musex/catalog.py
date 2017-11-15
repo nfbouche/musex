@@ -82,6 +82,9 @@ class Catalog:
         for key, val in self.settings['colnames'].items():
             setattr(self, key, val)
 
+    def __len__(self):
+        return self.table.count()
+
     @lazyproperty
     def table(self):
         """The Dataset Table object.
@@ -93,30 +96,21 @@ class Catalog:
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""
 
-    def insert_from_table(self, table, version=None, show_progress=True):
-        if not isinstance(table, Table):
-            raise ValueError('table should be an Astropy Table object')
-
-        if version is not None:
-            if 'version' in table.colnames:
-                table['version'][:] = version
-            else:
-                table.add_column(Column(name='version',
-                                        data=[version] * len(table)))
-        elif 'version' not in table.colnames:
-            raise ValueError('version should be specified')
-
-        colnames = table.colnames
+    def insert_rows(self, rows, version=None, show_progress=True):
         count_inserted = 0
         count_updated = 0
-        rows = list(zip(*[c.tolist() for c in table.columns.values()]))
         if show_progress:
             rows = ProgressBar(rows, ipython_widget=isnotebook())
         with self.db as tx:
             tbl = tx[self.name]
             for row in rows:
-                res = tbl.upsert(OrderedDict(zip(colnames, row)),
-                                 [self.idname, 'version'])
+                if 'version' not in row:
+                    if version is not None:
+                        row['version'] = version
+                    else:
+                        raise ValueError('version should be specified')
+
+                res = tbl.upsert(row, [self.idname, 'version'])
                 if res is True:
                     count_updated += 1
                 else:
@@ -127,6 +121,14 @@ class Catalog:
         self.logger.info('%d rows inserted, %s updated', count_inserted,
                          count_updated)
 
+    def insert_table(self, table, version=None, show_progress=True):
+        if not isinstance(table, Table):
+            raise ValueError('table should be an Astropy Table object')
+
+        rows = [OrderedDict(zip(table.colnames, row))
+                for row in zip(*[c.tolist() for c in table.columns.values()])]
+        self.insert_rows(rows, version=version, show_progress=show_progress)
+
     def ingest_input_catalog(self, limit=None, show_progress=True):
         """Ingest the source catalog (given in the settings file). Existing
         records are updated.
@@ -136,8 +138,8 @@ class Catalog:
         if limit:
             self.logger.info('keeping only %d rows', limit)
             cat = cat[:limit]
-        self.insert_from_table(cat, version=self.version,
-                               show_progress=show_progress)
+        self.insert_table(cat, version=self.version,
+                          show_progress=show_progress)
 
     @property
     def c(self):
