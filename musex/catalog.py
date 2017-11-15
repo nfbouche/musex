@@ -88,7 +88,7 @@ class Catalog:
 
         https://dataset.readthedocs.io/en/latest/api.html#table
         """
-        return self.db.create_table(self.name, primary_id='_id')
+        return self.db.create_table(self.name, primary_id=self.idname)
 
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""
@@ -103,7 +103,6 @@ class Catalog:
             self.logger.info('keeping only %d rows', limit)
             cat = cat[:limit]
 
-        # TODO: Use ID as primary key ?
         cat.add_column(Column(name='version', data=[self.version] * len(cat)))
 
         table = self.table

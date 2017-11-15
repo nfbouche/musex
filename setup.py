@@ -41,5 +41,5 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=['numpy', 'matplotlib', 'astropy', 'mpdaf', 'aplpy',
-                      'lineid_plot', 'joblib', 'dataset', 'scipy'],
+                      'lineid_plot', 'joblib', 'dataset>=1.0.3', 'scipy'],
 )
