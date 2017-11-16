@@ -24,13 +24,28 @@ DIRNAME = os.path.abspath(os.path.dirname(__file__))
 __all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 
 
+#     def merge_close_sources(self, maxdist=0.2*u.arcsec):
+#         from astropy.coordinates import SkyCoord
+#         columns = [self.idname, self.raname, self.decname]
+#         tab = self.select(columns=columns).as_table()
+#         coords = SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
+#                           unit=(u.deg, u.deg), frame='fk5')
+#         dist = coords.separation(coords[:, None])
+#         ind = np.where(np.sum(dist < maxdist, axis=0) > 1)
+#         # FIXME: find how to merge close sources ...
+
+
 def load_catalogs(settings, db):
     catalogs = {}
     for name, conf in settings['catalogs'].items():
-        conf.setdefault('workdir', settings['workdir'])
-        mod, class_ = conf['class'].rsplit('.', 1)
-        mod = importlib.import_module(mod)
-        catalogs[name] = getattr(mod, class_)(name, conf, db)
+        conf = conf['import']
+        if 'class' in conf:
+            mod, class_ = conf['class'].rsplit('.', 1)
+            mod = importlib.import_module(mod)
+            cls = getattr(mod, class_)
+        else:
+            cls = InputCatalog
+        catalogs[name] = cls(name, db, workdir=settings['workdir'], **conf)
     return catalogs
 
 
@@ -67,30 +82,27 @@ class Catalog:
     """Handle Catalogs by the way of a database table.
     """
 
-    def __init__(self, name, settings, db):
+    def __init__(self, name, db, workdir=None, idname='ID', raname='RA',
+                 decname='DEC'):
         self.name = name
-        self.settings = settings
         self.db = db
+        self.idname = idname
+        self.raname = raname
+        self.decname = decname
         self.logger = logging.getLogger(__name__)
 
         # Work dir for intermediate files
-        self.workdir = Path(self.settings['workdir']) / self.name
+        if workdir is None:
+            raise Exception('FIXME: find a better way to handle this')
+        self.workdir = Path(workdir) / self.name
         self.workdir.mkdir(exist_ok=True)
-
-        for key in ('catalog', 'colnames', 'version', 'prefix'):
-            setattr(self, key, self.settings.get(key))
-        for key, val in self.settings['colnames'].items():
-            setattr(self, key, val)
 
     def __len__(self):
         return self.table.count()
 
     @lazyproperty
     def table(self):
-        """The Dataset Table object.
-
-        https://dataset.readthedocs.io/en/latest/api.html#table
-        """
+        """The `dataset.Table` object."""
         return self.db.create_table(self.name, primary_id=self.idname)
 
     def preprocess(self, dataset, skip=True):
@@ -129,18 +141,6 @@ class Catalog:
                 for row in zip(*[c.tolist() for c in table.columns.values()])]
         self.insert_rows(rows, version=version, show_progress=show_progress)
 
-    def ingest_input_catalog(self, limit=None, show_progress=True):
-        """Ingest the source catalog (given in the settings file). Existing
-        records are updated.
-        """
-        self.logger.info('ingesting catalog %s', self.catalog)
-        cat = Table.read(self.catalog)
-        if limit:
-            self.logger.info('keeping only %d rows', limit)
-            cat = cat[:limit]
-        self.insert_table(cat, version=self.version,
-                          show_progress=show_progress)
-
     @property
     def c(self):
         """The list of columns from the SQLAlchemy table object."""
@@ -165,9 +165,9 @@ class Catalog:
                                      **params))
         return ResultSet(query, whereclause=whereclause, catalog=self)
 
-    def add_to_source(self, src):
+    def add_to_source(self, src, conf):
         """Add information to the Source object."""
-        conf = self.settings['extract']
+        # conf = self.settings['extract']
         cat = self.select(columns=conf['columns']).as_table()
         wcs = src.images[conf.get('select_in', 'WHITE')].wcs
         scat = cat.select(wcs, ra=self.raname, dec=self.decname,
@@ -178,20 +178,34 @@ class Catalog:
         # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
         name = conf.get('name', 'CAT')
         self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
-        src.add_table(scat, f'{self.prefix}_{name}')
-
-#     def merge_close_sources(self, maxdist=0.2*u.arcsec):
-#         from astropy.coordinates import SkyCoord
-#         columns = [self.idname, self.raname, self.decname]
-#         tab = self.select(columns=columns).as_table()
-#         coords = SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
-#                           unit=(u.deg, u.deg), frame='fk5')
-#         dist = coords.separation(coords[:, None])
-#         ind = np.where(np.sum(dist < maxdist, axis=0) > 1)
-#         # FIXME: find how to merge close sources ...
+        src.add_table(scat, f'{conf["prefix"]}_{name}')
 
 
-class PriorCatalog(Catalog):
+class InputCatalog(Catalog):
+    """Handles catalogs imported from an exiting file."""
+
+    def __init__(self, name, db, catalog=None, version=None, **kwargs):
+        super().__init__(name, db, **kwargs)
+        if catalog is None:
+            raise ValueError('an input catalog is required')
+        if version is None:
+            raise ValueError('an input version is required')
+        self.catalog = catalog
+        self.version = version
+
+    def ingest_input_catalog(self, limit=None, show_progress=True):
+        """Ingest the source catalog (given in the settings file). Existing
+        records are updated."""
+        self.logger.info('ingesting catalog %s', self.catalog)
+        cat = Table.read(self.catalog)
+        if limit:
+            self.logger.info('keeping only %d rows', limit)
+            cat = cat[:limit]
+        self.insert_table(cat, version=self.version,
+                          show_progress=show_progress)
+
+
+class PriorCatalog(InputCatalog):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

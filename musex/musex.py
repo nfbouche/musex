@@ -2,7 +2,7 @@ import logging
 import os
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import load_catalogs
+from .catalog import load_catalogs, Catalog
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
 from .version import __version__, __description__
@@ -51,6 +51,9 @@ catalogs: {', '.join(self.catalogs.keys())}
     def preprocess(self, catalog_names=None, skip=True):
         for name in (catalog_names or self.catalogs):
             self.catalogs[name].preprocess(self.muse_dataset, skip=skip)
+
+    def new_catalog_from_resultset(self, name, resultset):
+        cat = Catalog(name, resultset.catalog.settings, self.db)
 
     def export_resultset(self, resultset, size=5, srcvers=''):
         """Export a catalog selection (`ResultSet`) to a SourceList."""
