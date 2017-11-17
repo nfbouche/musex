@@ -2,6 +2,7 @@ import importlib
 import logging
 import numpy as np
 import os
+import textwrap
 
 import astropy.units as u
 from astropy.table import Table, Column
@@ -109,6 +110,28 @@ class Catalog:
 
     def __len__(self):
         return self.table.count()
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
+
+    def info(self):
+        print(textwrap.dedent(f"""\
+        {self.__class__.__name__} '{self.name}' - {len(self)} rows.
+
+        Workdir: {self.workdir}
+        """))
+
+        meta = self.db['catalogs'].find_one(name=self.name)
+        if meta:
+            maxlen = max(len(k) for k in meta.keys()) + 1
+            meta = '\n'.join(f'- {k:{maxlen}s}: {v}' for k, v in meta.items()
+                             if k not in ('id', 'name'))
+            print(f"Metadata:\n{meta}\n")
+
+        maxlen = max(len(k) for k in self.table.table.columns.keys()) + 1
+        columns = '\n'.join(f'- {k:{maxlen}s}: {v.type}'
+                            for k, v in self.table.table.columns.items())
+        print(f"Columns:\n{columns}\n")
 
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""
