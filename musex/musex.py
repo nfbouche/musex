@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from collections import OrderedDict
+from datetime import datetime
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import load_input_catalogs, Catalog
@@ -86,10 +87,18 @@ catalogs       : {', '.join(self.catalogs.keys())}
                       decname=parent_cat.decname)
         cat.insert_rows(resultset)
 
+        creation_date = datetime.utcnow().isoformat()
+        query = str(resultset.whereclause)
+        query = str(resultset.whereclause.compile(
+            compile_kwargs={"literal_binds": True}))
+
         self.catalogs[name] = cat
-        self.catalogs_table.insert(OrderedDict(
-            name=name, creation_date='todo', parent_cat='todo'
-        ))
+        self.catalogs_table.upsert(OrderedDict(
+            name=name,
+            creation_date=creation_date,
+            parent_cat=parent_cat.name,
+            query=query
+        ), ['name'])
 
     def export_resultset(self, resultset, size=5, srcvers=''):
         """Export a catalog selection (`ResultSet`) to a SourceList."""

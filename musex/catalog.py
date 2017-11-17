@@ -60,7 +60,9 @@ class ResultSet(Sequence):
     def __repr__(self):
         out = f'<{self.__class__.__name__}('
         if self.whereclause is not None:
-            out += f'{self.whereclause}, {self.whereclause.compile().params}'
+            query = self.whereclause.compile(
+                compile_kwargs={"literal_binds": True})
+            out += f'{query}'
         out += f')>, {len(self)} results'
         return out
 
@@ -90,7 +92,14 @@ class Catalog:
         self.raname = raname
         self.decname = decname
         self.logger = logging.getLogger(__name__)
-        self.table = self.db.create_table(self.name, primary_id=self.idname)
+
+        if self.name in self.db:
+            self.table = self.db[self.name]
+        else:
+            self.logger.info('create table %s (primary key: %s)',
+                             self.name, self.idname)
+            self.table = self.db.create_table(self.name,
+                                              primary_id=self.idname)
 
         # Work dir for intermediate files
         if workdir is None:
