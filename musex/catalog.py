@@ -21,7 +21,7 @@ from .settings import isnotebook
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
+__all__ = ['load_input_catalogs', 'Catalog', 'PriorCatalog']
 
 
 #     def merge_close_sources(self, maxdist=0.2*u.arcsec):
@@ -35,7 +35,7 @@ __all__ = ['load_catalogs', 'Catalog', 'PriorCatalog']
 #         # FIXME: find how to merge close sources ...
 
 
-def load_catalogs(settings, db):
+def load_input_catalogs(settings, db):
     catalogs = {}
     for name, conf in settings['catalogs'].items():
         conf = conf['import']
@@ -90,6 +90,7 @@ class Catalog:
         self.raname = raname
         self.decname = decname
         self.logger = logging.getLogger(__name__)
+        self.table = self.db.create_table(self.name, primary_id=self.idname)
 
         # Work dir for intermediate files
         if workdir is None:
@@ -99,11 +100,6 @@ class Catalog:
 
     def __len__(self):
         return self.table.count()
-
-    @lazyproperty
-    def table(self):
-        """The `dataset.Table` object."""
-        return self.db.create_table(self.name, primary_id=self.idname)
 
     def preprocess(self, dataset, skip=True):
         """Generate intermediate results linked to a given dataset."""

@@ -1,8 +1,10 @@
 import logging
 import os
+import sys
+from collections import OrderedDict
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import load_catalogs, Catalog
+from .catalog import load_input_catalogs, Catalog
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
 from .version import __version__, __description__
@@ -29,31 +31,65 @@ class MuseX:
         self.conf.update(kwargs)
         self.db = load_db(self.conf['db'])
         self.datasets = load_datasets(self.conf)
-        self.catalogs = load_catalogs(self.conf, self.db)
+        self.input_catalogs = load_input_catalogs(self.conf, self.db)
+        self.catalogs = {}
+        # TODO: load catalogs
 
         settings = self.conf['muse_datasets']
         muse_dataset = muse_dataset or settings['default']
         self.muse_dataset = MuseDataSet(muse_dataset,
                                         settings=settings[muse_dataset])
 
+        self.catalogs_table = self.db.create_table('catalogs')
+        for row in self.catalogs_table.all():
+            name = row['name']
+            self.catalogs[name] = Catalog(name, self.db,
+                                          workdir=self.conf['workdir'])
+
         if self.conf['show_banner']:
             self.info()
 
-    def info(self):
-        print(f"""
-MUSEX, {__description__} - v{__version__}
+    def info(self, outstream=None):
+        if outstream is None:
+            outstream = sys.stdout
+        outstream.write(r"""
+  __  __               __  __
+ |  \/  |_   _ ___  ___\ \/ /
+ | |\/| | | | / __|/ _ \\  /
+ | |  | | |_| \__ \  __//  \
+ |_|  |_|\__,_|___/\___/_/\_\
 
-muse:     {self.muse_dataset.name}
-datasets: {', '.join(self.datasets.keys())}
-catalogs: {', '.join(self.catalogs.keys())}
+""")
+        outstream.write(f"""
+{__description__} - v{__version__}
+
+muse_dataset   : {self.muse_dataset.name}
+datasets       : {', '.join(self.datasets.keys())}
+input_catalogs : {', '.join(self.input_catalogs.keys())}
+catalogs       : {', '.join(self.catalogs.keys())}
 """)
 
     def preprocess(self, catalog_names=None, skip=True):
-        for name in (catalog_names or self.catalogs):
-            self.catalogs[name].preprocess(self.muse_dataset, skip=skip)
+        for name in (catalog_names or self.input_catalogs):
+            self.input_catalogs[name].preprocess(self.muse_dataset, skip=skip)
 
-    def new_catalog_from_resultset(self, name, resultset):
-        cat = Catalog(name, resultset.catalog.settings, self.db)
+    def new_catalog_from_resultset(self, name, resultset,
+                                   drop_if_exists=False):
+        if name in self.db.tables:
+            if drop_if_exists:
+                self.db[name].drop()
+            else:
+                raise ValueError('table already exists')
+        parent_cat = resultset.catalog
+        cat = Catalog(name, self.db, workdir=self.conf['workdir'],
+                      idname=parent_cat.idname, raname=parent_cat.raname,
+                      decname=parent_cat.decname)
+        cat.insert_rows(resultset)
+
+        self.catalogs[name] = cat
+        self.catalogs_table.insert(OrderedDict(
+            name=name, creation_date='todo', parent_cat='todo'
+        ))
 
     def export_resultset(self, resultset, size=5, srcvers=''):
         """Export a catalog selection (`ResultSet`) to a SourceList."""
