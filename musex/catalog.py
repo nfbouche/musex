@@ -94,13 +94,10 @@ class Catalog:
         self.decname = decname
         self.logger = logging.getLogger(__name__)
 
-        if self.name in self.db:
-            self.table = self.db[self.name]
-        else:
+        if self.name not in self.db:
             self.logger.info('create table %s (primary key: %s)',
                              self.name, self.idname)
-            self.table = self.db.create_table(self.name,
-                                              primary_id=self.idname)
+        self.table = self.db.create_table(self.name, primary_id=self.idname)
 
         # Work dir for intermediate files
         if workdir is None:

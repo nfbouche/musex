@@ -10,6 +10,15 @@ from .settings import load_db, load_yaml_config
 from .source import SourceListX
 from .version import __version__, __description__
 
+LOGO = r"""
+  __  __               __  __
+  |  \/  |_   _ ___  ___\ \/ /
+  | |\/| | | | / __|/ _ \\  /
+  | |  | | |_| \__ \  __//  \
+  |_|  |_|\__,_|___/\___/_/\_\
+
+"""
+
 
 class MuseX:
     """
@@ -44,8 +53,10 @@ class MuseX:
         self.catalogs_table = self.db.create_table('catalogs')
         for row in self.catalogs_table.all():
             name = row['name']
-            self.catalogs[name] = Catalog(name, self.db,
-                                          workdir=self.conf['workdir'])
+            self.catalogs[name] = Catalog(
+                name, self.db, workdir=self.conf['workdir'],
+                idname=row['idname'], raname=row['raname'],
+                decname=row['decname'])
 
         if self.conf['show_banner']:
             self.info()
@@ -53,14 +64,7 @@ class MuseX:
     def info(self, outstream=None):
         if outstream is None:
             outstream = sys.stdout
-        outstream.write(r"""
-  __  __               __  __
- |  \/  |_   _ ___  ___\ \/ /
- | |\/| | | | / __|/ _ \\  /
- | |  | | |_| \__ \  __//  \
- |_|  |_|\__,_|___/\___/_/\_\
-
-""")
+        outstream.write(LOGO)
         outstream.write(f"""
 {__description__} - v{__version__}
 
@@ -97,6 +101,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
             name=name,
             creation_date=creation_date,
             parent_cat=parent_cat.name,
+            idname=cat.idname,
+            raname=cat.raname,
+            decname=cat.decname,
             query=query
         ), ['name'])
 
