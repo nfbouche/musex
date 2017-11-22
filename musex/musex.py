@@ -56,7 +56,7 @@ class MuseX:
             self.catalogs[name] = Catalog(
                 name, self.db, workdir=self.conf['workdir'],
                 idname=row['idname'], raname=row['raname'],
-                decname=row['decname'])
+                decname=row['decname'], segmap=row['segmap'])
 
         if self.conf['show_banner']:
             self.info()
@@ -73,10 +73,6 @@ datasets       : {', '.join(self.datasets.keys())}
 input_catalogs : {', '.join(self.input_catalogs.keys())}
 catalogs       : {', '.join(self.catalogs.keys())}
 """)
-
-    def preprocess(self, catalog_names=None, skip=True):
-        for name in (catalog_names or self.input_catalogs):
-            self.input_catalogs[name].preprocess(self.muse_dataset, skip=skip)
 
     def new_catalog_from_resultset(self, name, resultset,
                                    drop_if_exists=False):
@@ -104,6 +100,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             idname=cat.idname,
             raname=cat.raname,
             decname=cat.decname,
+            segmap=getattr(parent_cat, 'segmap', ''),
             query=query
         ), ['name'])
 

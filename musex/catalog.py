@@ -13,6 +13,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog as _Catalog
+from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy.sql import select
 
@@ -39,14 +40,14 @@ __all__ = ['load_input_catalogs', 'Catalog', 'PriorCatalog']
 def load_input_catalogs(settings, db):
     catalogs = {}
     for name, conf in settings['catalogs'].items():
-        conf = conf['import']
         if 'class' in conf:
             mod, class_ = conf['class'].rsplit('.', 1)
             mod = importlib.import_module(mod)
             cls = getattr(mod, class_)
         else:
             cls = InputCatalog
-        catalogs[name] = cls(name, db, workdir=settings['workdir'], **conf)
+        catalogs[name] = cls.from_settings(name, db,
+                                           workdir=settings['workdir'], **conf)
     return catalogs
 
 
@@ -86,9 +87,10 @@ class Catalog:
     """
 
     def __init__(self, name, db, workdir=None, idname='ID', raname='RA',
-                 decname='DEC'):
+                 decname='DEC', segmap=None):
         self.name = name
         self.db = db
+        self.segmap = segmap
         self.idname = idname
         self.raname = raname
         self.decname = decname
@@ -130,8 +132,90 @@ class Catalog:
                             for k, v in self.table.table.columns.items())
         print(f"Columns:\n{columns}\n")
 
-    def preprocess(self, dataset, skip=True):
-        """Generate intermediate results linked to a given dataset."""
+    @lazyproperty
+    def segmap_img(self):
+        """The segmentation map."""
+        if self.segmap:
+            return SegMap(self.segmap)
+
+    def attach_dataset(self, dataset, skip_existing=True,
+                       mask_convolve_fsf=0, mask_size=(20, 20)):
+        """Attach a dataset to the catalog and generate intermediate products.
+
+        Create masks from the segmap, adapted to a given dataset.
+
+        TODO: store in the database for each source: the sky and source mask
+        paths, and preprocessing status
+
+        """
+        if self.segmap is None:
+            self.logger.info('No segmap available, skipping masks creation')
+            return
+
+        debug = self.logger.debug
+        mask_name = 'mask-source-{:05d}.fits'  # add setting ?
+
+        # create output path if needed
+        outpath = self.workdir / dataset.name
+        outpath.mkdir(exist_ok=True)
+
+        # create sky mask
+        sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
+
+        if exists(sky_path) and skip_existing:
+            debug('sky mask exists, skipping')
+        else:
+            debug('creating sky mask')
+            sky = self.segmap_img.get_mask(0)
+            sky._data = np.logical_not(sky._data).astype(float)
+            align_with_image(sky, dataset.white, order=0, inplace=True,
+                             fsf_conv=mask_convolve_fsf)
+            sky.data /= np.max(sky.data)
+            sky._data = np.where(sky._data > 0.1, 0, 1)
+            sky.write(sky_path, savemask='none')
+
+        # check sources inside dataset
+        columns = [self.idname, self.raname, self.decname]
+        tab = self.select(columns=columns).as_table()
+        ntot = len(tab)
+        tab = tab.select(dataset.white.wcs, ra=self.raname, dec=self.decname)
+        self.logger.info('%d sources inside dataset out of %d', len(tab), ntot)
+        usize = u.arcsec
+        ucent = u.deg
+        minsize = min(*mask_size) // 2
+
+        # TODO: prepare the psf image for convolution
+        # ima = gauss_image(self.shape, wcs=self.wcs, fwhm=fwhm, gauss=None,
+        #                   unit_fwhm=usize, cont=0, unit=self.unit)
+        # ima.norm(typ='sum')
+
+        # extract source masks
+        white = dataset.white
+        get_source_mask = self.segmap_img.get_source_mask
+        source_mask_path = str(self.workdir / dataset.name / mask_name)
+        for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
+            id_ = int(id_)  # need int, not np.int64
+            source_path = source_mask_path.format(id_)
+            if exists(source_path) and skip_existing:
+                debug('source %05d exists, skipping', id_)
+                continue
+
+            debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
+            mask = get_source_mask(id_, (dec, ra), mask_size, minsize=minsize,
+                                   unit_center=ucent, unit_size=usize)
+            subref = white.subimage((dec, ra), mask_size, minsize=minsize,
+                                    unit_center=ucent, unit_size=usize)
+            align_with_image(mask, subref, order=0, inplace=True,
+                             fsf_conv=mask_convolve_fsf)
+            data = mask.data.filled(0)
+            mask._data = np.where(data / data.max() > 0.1, 1, 0)
+            mask.write(source_path, savemask='none')
+
+            # update in db
+            self.table.upsert({self.idname: id_,
+                               'mask_obj': relpath(source_path, self.workdir),
+                               'mask_sky': relpath(sky_path, self.workdir)},
+                              [self.idname])
 
     def insert_rows(self, rows, version=None, show_progress=True):
         count_inserted = 0
@@ -209,14 +293,16 @@ class Catalog:
 class InputCatalog(Catalog):
     """Handles catalogs imported from an exiting file."""
 
-    def __init__(self, name, db, catalog=None, version=None, **kwargs):
-        super().__init__(name, db, **kwargs)
-        if catalog is None:
-            raise ValueError('an input catalog is required')
-        if version is None:
-            raise ValueError('an input version is required')
-        self.catalog = catalog
-        self.version = version
+    @classmethod
+    def from_settings(cls, name, db, **kwargs):
+        init_keys = ('idname', 'raname', 'decname', 'workdir', 'segmap')
+        kw = {k: v for k, v in kwargs.items() if k in init_keys}
+        cat = cls(name, db, **kw)
+        for key in ('catalog', 'version'):
+            if kwargs.get(key) is None:
+                raise ValueError(f'an input {key} is required')
+            setattr(cat, key, kwargs[key])
+        return cat
 
     def ingest_input_catalog(self, limit=None, show_progress=True):
         """Ingest the source catalog (given in the settings file). Existing
@@ -235,17 +321,6 @@ class PriorCatalog(InputCatalog):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._skyim = {}
-
-    @lazyproperty
-    def has_segmap(self):
-        """True if a segmentation map is available."""
-        return 'segmap' in self.settings
-
-    @lazyproperty
-    def segmap(self):
-        """The segmentation map."""
-        if self.has_segmap:
-            return SegMap(self.settings['segmap'])
 
     def get_sky_mask_path(self, dataset):
         return self.workdir / dataset.name / 'sky.fits'
@@ -272,75 +347,6 @@ class PriorCatalog(InputCatalog):
             center = (s[self.decname], s[self.raname])
         minsize = min(*size) // 2
         return src.subimage(center, size, minsize=minsize, unit_size=u.arcsec)
-
-    def preprocess(self, dataset, skip=True):
-        """Create masks from the segmap, adapted to a given dataset.
-
-        TODO: store in the database for each source: the sky and source mask
-        paths, and preprocessing status
-
-        """
-        super().preprocess(dataset, skip=skip)
-        debug = self.logger.debug
-
-        if self.segmap is None:
-            self.logger.info('No segmap available, skipping masks creation')
-            return
-
-        # create output path if needed
-        outpath = self.workdir / dataset.name
-        outpath.mkdir(exist_ok=True)
-
-        # sky mask
-        sky_path = self.get_sky_mask_path(dataset)
-        fsf = self.settings['masks'].get('convolve_fsf')
-
-        if sky_path.exists() and skip:
-            debug('sky mask exists, skipping')
-        else:
-            debug('creating sky mask')
-            sky = self.segmap.get_mask(0)
-            sky._data = np.logical_not(sky._data).astype(float)
-            align_with_image(sky, dataset.white, order=0, inplace=True,
-                             fsf_conv=fsf)
-            sky.data /= np.max(sky.data)
-            sky._data = np.where(sky._data > 0.1, 0, 1)
-            sky.write(str(sky_path), savemask='none')
-
-        # extract source masks
-        size = self.settings['masks']['size']
-        columns = [self.idname, self.raname, self.decname]
-
-        # check sources inside dataset
-        tab = self.select(columns=columns).as_table()
-        ntot = len(tab)
-        tab = tab.select(dataset.white.wcs, ra=self.raname, dec=self.decname)
-        self.logger.info('%d sources inside dataset out of %d', len(tab), ntot)
-        usize = u.arcsec
-        ucent = u.deg
-        minsize = min(*size) // 2
-
-        # TODO: prepare the psf image for convolution
-        # ima = gauss_image(self.shape, wcs=self.wcs, fwhm=fwhm, gauss=None,
-        #                   unit_fwhm=usize, cont=0, unit=self.unit)
-        # ima.norm(typ='sum')
-
-        for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
-            source_path = self.get_source_mask_path(dataset, id_)
-            if source_path.exists() and skip:
-                debug('source %05d exists, skipping', id_)
-                continue
-
-            debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
-            mask = self.segmap.get_source_mask(
-                id_, (dec, ra), size, minsize=minsize, unit_center=ucent,
-                unit_size=usize)
-            subref = dataset.white.subimage((dec, ra), size, minsize=minsize,
-                                            unit_center=ucent, unit_size=usize)
-            align_with_image(mask, subref, order=0, inplace=True, fsf_conv=fsf)
-            data = mask.data.filled(0)
-            mask._data = np.where(data / data.max() > 0.1, 1, 0)
-            mask.write(str(source_path), savemask='none')
 
     def add_to_source(self, src, dataset, nskywarn=(50, 5)):
         super().add_to_source(src)

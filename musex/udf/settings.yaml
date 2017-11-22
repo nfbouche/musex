@@ -46,39 +46,35 @@ muse_datasets:
 
 catalogs:
   hstprior:
-    class: musex.catalog.PriorCatalog
-    import:
-      version: '1.0'
-      catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'
-      idname: ID
-      raname: RA
-      decname: DEC
+    # class: musex.catalog.PriorCatalog
+    version: '1.0'
+    catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'
+    idname: ID
+    raname: RA
+    decname: DEC
     segmap: '{hst_data_dir}/SegMap/segmentation_map_rafelski_2015.fits'
-    masks:
-      # path, name and size (arcseconds) of the extracted masks
-      outname: 'mask-source-{{:05d}}.fits'
-      convolve_fsf: 0.6
-      size: [20, 20]
+    # masks:
+    #   # path, name and size (arcseconds) of the extracted masks
+    #   outname: 'mask-source-{{:05d}}.fits'
+    #   convolve_fsf: 0.6
+    #   size: [20, 20]
     extract:
       prefix: HST
       columns: [ID, RA, DEC, MAG_F775W]
       select_in: HST_F775W
       margin: 10
-  # muse:
-  #   class: musex.catalog.Origin
   photutils:
-    class: musex.catalog.PriorCatalog
-    import:
-      version: '1.0'
-      catalog: '{workdir}/photutils-catalog.fits'
-      idname: id
-      raname: ra
-      decname: dec
+    # class: musex.catalog.PriorCatalog
+    version: '1.0'
+    catalog: '{workdir}/photutils-catalog.fits'
+    idname: id
+    raname: ra
+    decname: dec
     segmap: '{workdir}/photutils-segmap.fits'
-    masks:
-      # path, name and size (arcseconds) of the extracted masks
-      outname: 'mask-source-{{:05d}}.fits'
-      size: [20, 20]
+    # masks:
+    #   # path, name and size (arcseconds) of the extracted masks
+    #   outname: 'mask-source-{{:05d}}.fits'
+    #   size: [20, 20]
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
