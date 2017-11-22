@@ -191,25 +191,24 @@ class Catalog:
 
         # extract source masks
         white = dataset.white
-        get_source_mask = self.segmap_img.get_source_mask
+        get_mask = self.segmap_img.get_source_mask
         source_mask_path = str(self.workdir / dataset.name / mask_name)
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
             id_ = int(id_)  # need int, not np.int64
             source_path = source_mask_path.format(id_)
             if exists(source_path) and skip_existing:
                 debug('source %05d exists, skipping', id_)
-                continue
-
-            debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
-            mask = get_source_mask(id_, (dec, ra), mask_size, minsize=minsize,
-                                   unit_center=ucent, unit_size=usize)
-            subref = white.subimage((dec, ra), mask_size, minsize=minsize,
-                                    unit_center=ucent, unit_size=usize)
-            align_with_image(mask, subref, order=0, inplace=True,
-                             fsf_conv=mask_convolve_fsf)
-            data = mask.data.filled(0)
-            mask._data = np.where(data / data.max() > 0.1, 1, 0)
-            mask.write(source_path, savemask='none')
+            else:
+                debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
+                mask = get_mask(id_, (dec, ra), mask_size, minsize=minsize,
+                                unit_center=ucent, unit_size=usize)
+                subref = white.subimage((dec, ra), mask_size, minsize=minsize,
+                                        unit_center=ucent, unit_size=usize)
+                align_with_image(mask, subref, order=0, inplace=True,
+                                 fsf_conv=mask_convolve_fsf)
+                data = mask.data.filled(0)
+                mask._data = np.where(data / data.max() > 0.1, 1, 0)
+                mask.write(source_path, savemask='none')
 
             # update in db
             self.table.upsert({self.idname: id_,
