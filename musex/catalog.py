@@ -159,6 +159,9 @@ class Catalog:
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
+        self.db['catalogs'].upsert(dict(name=self.name, dataset=dataset.name),
+                                   ['name'])
+
         # create sky mask
         sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
 
