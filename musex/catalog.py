@@ -81,12 +81,12 @@ class ResultSet(Sequence):
         return t
 
 
-class Catalog:
+class BaseCatalog:
     """Handle Catalogs by the way of a database table.
     """
 
-    def __init__(self, name, db, workdir=None, idname='ID', raname='RA',
-                 decname='DEC', segmap=None):
+    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
+                 segmap=None):
         self.name = name
         self.db = db
         self.segmap = segmap
@@ -99,12 +99,6 @@ class Catalog:
             self.logger.info('create table %s (primary key: %s)',
                              self.name, self.idname)
         self.table = self.db.create_table(self.name, primary_id=self.idname)
-
-        # Work dir for intermediate files
-        if workdir is None:
-            raise Exception('FIXME: find a better way to handle this')
-        self.workdir = Path(workdir) / self.name
-        self.workdir.mkdir(exist_ok=True)
 
     def __len__(self):
         return self.table.count()
@@ -134,6 +128,92 @@ class Catalog:
         columns = '\n'.join(f'- {k:{maxlen}s}: {v.type}'
                             for k, v in self.table.table.columns.items())
         print(f"Columns:\n{columns}\n")
+
+    def insert_rows(self, rows, version=None, show_progress=True):
+        count_inserted = 0
+        count_updated = 0
+        if show_progress:
+            rows = ProgressBar(rows, ipython_widget=isnotebook())
+        with self.db as tx:
+            tbl = tx[self.name]
+            for row in rows:
+                if 'version' not in row:
+                    if version is not None:
+                        row['version'] = version
+                    else:
+                        raise ValueError('version should be specified')
+
+                res = tbl.upsert(row, [self.idname, 'version'])
+                if res is True:
+                    count_updated += 1
+                else:
+                    count_inserted += 1
+
+        if not tbl.has_index(self.idname):
+            tbl.create_index(self.idname)
+        self.logger.info('%d rows inserted, %s updated', count_inserted,
+                         count_updated)
+
+    def insert_table(self, table, version=None, show_progress=True):
+        if not isinstance(table, Table):
+            raise ValueError('table should be an Astropy Table object')
+
+        rows = [OrderedDict(zip(table.colnames, row))
+                for row in zip(*[c.tolist() for c in table.columns.values()])]
+        self.insert_rows(rows, version=version, show_progress=show_progress)
+
+    @property
+    def c(self):
+        """The list of columns from the SQLAlchemy table object."""
+        return self.table.table.c
+
+    def select(self, whereclause=None, columns=None, **params):
+        """Select rows in the catalog.
+
+        Parameters
+        ----------
+        whereclause:
+            The SQLAlchemy selection clause.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+
+        """
+        if columns is not None:
+            columns = [self.c[col] for col in columns]
+        else:
+            columns = [self.table.table]
+        query = self.db.query(select(columns=columns, whereclause=whereclause,
+                                     **params))
+        return ResultSet(query, whereclause=whereclause, catalog=self)
+
+    def add_to_source(self, src, conf):
+        """Add information to the Source object."""
+
+        # Add catalog as a BinTableHDU
+        cat = self.select(columns=conf['columns']).as_table()
+        wcs = src.images[conf.get('select_in', 'WHITE')].wcs
+        scat = cat.select(wcs, ra=self.raname, dec=self.decname,
+                          margin=conf['margin'])
+        dist = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
+        scat.add_column(Column(name='DIST', data=dist))
+        # FIXME: is it the same ?
+        # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
+        name = conf.get('name', 'CAT')
+        self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
+        src.add_table(scat, f'{conf["prefix"]}_{name}')
+
+
+class Catalog(BaseCatalog):
+
+    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
+                 segmap=None, workdir=None):
+        super().__init__(name, db, idname=idname, raname=raname,
+                         decname=decname, segmap=segmap)
+        # Work dir for intermediate files
+        if workdir is None:
+            raise Exception('FIXME: find a better way to handle this')
+        self.workdir = Path(workdir) / self.name
+        self.workdir.mkdir(exist_ok=True)
 
     @lazyproperty
     def segmap_img(self):
@@ -222,79 +302,6 @@ class Catalog:
                                'mask_sky': relpath(sky_path, self.workdir)},
                               [self.idname])
 
-    def insert_rows(self, rows, version=None, show_progress=True):
-        count_inserted = 0
-        count_updated = 0
-        if show_progress:
-            rows = ProgressBar(rows, ipython_widget=isnotebook())
-        with self.db as tx:
-            tbl = tx[self.name]
-            for row in rows:
-                if 'version' not in row:
-                    if version is not None:
-                        row['version'] = version
-                    else:
-                        raise ValueError('version should be specified')
-
-                res = tbl.upsert(row, [self.idname, 'version'])
-                if res is True:
-                    count_updated += 1
-                else:
-                    count_inserted += 1
-
-        if not tbl.has_index(self.idname):
-            tbl.create_index(self.idname)
-        self.logger.info('%d rows inserted, %s updated', count_inserted,
-                         count_updated)
-
-    def insert_table(self, table, version=None, show_progress=True):
-        if not isinstance(table, Table):
-            raise ValueError('table should be an Astropy Table object')
-
-        rows = [OrderedDict(zip(table.colnames, row))
-                for row in zip(*[c.tolist() for c in table.columns.values()])]
-        self.insert_rows(rows, version=version, show_progress=show_progress)
-
-    @property
-    def c(self):
-        """The list of columns from the SQLAlchemy table object."""
-        return self.table.table.c
-
-    def select(self, whereclause=None, columns=None, **params):
-        """Select rows in the catalog.
-
-        Parameters
-        ----------
-        whereclause:
-            The SQLAlchemy selection clause.
-        columns: list of str
-            List of columns to retrieve (all columns if None).
-
-        """
-        if columns is not None:
-            columns = [self.c[col] for col in columns]
-        else:
-            columns = [self.table.table]
-        query = self.db.query(select(columns=columns, whereclause=whereclause,
-                                     **params))
-        return ResultSet(query, whereclause=whereclause, catalog=self)
-
-    def add_to_source(self, src, conf):
-        """Add information to the Source object."""
-
-        # Add catalog as a BinTableHDU
-        cat = self.select(columns=conf['columns']).as_table()
-        wcs = src.images[conf.get('select_in', 'WHITE')].wcs
-        scat = cat.select(wcs, ra=self.raname, dec=self.decname,
-                          margin=conf['margin'])
-        dist = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
-        scat.add_column(Column(name='DIST', data=dist))
-        # FIXME: is it the same ?
-        # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-        name = conf.get('name', 'CAT')
-        self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
-        src.add_table(scat, f'{conf["prefix"]}_{name}')
-
 
 class InputCatalog(Catalog):
     """Handles catalogs imported from an exiting file."""
@@ -320,4 +327,3 @@ class InputCatalog(Catalog):
             cat = cat[:limit]
         self.insert_table(cat, version=self.version,
                           show_progress=show_progress)
-
