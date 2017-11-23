@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 import os
 import sys
 from collections import OrderedDict
@@ -8,6 +9,7 @@ from .dataset import load_datasets, MuseDataSet
 from .catalog import load_input_catalogs, Catalog
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
+from .utils import extract_subimage
 from .version import __version__, __description__
 
 LOGO = r"""
@@ -108,8 +110,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         """Export a catalog to a list of Sources. See `export_resultset` for
         the additional parameters.
         """
-        columns = [catalog.idname, catalog.raname, catalog.decname]
-        resultset = catalog.select(columns=columns)
+        resultset = catalog.select()
         return self.export_resultset(resultset, **kwargs)
 
     def export_resultset(self, resultset, size=5, srcvers='', apertures=None,
@@ -154,7 +155,12 @@ catalogs       : {', '.join(self.catalogs.keys())}
         except TypeError:
             parent_cat = cat
 
-        for src in slist:
+        size = (size, size)
+        minsize = min(*size) // 2
+        nskywarn = (50, 5)
+        ds = self.muse_dataset
+
+        for row, src in zip(resultset, slist):
             self.logger.info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
             src.add_history('New source created', author=self.conf['author'])
@@ -162,7 +168,46 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 ds.add_to_source(src, size)
 
             parent_cat.add_to_source(src, parent_cat.extract)
-            # cat.add_to_source(src, self.muse_dataset)
-            # src.extract_all_spectra(apertures=apertures)
+
+            center = (src.DEC, src.RA)
+            seg_sky = extract_subimage(str(cat.workdir / row['mask_sky']),
+                                       center, size, minsize=minsize)
+            seg_obj = extract_subimage(str(cat.workdir / row['mask_obj']),
+                                       center, size, minsize=minsize)
+
+            # add segmentation map
+            src.images['MASK_SKY'] = seg_sky
+
+            # FIXME: check that this is enough (no need to use find_union_mask)
+            src.images['MASK_OBJ'] = seg_obj
+            # src.images['SEG_HST'] = seg_obj
+            # src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
+            # # delete temporary segmentation masks
+            # del src.images['SEG_HST']
+
+            # compute surface of each masks and compare to field of view, save
+            # values in header
+            nsky = np.count_nonzero(src.images['MASK_SKY']._data)
+            nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
+            nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
+            nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
+            min_nsky_abs, min_nsky_rel = nskywarn
+            if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
+                self.logger.warning('sky mask is too small. Size is %d spaxel '
+                                    'or %.1f %% of total area', nsky, nfracsky)
+
+            # FIXME: store fsf and use it here
+            # fsf = self.settings['masks'].get('convolve_fsf', 0)
+            # src.add_attr('FSFMSK', fsf, 'Mask Conv Gauss FWHM in arcsec')
+
+            src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+            src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
+            src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+            src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
+            # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
+            # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
+            # return nobj, nfracobj, nsky, nfracobj
+
+            src.extract_all_spectra(apertures=apertures)
 
         return slist

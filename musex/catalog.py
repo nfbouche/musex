@@ -11,7 +11,6 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
-from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog as _Catalog
 from os.path import exists, relpath
 from pathlib import Path
@@ -23,7 +22,7 @@ from .settings import isnotebook
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ['load_input_catalogs', 'Catalog', 'PriorCatalog']
+__all__ = ['load_input_catalogs', 'Catalog']
 
 
 #     def merge_close_sources(self, maxdist=0.2*u.arcsec):
@@ -282,6 +281,8 @@ class Catalog:
 
     def add_to_source(self, src, conf):
         """Add information to the Source object."""
+
+        # Add catalog as a BinTableHDU
         cat = self.select(columns=conf['columns']).as_table()
         wcs = src.images[conf.get('select_in', 'WHITE')].wcs
         scat = cat.select(wcs, ra=self.raname, dec=self.decname,
@@ -320,74 +321,3 @@ class InputCatalog(Catalog):
         self.insert_table(cat, version=self.version,
                           show_progress=show_progress)
 
-
-class PriorCatalog(InputCatalog):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._skyim = {}
-
-    def get_sky_mask_path(self, dataset):
-        return self.workdir / dataset.name / 'sky.fits'
-
-    def get_source_mask_path(self, dataset, source_id):
-        return (self.workdir / dataset.name /
-                self.settings['masks']['outname'].format(source_id))
-
-    def get_sky_mask(self, dataset, source_id, size, center=None):
-        sky = self._skyim.get(dataset)
-        if sky is None:
-            sky = self._skyim[dataset] = Image(
-                str(self.get_sky_mask_path(dataset)))
-        if center is None:
-            s = self.select(self.c[self.idname] == source_id)[0]
-            center = (s[self.decname], s[self.raname])
-        minsize = min(*size) // 2
-        return sky.subimage(center, size, minsize=minsize, unit_size=u.arcsec)
-
-    def get_source_mask(self, dataset, source_id, size, center=None):
-        src = Image(str(self.get_source_mask_path(dataset, source_id)))
-        if center is None:
-            s = self.select(self.c[self.idname] == source_id)[0]
-            center = (s[self.decname], s[self.raname])
-        minsize = min(*size) // 2
-        return src.subimage(center, size, minsize=minsize, unit_size=u.arcsec)
-
-    def add_to_source(self, src, dataset, nskywarn=(50, 5)):
-        super().add_to_source(src)
-
-        size = (src.default_size, src.default_size)
-        center = (src.DEC, src.RA)
-        seg_obj = self.get_source_mask(dataset, src.ID, size, center=center)
-        seg_sky = self.get_sky_mask(dataset, src.ID, size, center=center)
-
-        # add segmentation map
-        src.images['MASK_SKY'] = seg_sky
-
-        # FIXME: check that this is enough (no need to use find_union_mask)
-        src.images['MASK_OBJ'] = seg_obj
-        # src.images['SEG_HST'] = seg_obj
-        # src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
-        # # delete temporary segmentation masks
-        # del src.images['SEG_HST']
-
-        # compute surface of each masks and compare to field of view, save
-        # values in header
-        nsky = np.count_nonzero(src.images['MASK_SKY']._data)
-        nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
-        nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
-        nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
-        min_nsky_abs, min_nsky_rel = nskywarn
-        if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
-            self.logger.warning('Sky Mask is too small. Size is %d spaxel or '
-                                '%.1f %% of total area', nsky, nfracsky)
-
-        fsf = self.settings['masks'].get('convolve_fsf', 0)
-        src.add_attr('FSFMSK', fsf, 'Mask Conv Gauss FWHM in arcsec')
-        src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-        src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
-        src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-        src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
-        # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
-        # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-        # return nobj, nfracobj, nsky, nfracobj
