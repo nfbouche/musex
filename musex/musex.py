@@ -110,7 +110,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         """
         columns = [catalog.idname, catalog.raname, catalog.decname]
         resultset = catalog.select(columns=columns)
-        self.export_resultset(resultset, **kwargs)
+        return self.export_resultset(resultset, **kwargs)
 
     def export_resultset(self, resultset, size=5, srcvers='', apertures=None,
                          datasets=None):
@@ -157,8 +157,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         for src in slist:
             self.logger.info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
-            src.add_history('New source created',
-                            author='')  # FIXME: how to get author here ?
+            src.add_history('New source created', author=self.conf['author'])
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 
