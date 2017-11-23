@@ -113,6 +113,10 @@ class Catalog:
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
+    @property
+    def meta(self):
+        return self.db['catalogs'].find_one(name=self.name)
+
     def info(self):
         print(textwrap.dedent(f"""\
         {self.__class__.__name__} '{self.name}' - {len(self)} rows.
@@ -120,7 +124,7 @@ class Catalog:
         Workdir: {self.workdir}
         """))
 
-        meta = self.db['catalogs'].find_one(name=self.name)
+        meta = self.meta
         if meta:
             maxlen = max(len(k) for k in meta.keys()) + 1
             meta = '\n'.join(f'- {k:{maxlen}s}: {v}' for k, v in meta.items()
@@ -278,7 +282,6 @@ class Catalog:
 
     def add_to_source(self, src, conf):
         """Add information to the Source object."""
-        # conf = self.settings['extract']
         cat = self.select(columns=conf['columns']).as_table()
         wcs = src.images[conf.get('select_in', 'WHITE')].wcs
         scat = cat.select(wcs, ra=self.raname, dec=self.decname,
@@ -300,7 +303,7 @@ class InputCatalog(Catalog):
         init_keys = ('idname', 'raname', 'decname', 'workdir', 'segmap')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
-        for key in ('catalog', 'version'):
+        for key in ('catalog', 'version', 'extract'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])

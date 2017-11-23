@@ -80,7 +80,3 @@ catalogs:
       columns: [id, ra, dec, source_sum, area]
       select_in: HST_F775W
       margin: 10
-
-extraction:
-  apertures: [0.4]
-  additional_datasets: [hst]

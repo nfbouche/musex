@@ -104,31 +104,66 @@ catalogs       : {', '.join(self.catalogs.keys())}
             query=query
         ), ['name'])
 
-    def export_resultset(self, resultset, size=5, srcvers=''):
-        """Export a catalog selection (`ResultSet`) to a SourceList."""
-        settings = self.conf['extraction']
+    def export_catalog(self, catalog, **kwargs):
+        """Export a catalog to a list of Sources. See `export_resultset` for
+        the additional parameters.
+        """
+        columns = [catalog.idname, catalog.raname, catalog.decname]
+        resultset = catalog.select(columns=columns)
+        self.export_resultset(resultset, **kwargs)
+
+    def export_resultset(self, resultset, size=5, srcvers='', apertures=None,
+                         datasets=None):
+        """Export a catalog selection (`ResultSet`) to a SourceList.
+
+        Parameters
+        ----------
+        size: float
+            Size of the images (in arcseconds) added in the sources.
+        srcvers: str
+            Version of the sources (SRC_V).
+        apertures: list of float
+            List of aperture radii for spectra extraction.
+        datasets: list of str
+            List of dataset names to use for the sources. By default all
+            datasets are used.
+
+        """
         cat = resultset.catalog
         slist = SourceListX.from_coords(resultset, srcvers=srcvers,
-                                        **cat.colnames)
+                                        idname=cat.idname, raname=cat.raname,
+                                        decname=cat.decname)
+
+        meta = self.db['catalogs'].find_one(name=cat.name)
+        # FIXME: not sure here, but the current dataset should be the same as
+        # the one used to produce the masks
+        assert meta['dataset'] == self.muse_dataset.name
 
         self.logger.info('Exporting results with %s dataset, size=%.1f',
                          self.muse_dataset.name, size)
-        datasets = [self.muse_dataset]
-        add_datasets = settings.get('additional_datasets')
-        if add_datasets:
-            if not isinstance(add_datasets, (list, tuple)):
-                add_datasets = [add_datasets]
-            datasets += [self.datasets[a] for a in add_datasets]
+        use_datasets = [self.muse_dataset]
+        if datasets:
+            if not isinstance(datasets, (list, tuple)):
+                datasets = [datasets]
+            use_datasets += [self.datasets[a] for a in datasets]
+        else:
+            use_datasets += list(self.datasets.values())
+
+        try:
+            parent_cat = self.input_catalogs[cat.meta['parent_cat']]
+        except TypeError:
+            parent_cat = cat
 
         for src in slist:
             self.logger.info('source %05d', src.ID)
-            src.CATALOG = os.path.basename(cat.name)
+            src.CATALOG = os.path.basename(parent_cat.name)
             src.add_history('New source created',
                             author='')  # FIXME: how to get author here ?
-            for ds in datasets:
+            for ds in use_datasets:
                 ds.add_to_source(src, size)
 
-            cat.add_to_source(src, self.muse_dataset)
-            src.extract_all_spectra(apertures=settings['apertures'])
+            parent_cat.add_to_source(src, parent_cat.extract)
+            # cat.add_to_source(src, self.muse_dataset)
+            # src.extract_all_spectra(apertures=apertures)
 
         return slist
