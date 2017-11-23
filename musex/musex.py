@@ -4,6 +4,7 @@ import os
 import sys
 from collections import OrderedDict
 from datetime import datetime
+from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import load_input_catalogs, Catalog
@@ -155,10 +156,12 @@ catalogs       : {', '.join(self.catalogs.keys())}
         except TypeError:
             parent_cat = cat
 
-        size = (size, size)
-        minsize = min(*size) // 2
+        # minsize = min(*size) // 2
+        minsize = size // 2
         nskywarn = (50, 5)
         ds = self.muse_dataset
+        refskyf = resultset[0]['mask_sky']
+        refskyim = Image(str(cat.workdir / refskyf), copy=False)
 
         for row, src in zip(resultset, slist):
             self.logger.info('source %05d', src.ID)
@@ -170,10 +173,12 @@ catalogs       : {', '.join(self.catalogs.keys())}
             parent_cat.add_to_source(src, parent_cat.extract)
 
             center = (src.DEC, src.RA)
-            seg_sky = extract_subimage(str(cat.workdir / row['mask_sky']),
-                                       center, size, minsize=minsize)
+            skyim = (refskyim if row['mask_sky'] == refskyf else
+                     str(cat.workdir / row['mask_sky']))
+            seg_sky = extract_subimage(skyim, center, (size, size),
+                                       minsize=minsize)
             seg_obj = extract_subimage(str(cat.workdir / row['mask_obj']),
-                                       center, size, minsize=minsize)
+                                       center, (size, size), minsize=minsize)
 
             # add segmentation map
             src.images['MASK_SKY'] = seg_sky
