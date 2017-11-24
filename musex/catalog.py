@@ -115,6 +115,7 @@ class BaseCatalog:
         {self.__class__.__name__} '{self.name}' - {len(self)} rows.
 
         Workdir: {self.workdir}
+        Segmap : {self.segmap}
         """))
 
         meta = self.meta

@@ -87,7 +87,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         parent_cat = resultset.catalog
         cat = Catalog(name, self.db, workdir=self.conf['workdir'],
                       idname=parent_cat.idname, raname=parent_cat.raname,
-                      decname=parent_cat.decname)
+                      decname=parent_cat.decname, segmap=parent_cat.segmap)
         cat.insert_rows(resultset)
 
         creation_date = datetime.utcnow().isoformat()
@@ -103,7 +103,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             idname=cat.idname,
             raname=cat.raname,
             decname=cat.decname,
-            segmap=getattr(parent_cat, 'segmap', ''),
+            segmap=parent_cat.segmap,
             query=query
         ), ['name'])
 
