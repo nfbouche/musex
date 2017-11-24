@@ -38,6 +38,7 @@ __all__ = ['load_input_catalogs', 'Catalog']
 
 def load_input_catalogs(settings, db):
     catalogs = {}
+    workdir = settings['workdir']
     for name, conf in settings['catalogs'].items():
         if 'class' in conf:
             mod, class_ = conf['class'].rsplit('.', 1)
@@ -45,8 +46,7 @@ def load_input_catalogs(settings, db):
             cls = getattr(mod, class_)
         else:
             cls = InputCatalog
-        catalogs[name] = cls.from_settings(name, db,
-                                           workdir=settings['workdir'], **conf)
+        catalogs[name] = cls.from_settings(name, db, workdir=workdir, **conf)
     return catalogs
 
 
@@ -75,14 +75,27 @@ class ResultSet(Sequence):
 
     def as_table(self, mpdaf_catalog=True):
         cls = _Catalog if mpdaf_catalog else Table
-        t = cls(data=self.results, names=self.results[0].keys())
-        if '_id' in t.columns:
-            t.remove_column('_id')
-        return t
+        return cls(data=self.results, names=self.results[0].keys())
 
 
 class BaseCatalog:
     """Handle Catalogs by the way of a database table.
+
+    Parameters
+    ----------
+    name: str
+        Name of the catalog.
+    db: dataset.Database
+        The database object.
+    idname: str
+        Name of the 'id' column.
+    raname: str
+        Name of the 'ra' column.
+    decname: str
+        Name of the 'dec' column.
+    segmap: str
+        Path to the segmentation map file associated with the catalog.
+
     """
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
@@ -96,8 +109,8 @@ class BaseCatalog:
         self.logger = logging.getLogger(__name__)
 
         if self.name not in self.db:
-            self.logger.info('create table %s (primary key: %s)',
-                             self.name, self.idname)
+            self.logger.idebug('create table %s (primary key: %s)',
+                               self.name, self.idname)
         self.table = self.db.create_table(self.name, primary_id=self.idname)
 
     def __len__(self):
@@ -107,10 +120,17 @@ class BaseCatalog:
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
     @property
+    def c(self):
+        """The list of columns from the SQLAlchemy table object."""
+        return self.table.table.c
+
+    @property
     def meta(self):
+        """Return metadata associated with the catalog."""
         return self.db['catalogs'].find_one(name=self.name)
 
     def info(self):
+        """Print information about the catalog (columns etc.)."""
         print(textwrap.dedent(f"""\
         {self.__class__.__name__} '{self.name}' - {len(self)} rows.
 
@@ -131,6 +151,19 @@ class BaseCatalog:
         print(f"Columns:\n{columns}\n")
 
     def insert_rows(self, rows, version=None, show_progress=True):
+        """Insert rows in the catalog.
+
+        Parameters
+        ----------
+        rows: list of dict
+            List of rows to insert. Each row must be a dict with column names
+            as keys.
+        version: str
+            Version added to each row (if not available in the row values).
+        show_progress: bool
+            Show a progress bar.
+
+        """
         count_inserted = 0
         count_updated = 0
         if show_progress:
@@ -156,17 +189,24 @@ class BaseCatalog:
                          count_updated)
 
     def insert_table(self, table, version=None, show_progress=True):
+        """Insert rows from an Astropy Table in the catalog.
+
+        Parameters
+        ----------
+        table: `astropy.table.Table`
+            Table to insert.
+        version: str
+            Version added to each row (if not available in the table).
+        show_progress: bool
+            Show a progress bar.
+
+        """
         if not isinstance(table, Table):
             raise ValueError('table should be an Astropy Table object')
 
         rows = [OrderedDict(zip(table.colnames, row))
                 for row in zip(*[c.tolist() for c in table.columns.values()])]
         self.insert_rows(rows, version=version, show_progress=show_progress)
-
-    @property
-    def c(self):
-        """The list of columns from the SQLAlchemy table object."""
-        return self.table.table.c
 
     def select(self, whereclause=None, columns=None, **params):
         """Select rows in the catalog.
@@ -188,8 +228,11 @@ class BaseCatalog:
         return ResultSet(query, whereclause=whereclause, catalog=self)
 
     def add_to_source(self, src, conf):
-        """Add information to the Source object."""
+        """Add information to the Source object.
 
+        FIXME: see how to improve conf here.
+
+        """
         # Add catalog as a BinTableHDU
         cat = self.select(columns=conf['columns']).as_table()
         wcs = src.images[conf.get('select_in', 'WHITE')].wcs
@@ -218,7 +261,7 @@ class Catalog(BaseCatalog):
 
     @lazyproperty
     def segmap_img(self):
-        """The segmentation map."""
+        """The segmentation map as an `musex.Segmap` object."""
         if self.segmap:
             return SegMap(self.segmap)
 
@@ -228,8 +271,7 @@ class Catalog(BaseCatalog):
 
         Create masks from the segmap, adapted to a given dataset.
 
-        TODO: store in the database for each source: the sky and source mask
-        paths, and preprocessing status
+        TODO: store preprocessing status?
 
         """
         if self.segmap is None:
@@ -309,6 +351,7 @@ class InputCatalog(Catalog):
 
     @classmethod
     def from_settings(cls, name, db, **kwargs):
+        """Create an InputCatalog from the settings file."""
         init_keys = ('idname', 'raname', 'decname', 'workdir', 'segmap')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
