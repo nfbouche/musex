@@ -43,16 +43,17 @@ class MuseX:
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
         self.db = load_db(self.conf['db'])
-        self.datasets = load_datasets(self.conf)
-        self.input_catalogs = load_input_catalogs(self.conf, self.db)
-        self.catalogs = {}
-        # TODO: load catalogs
 
+        # Load datasets
+        self.datasets = load_datasets(self.conf)
         settings = self.conf['muse_datasets']
         muse_dataset = muse_dataset or settings['default']
         self.muse_dataset = MuseDataSet(muse_dataset,
                                         settings=settings[muse_dataset])
 
+        # Load catalogs
+        self.input_catalogs = load_input_catalogs(self.conf, self.db)
+        self.catalogs = {}
         self.catalogs_table = self.db.create_table('catalogs')
         for row in self.catalogs_table.all():
             name = row['name']
@@ -79,6 +80,18 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
     def new_catalog_from_resultset(self, name, resultset,
                                    drop_if_exists=False):
+        """Create a new user catalog from a query result.
+
+        Parameters
+        ----------
+        name: str
+            Name of the catalog.
+        resultset: ResultSet
+            Result from a query.
+        drop_if_exists: bool
+            Drop the catalog if it already exists.
+
+        """
         if name in self.db.tables:
             if drop_if_exists:
                 self.db[name].drop()
@@ -91,7 +104,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
         cat.insert_rows(resultset)
 
         creation_date = datetime.utcnow().isoformat()
-        query = str(resultset.whereclause)
         query = str(resultset.whereclause.compile(
             compile_kwargs={"literal_binds": True}))
 
