@@ -5,7 +5,7 @@ import os
 # import shutil
 from mpdaf.sdetect import Source, SourceList
 
-# from .hstutils import skymask_from_hst, objmask_from_hst
+# from .utils import skymask_from_hst, objmask_from_hst
 from .pdf import create_pdf
 from .version import __version__
 

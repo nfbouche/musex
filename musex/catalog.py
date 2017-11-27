@@ -16,9 +16,9 @@ from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy.sql import select
 
-from .hstutils import align_with_image
 from .segmap import SegMap
 from .settings import isnotebook
+from .utils import align_with_image
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
