@@ -109,8 +109,8 @@ class BaseCatalog:
         self.logger = logging.getLogger(__name__)
 
         if self.name not in self.db:
-            self.logger.idebug('create table %s (primary key: %s)',
-                               self.name, self.idname)
+            self.logger.debug('create table %s (primary key: %s)',
+                              self.name, self.idname)
         self.table = self.db.create_table(self.name, primary_id=self.idname)
 
     def __len__(self):
@@ -226,6 +226,22 @@ class BaseCatalog:
         query = self.db.query(select(columns=columns, whereclause=whereclause,
                                      **params))
         return ResultSet(query, whereclause=whereclause, catalog=self)
+
+    def select_ids(self, idlist, columns=None, **params):
+        """Select rows with a list of IDs.
+
+        Parameters
+        ----------
+        idlist: int or list of int
+            List of IDs.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+
+        """
+        if not isinstance(idlist, (list, tuple)):
+            idlist = [idlist]
+        whereclause = self.c[self.idname].in_(idlist)
+        return self.select(whereclause=whereclause, columns=columns, **params)
 
     def add_to_source(self, src, conf):
         """Add information to the Source object.
