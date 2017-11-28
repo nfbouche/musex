@@ -18,7 +18,7 @@ from sqlalchemy.sql import select
 
 from .segmap import SegMap
 from .settings import isnotebook
-from .utils import align_with_image
+from .utils import align_mask_with_image
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -306,18 +306,13 @@ class Catalog(BaseCatalog):
 
         # create sky mask
         sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
-
         if exists(sky_path) and skip_existing:
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
-            sky = self.segmap_img.get_mask(0)
-            sky._data = np.logical_not(sky._data).astype(float)
-            align_with_image(sky, dataset.white, order=0, inplace=True,
-                             fsf_conv=mask_convolve_fsf)
-            sky.data /= np.max(sky.data)
-            sky._data = np.where(sky._data > 0.1, 0, 1)
-            sky.write(sky_path, savemask='none')
+            sky = self.segmap_img.get_inverse_mask(0, dtype=float)
+            align_mask_with_image(sky, dataset.white, inverse=True,
+                                  fsf_conv=mask_convolve_fsf, outname=sky_path)
 
         # check sources inside dataset
         columns = [self.idname, self.raname, self.decname]
@@ -349,11 +344,8 @@ class Catalog(BaseCatalog):
                                 unit_center=ucent, unit_size=usize)
                 subref = white.subimage((dec, ra), mask_size, minsize=minsize,
                                         unit_center=ucent, unit_size=usize)
-                align_with_image(mask, subref, order=0, inplace=True,
-                                 fsf_conv=mask_convolve_fsf)
-                data = mask.data.filled(0)
-                mask._data = np.where(data / data.max() > 0.1, 1, 0)
-                mask.write(source_path, savemask='none')
+                align_mask_with_image(mask, subref, outname=source_path,
+                                      fsf_conv=mask_convolve_fsf)
 
             # update in db
             self.table.upsert({self.idname: id_,

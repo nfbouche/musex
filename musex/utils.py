@@ -57,3 +57,20 @@ def align_with_image(img, other, inplace=False, order=1, fsf_conv=None):
                other.wcs.get_axis_increments(unit=u.deg),
                order=order, flux=False, unit_inc=u.deg, inplace=True)
     return out
+
+
+def align_mask_with_image(mask, other, inplace=True, fsf_conv=None,
+                          threshold=0.1, inverse=False, outname=None):
+    mask = align_with_image(mask, other, order=0, inplace=inplace,
+                            fsf_conv=fsf_conv)
+    data = mask.data.filled(0)
+    data /= data.max()
+    if inverse:
+        mask._data = np.where(data > threshold, 0, 1)
+    else:
+        mask._data = np.where(data > threshold, 1, 0)
+
+    if outname:
+        mask.write(outname, savemask='none')
+
+    return mask

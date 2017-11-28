@@ -18,9 +18,13 @@ class SegMap:
             idx = self.img.data_header.index(cut_header_after)
             self.img.data_header = self.img.data_header[:idx]
 
-    def get_mask(self, value):
+    def get_mask(self, value, dtype=np.uint8):
         return Image.new_from_obj(
-            self.img, (self.img._data == value).astype(np.uint8))
+            self.img, (self.img._data == value).astype(dtype))
+
+    def get_inverse_mask(self, value, dtype=np.uint8):
+        return Image.new_from_obj(
+            self.img, (self.img._data != value).astype(dtype))
 
     def get_source_mask(self, iden, center, size, minsize=None,
                         unit_center=u.deg, unit_size=u.arcsec):
