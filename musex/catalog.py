@@ -1,8 +1,9 @@
 import importlib
 import logging
-import numpy as np
+# import numpy as np
 import os
 import textwrap
+from functools import partial
 
 import astropy.units as u
 from astropy.table import Table, Column
@@ -18,7 +19,7 @@ from sqlalchemy.sql import select
 
 from .segmap import SegMap
 from .settings import isnotebook
-from .utils import align_mask_with_image
+from .utils import regrid_to_image
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -282,7 +283,7 @@ class Catalog(BaseCatalog):
             return SegMap(self.segmap)
 
     def attach_dataset(self, dataset, skip_existing=True,
-                       mask_convolve_fsf=0, mask_size=(20, 20)):
+                       convolve_fwhm=0, mask_size=(20, 20)):
         """Attach a dataset to the catalog and generate intermediate products.
 
         Create masks from the segmap, adapted to a given dataset.
@@ -304,15 +305,24 @@ class Catalog(BaseCatalog):
         self.db['catalogs'].upsert(dict(name=self.name, dataset=dataset.name),
                                    ['name'])
 
+        # Get a segmap image rotated and aligned with our dataset
+        segmap = self.segmap_img.align_with_image(dataset.white, truncate=True)
+
+        # TODO: compute dilation niter given fwhm
+        if convolve_fwhm:
+            dilateit = 2
+        else:
+            dilateit = 0
+
         # create sky mask
         sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
         if exists(sky_path) and skip_existing:
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
-            sky = self.segmap_img.get_inverse_mask(0, dtype=float)
-            align_mask_with_image(sky, dataset.white, inverse=True,
-                                  fsf_conv=mask_convolve_fsf, outname=sky_path)
+            sky = segmap.get_mask(0, inverse=True, dilate=dilateit)
+            sky = regrid_to_image(sky, dataset.white, inplace=True)
+            sky.write(sky_path, savemask='none')
 
         # check sources inside dataset
         columns = [self.idname, self.raname, self.decname]
@@ -324,14 +334,10 @@ class Catalog(BaseCatalog):
         ucent = u.deg
         minsize = min(*mask_size) // 2
 
-        # TODO: prepare the psf image for convolution
-        # ima = gauss_image(self.shape, wcs=self.wcs, fwhm=fwhm, gauss=None,
-        #                   unit_fwhm=usize, cont=0, unit=self.unit)
-        # ima.norm(typ='sum')
-
         # extract source masks
         white = dataset.white
-        get_mask = self.segmap_img.get_source_mask
+        get_mask = partial(segmap.get_source_mask, minsize=minsize,
+                           dilate=dilateit, unit_center=ucent, unit_size=usize)
         source_mask_path = str(self.workdir / dataset.name / mask_name)
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
             id_ = int(id_)  # need int, not np.int64
@@ -340,12 +346,12 @@ class Catalog(BaseCatalog):
                 debug('source %05d exists, skipping', id_)
             else:
                 debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
-                mask = get_mask(id_, (dec, ra), mask_size, minsize=minsize,
-                                unit_center=ucent, unit_size=usize)
+                mask = get_mask(id_, (dec, ra), mask_size)
+                # TODO: regrid here but without computing sub-white ?
                 subref = white.subimage((dec, ra), mask_size, minsize=minsize,
                                         unit_center=ucent, unit_size=usize)
-                align_mask_with_image(mask, subref, outname=source_path,
-                                      fsf_conv=mask_convolve_fsf)
+                mask = regrid_to_image(mask, subref, inplace=True)
+                mask.write(source_path, savemask='none')
 
             # update in db
             self.table.upsert({self.idname: id_,
