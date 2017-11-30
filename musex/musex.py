@@ -179,7 +179,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
             self.logger.info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
             src.add_history('New source created', author=self.conf['author'])
-            __import__('pdb').set_trace()
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 

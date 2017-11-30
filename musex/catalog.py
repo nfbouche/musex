@@ -310,7 +310,9 @@ class Catalog(BaseCatalog):
 
         # TODO: compute dilation niter given fwhm
         if convolve_fwhm:
-            dilateit = 2
+            dilateit = int(round(convolve_fwhm /
+                                 segmap.img.get_step(unit=u.arcsec)[0]))
+            debug('dilate with %d iterations', dilateit)
         else:
             dilateit = 0
 
@@ -324,7 +326,7 @@ class Catalog(BaseCatalog):
                                   dtype=float)
             sky = regrid_to_image(sky, dataset.white, inplace=True, order=0,
                                   antialias=False)
-            sky._data = np.around(sky._data).astype(np.uint8)
+            sky._data = (~(np.around(sky._data).astype(bool))).astype(np.uint8)
             sky.write(sky_path, savemask='none')
 
         # check sources inside dataset
