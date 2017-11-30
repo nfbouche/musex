@@ -325,19 +325,21 @@ class Catalog(BaseCatalog):
             sky.write(sky_path, savemask='none')
 
         # check sources inside dataset
+        wcsref = dataset.white.wcs
         columns = [self.idname, self.raname, self.decname]
         tab = self.select(columns=columns).as_table()
         ntot = len(tab)
-        tab = tab.select(dataset.white.wcs, ra=self.raname, dec=self.decname)
-        self.logger.info('%d sources inside dataset out of %d', len(tab), ntot)
-        usize = u.arcsec
-        ucent = u.deg
-        minsize = min(*mask_size) // 2
+        tab = tab.select(wcsref, ra=self.raname, dec=self.decname)
+        self.logger.info('%d/%d sources inside dataset', len(tab), ntot)
 
         # extract source masks
-        white = dataset.white
+        usize = u.arcsec
+        udeg = u.deg
+        minsize = min(*mask_size) // 2
+        inc = wcsref.get_axis_increments(unit=usize)
+        newdim = mask_size / wcsref.get_step(unit=usize)
         get_mask = partial(segmap.get_source_mask, minsize=minsize,
-                           dilate=dilateit, unit_center=ucent, unit_size=usize)
+                           dilate=dilateit, unit_center=udeg, unit_size=usize)
         source_mask_path = str(self.workdir / dataset.name / mask_name)
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
             id_ = int(id_)  # need int, not np.int64
@@ -346,11 +348,11 @@ class Catalog(BaseCatalog):
                 debug('source %05d exists, skipping', id_)
             else:
                 debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
-                mask = get_mask(id_, (dec, ra), mask_size)
-                # TODO: regrid here but without computing sub-white ?
-                subref = white.subimage((dec, ra), mask_size, minsize=minsize,
-                                        unit_center=ucent, unit_size=usize)
-                mask = regrid_to_image(mask, subref, inplace=True)
+                center = (dec, ra)
+                centerpix = wcsref.sky2pix(center)[0]
+                mask = get_mask(id_, center, mask_size)
+                mask.regrid(newdim, center, centerpix, inc, order=0,
+                            flux=False, unit_inc=usize, inplace=True)
                 mask.write(source_path, savemask='none')
 
             # update in db
