@@ -18,9 +18,14 @@ class SegMap:
                 self.img = Image(data=data, copy=False, mask=np.ma.nomask)
         else:
             self.img = Image(path, copy=False, mask=np.ma.nomask)
-        if cut_header_after and cut_header_after in self.img.data_header:
-            idx = self.img.data_header.index(cut_header_after)
-            self.img.data_header = self.img.data_header[:idx]
+
+        if cut_header_after:
+            if cut_header_after in self.img.data_header:
+                idx = self.img.data_header.index(cut_header_after)
+                self.img.data_header = self.img.data_header[:idx]
+            if cut_header_after in self.img.primary_header:
+                idx = self.img.primary_header.index(cut_header_after)
+                self.img.primary_header = self.img.primary_header[:idx]
 
     def copy(self):
         return self.__class__(path=self.path, data=self.img.copy())
@@ -35,7 +40,7 @@ class SegMap:
         return Image.new_from_obj(self.img, data.astype(dtype))
 
     def get_source_mask(self, iden, center, size, minsize=None, dilate=None,
-                        unit_center=u.deg, unit_size=u.arcsec):
+                        dtype=np.uint8, unit_center=u.deg, unit_size=u.arcsec):
         if minsize is None:
             minsize = size
         im = self.img.subimage(center, size, minsize=minsize,
@@ -43,7 +48,7 @@ class SegMap:
         data = (im._data == iden)
         if dilate:
             data = dilate_mask(data, niter=dilate)
-        im.data = data.astype(np.uint8)
+        im.data = data.astype(dtype)
         return im
 
     def align_with_image(self, other, inplace=False, truncate=False):

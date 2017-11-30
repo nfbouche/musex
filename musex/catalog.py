@@ -1,6 +1,6 @@
 import importlib
 import logging
-# import numpy as np
+import numpy as np
 import os
 import textwrap
 from functools import partial
@@ -320,8 +320,11 @@ class Catalog(BaseCatalog):
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
-            sky = segmap.get_mask(0, inverse=True, dilate=dilateit)
-            sky = regrid_to_image(sky, dataset.white, inplace=True)
+            sky = segmap.get_mask(0, inverse=True, dilate=dilateit,
+                                  dtype=float)
+            sky = regrid_to_image(sky, dataset.white, inplace=True, order=0,
+                                  antialias=False)
+            sky._data = np.around(sky._data).astype(np.uint8)
             sky.write(sky_path, savemask='none')
 
         # check sources inside dataset
@@ -339,7 +342,8 @@ class Catalog(BaseCatalog):
         inc = wcsref.get_axis_increments(unit=usize)
         newdim = mask_size / wcsref.get_step(unit=usize)
         get_mask = partial(segmap.get_source_mask, minsize=minsize,
-                           dilate=dilateit, unit_center=udeg, unit_size=usize)
+                           dtype=float, dilate=dilateit,
+                           unit_center=udeg, unit_size=usize)
         source_mask_path = str(self.workdir / dataset.name / mask_name)
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
             id_ = int(id_)  # need int, not np.int64
@@ -352,7 +356,8 @@ class Catalog(BaseCatalog):
                 centerpix = wcsref.sky2pix(center)[0]
                 mask = get_mask(id_, center, mask_size)
                 mask.regrid(newdim, center, centerpix, inc, order=0,
-                            flux=False, unit_inc=usize, inplace=True)
+                            unit_inc=usize, inplace=True, antialias=False)
+                mask._data = np.around(mask._data).astype(np.uint8)
                 mask.write(source_path, savemask='none')
 
             # update in db

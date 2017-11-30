@@ -76,7 +76,7 @@ def align_mask_with_image(mask, other, inplace=True, fsf_conv=None,
     return mask
 
 
-def regrid_to_image(im, other, inplace=False, order=1):
+def regrid_to_image(im, other, **kwargs):
     # Get the pixel index and Dec,Ra coordinate at the center of
     # the image that we are aligning with.
     centerpix = np.asarray(other.shape) / 2.0
@@ -85,5 +85,4 @@ def regrid_to_image(im, other, inplace=False, order=1):
     # Re-sample the rotated image to have the same axis increments, offset and
     # number of pixels as the image that we are aligning it with.
     return im.regrid(other.shape, centersky, centerpix,
-                     other.wcs.get_axis_increments(unit=u.deg),
-                     order=order, flux=False, unit_inc=u.deg, inplace=inplace)
+                     other.wcs.get_axis_increments(unit=u.arcsec))
