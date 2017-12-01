@@ -283,8 +283,8 @@ class Catalog(BaseCatalog):
         if self.segmap:
             return SegMap(self.segmap)
 
-    def attach_dataset(self, dataset, skip_existing=True,
-                       convolve_fwhm=0, mask_size=(20, 20)):
+    def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
+                       mask_size=(20, 20), psf_threshold=0.5):
         """Attach a dataset to the catalog and generate intermediate products.
 
         Create masks from the segmap, adapted to a given dataset.
@@ -309,15 +309,17 @@ class Catalog(BaseCatalog):
         # Get a segmap image rotated and aligned with our dataset
         segmap = self.segmap_img.align_with_image(dataset.white, truncate=True)
 
-        # TODO: compute dilation niter given fwhm
         if convolve_fwhm:
-            # step = segmap.img.get_step(unit=u.arcsec)[0]
+            # compute a structuring element for the dilatation, to simulate
+            # a convolution with a psf.
             dilateit = 1
-            debug('dilate with %d iterations', dilateit)
-            psf = moffat_image(fwhm=(convolve_fwhm, convolve_fwhm),
-                               unit_fwhm=u.arcsec, peak=True,
-                               wcs=segmap.img.wcs[:51, :51])
-            struct = psf._data > 0.5
+            size = round(convolve_fwhm / segmap.img.get_step(u.arcsec)[0]) + 1
+            if size % 2 == 0:
+                size += 1
+            debug('dilate with %d iterations, psf = %d pixels', dilateit, size)
+            psf = moffat_image(fwhm=(convolve_fwhm, convolve_fwhm), n=2.5,
+                               peak=True, wcs=segmap.img.wcs[:51, :51])
+            struct = psf._data > psf_threshold
         else:
             dilateit = 0
             struct = None
