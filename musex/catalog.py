@@ -12,6 +12,7 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
+from mpdaf.obj import moffat_image
 from mpdaf.sdetect import Catalog as _Catalog
 from os.path import exists, relpath
 from pathlib import Path
@@ -310,11 +311,16 @@ class Catalog(BaseCatalog):
 
         # TODO: compute dilation niter given fwhm
         if convolve_fwhm:
-            dilateit = int(round(convolve_fwhm /
-                                 segmap.img.get_step(unit=u.arcsec)[0]))
+            # step = segmap.img.get_step(unit=u.arcsec)[0]
+            dilateit = 1
             debug('dilate with %d iterations', dilateit)
+            psf = moffat_image(fwhm=(convolve_fwhm, convolve_fwhm),
+                               unit_fwhm=u.arcsec, peak=True,
+                               wcs=segmap.img.wcs[:51, :51])
+            struct = psf._data > 0.5
         else:
             dilateit = 0
+            struct = None
 
         # create sky mask
         sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
@@ -323,7 +329,7 @@ class Catalog(BaseCatalog):
         else:
             debug('creating sky mask')
             sky = segmap.get_mask(0, inverse=True, dilate=dilateit,
-                                  dtype=float)
+                                  dtype=float, struct=struct)
             sky = regrid_to_image(sky, dataset.white, inplace=True, order=0,
                                   antialias=False)
             sky._data = (~(np.around(sky._data).astype(bool))).astype(np.uint8)
@@ -344,7 +350,7 @@ class Catalog(BaseCatalog):
         inc = wcsref.get_axis_increments(unit=usize)
         newdim = mask_size / wcsref.get_step(unit=usize)
         get_mask = partial(segmap.get_source_mask, minsize=minsize,
-                           dtype=float, dilate=dilateit,
+                           dtype=float, dilate=dilateit, struct=struct,
                            unit_center=udeg, unit_size=usize)
         source_mask_path = str(self.workdir / dataset.name / mask_name)
         for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):

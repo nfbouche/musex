@@ -30,24 +30,26 @@ class SegMap:
     def copy(self):
         return self.__class__(path=self.path, data=self.img.copy())
 
-    def get_mask(self, value, dtype=np.uint8, dilate=None, inverse=False):
+    def get_mask(self, value, dtype=np.uint8, dilate=None, inverse=False,
+                 struct=None):
         if inverse:
             data = (self.img._data != value)
         else:
             data = (self.img._data == value)
         if dilate:
-            data = dilate_mask(data, niter=dilate)
+            data = dilate_mask(data, niter=dilate, struct=struct)
         return Image.new_from_obj(self.img, data.astype(dtype))
 
     def get_source_mask(self, iden, center, size, minsize=None, dilate=None,
-                        dtype=np.uint8, unit_center=u.deg, unit_size=u.arcsec):
+                        dtype=np.uint8, struct=None, unit_center=u.deg,
+                        unit_size=u.arcsec):
         if minsize is None:
             minsize = size
         im = self.img.subimage(center, size, minsize=minsize,
                                unit_center=unit_center, unit_size=unit_size)
         data = (im._data == iden)
         if dilate:
-            data = dilate_mask(data, niter=dilate)
+            data = dilate_mask(data, niter=dilate, struct=struct)
         im.data = data.astype(dtype)
         return im
 
@@ -80,15 +82,16 @@ class SegMap:
                         background_color=background_color)
 
 
-def dilate_mask(data, thres=0.5, niter=1):
-    st = ndi.generate_binary_structure(2, 1)
+def dilate_mask(data, thres=0.5, niter=1, struct=None):
+    if struct is None:
+        struct = ndi.generate_binary_structure(2, 1)
     if isinstance(data, np.ma.MaskedArray):
         data = data.filled(0)
     maxval = data.max()
     if maxval != 1:
         data /= maxval
         data = data > 0.5
-    return ndi.binary_dilation(data, structure=st, iterations=niter)
+    return ndi.binary_dilation(data, structure=struct, iterations=niter)
 
 
 def get_cmap(ncolors, background_color='#000000'):
