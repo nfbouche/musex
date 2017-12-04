@@ -271,6 +271,7 @@ class Catalog(BaseCatalog):
                  segmap=None, workdir=None):
         super().__init__(name, db, idname=idname, raname=raname,
                          decname=decname, segmap=segmap)
+        self._segmap_aligned = {}
         # Work dir for intermediate files
         if workdir is None:
             raise Exception('FIXME: find a better way to handle this')
@@ -282,6 +283,14 @@ class Catalog(BaseCatalog):
         """The segmentation map as an `musex.Segmap` object."""
         if self.segmap:
             return SegMap(self.segmap)
+
+    def get_segmap_aligned(self, dataset):
+        """Get a segmap image rotated and aligned to a dataset."""
+        name = dataset.name
+        if name not in self._segmap_aligned:
+            self._segmap_aligned[name] = self.segmap_img.align_with_image(
+                dataset.white, truncate=True)
+        return self._segmap_aligned[name]
 
     def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
                        mask_size=(20, 20), psf_threshold=0.5):
@@ -307,7 +316,7 @@ class Catalog(BaseCatalog):
                                    ['name'])
 
         # Get a segmap image rotated and aligned with our dataset
-        segmap = self.segmap_img.align_with_image(dataset.white, truncate=True)
+        segmap = self.get_segmap_aligned(dataset)
 
         if convolve_fwhm:
             # compute a structuring element for the dilatation, to simulate
@@ -375,6 +384,11 @@ class Catalog(BaseCatalog):
                                'mask_obj': relpath(source_path, self.workdir),
                                'mask_sky': relpath(sky_path, self.workdir)},
                               [self.idname])
+
+    def add_to_source(self, src, conf, dataset=None):
+        super().add_to_source(src, conf)
+        segm = self.get_segmap_aligned(dataset)
+        src.add_image(segm, f'{self.prefix}_SEGMAP', rotate=True, order=0)
 
 
 class InputCatalog(Catalog):

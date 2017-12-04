@@ -171,7 +171,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
         # minsize = min(*size) // 2
         minsize = size // 2
         nskywarn = (50, 5)
-        ds = self.muse_dataset
         refskyf = resultset[0]['mask_sky']
         refskyim = Image(str(cat.workdir / refskyf), copy=False)
 
@@ -182,7 +181,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 
-            parent_cat.add_to_source(src, parent_cat.extract)
+            parent_cat.add_to_source(src, parent_cat.extract,
+                                     dataset=self.muse_dataset)
 
             center = (src.DEC, src.RA)
             skyim = (refskyim if row['mask_sky'] == refskyf else
