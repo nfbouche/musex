@@ -388,7 +388,8 @@ class Catalog(BaseCatalog):
     def add_to_source(self, src, conf, dataset=None):
         super().add_to_source(src, conf)
         segm = self.get_segmap_aligned(dataset)
-        src.add_image(segm, f'{self.prefix}_SEGMAP', rotate=True, order=0)
+        src.add_image(segm.img, f'{conf["prefix"]}_SEGMAP', rotate=True,
+                      order=0)
 
 
 class InputCatalog(Catalog):
