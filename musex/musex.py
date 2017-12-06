@@ -153,8 +153,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
         # the one used to produce the masks
         assert meta['dataset'] == self.muse_dataset.name
 
-        self.logger.info('Exporting results with %s dataset, size=%.1f',
-                         self.muse_dataset.name, size)
+        debug = self.logger.debug
+        info = self.logger.info
+        info('Exporting results with %s dataset, size=%.1f',
+             self.muse_dataset.name, size)
         use_datasets = [self.muse_dataset]
         if datasets:
             if not isinstance(datasets, (list, tuple)):
@@ -175,7 +177,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         refskyim = Image(str(cat.workdir / refskyf), copy=False)
 
         for row, src in zip(resultset, slist):
-            self.logger.info('source %05d', src.ID)
+            info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
             src.add_history('New source created', author=self.conf['author'])
             for ds in use_datasets:
@@ -185,26 +187,17 @@ catalogs       : {', '.join(self.catalogs.keys())}
                                      dataset=self.muse_dataset)
 
             center = (src.DEC, src.RA)
+            # If mask_sky is always the same, reuse it instead of reloading
             skyim = (refskyim if row['mask_sky'] == refskyf else
                      str(cat.workdir / row['mask_sky']))
-            seg_sky = extract_subimage(skyim, center, (size, size),
-                                       minsize=minsize)
+            src.images['MASK_SKY'] = extract_subimage(
+                skyim, center, (size, size), minsize=minsize)
 
             maskim = Image(str(cat.workdir / row['mask_obj']), copy=False)
             centerpix = maskim.wcs.sky2pix(center)[0]
-            self.logger.info('center: %r -> %r', center, centerpix.tolist())
-            seg_obj = extract_subimage(maskim, center, (size, size),
-                                       minsize=minsize)
-
-            # add segmentation map
-            src.images['MASK_SKY'] = seg_sky
-
-            # FIXME: check that this is enough (no need to use find_union_mask)
-            src.images['MASK_OBJ'] = seg_obj
-            # src.images['SEG_HST'] = seg_obj
-            # src.find_union_mask(['SEG_HST'], union_mask='MASK_OBJ')
-            # # delete temporary segmentation masks
-            # del src.images['SEG_HST']
+            debug('center: %r -> %r', center, centerpix.tolist())
+            src.images['MASK_OBJ'] = extract_subimage(
+                maskim, center, (size, size), minsize=minsize)
 
             # compute surface of each masks and compare to field of view, save
             # values in header
@@ -228,6 +221,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
             # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
             # return nobj, nfracobj, nsky, nfracobj
+            info('MASK_SKY: %.1f%%, MASK_OBJ: %.1f%%', nfracsky, nfracobj)
 
             src.extract_all_spectra(apertures=apertures)
 
