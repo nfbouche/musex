@@ -373,8 +373,8 @@ class Catalog(BaseCatalog):
                 debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
                 center = (dec, ra)
                 mask = get_mask(id_, center, mask_size)
-                centerpix = mask.wcs.sky2pix(center)[0]
-                mask.regrid(newdim, center, centerpix, inc, order=0,
+                refpos = mask.wcs.pix2sky([0, 0])[0]
+                mask.regrid(newdim, refpos, [0, 0], inc, order=0,
                             unit_inc=usize, inplace=True, antialias=False)
                 mask._data = np.around(mask._data).astype(np.uint8)
                 mask.write(source_path, savemask='none')

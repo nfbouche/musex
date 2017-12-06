@@ -189,8 +189,12 @@ catalogs       : {', '.join(self.catalogs.keys())}
                      str(cat.workdir / row['mask_sky']))
             seg_sky = extract_subimage(skyim, center, (size, size),
                                        minsize=minsize)
-            seg_obj = extract_subimage(str(cat.workdir / row['mask_obj']),
-                                       center, (size, size), minsize=minsize)
+
+            maskim = Image(str(cat.workdir / row['mask_obj']), copy=False)
+            centerpix = maskim.wcs.sky2pix(center)[0]
+            self.logger.info('center: %r -> %r', center, centerpix.tolist())
+            seg_obj = extract_subimage(maskim, center, (size, size),
+                                       minsize=minsize)
 
             # add segmentation map
             src.images['MASK_SKY'] = seg_sky
