@@ -93,6 +93,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         """
         if name in self.db.tables:
+            if name in self.input_catalogs or name not in self.catalogs:
+                raise ValueError('a table with the same name already exists, '
+                                 'and cannot be dropped since it is not a '
+                                 'user catalog. Please choose another name.')
             if drop_if_exists:
                 self.db[name].drop()
             else:
