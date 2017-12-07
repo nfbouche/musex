@@ -370,13 +370,14 @@ class Catalog(BaseCatalog):
             if exists(source_path) and skip_existing:
                 debug('source %05d exists, skipping', id_)
             else:
-                debug('source %05d (%.5f, %.5f), extract mask', id_, ra, dec)
                 center = (dec, ra)
                 mask = get_mask(id_, center, mask_size)
                 refpos = mask.wcs.pix2sky([0, 0])[0]
                 mask.regrid(newdim, refpos, [0, 0], inc, order=0,
                             unit_inc=usize, inplace=True, antialias=False)
                 mask._data = np.around(mask._data).astype(np.uint8)
+                debug('source %05d (%.5f, %.5f), extract mask (%d masked '
+                      'pixels)', id_, ra, dec, np.count_nonzero(mask._data))
                 mask.write(source_path, savemask='none')
 
             # update in db
