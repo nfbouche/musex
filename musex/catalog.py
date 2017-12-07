@@ -52,6 +52,13 @@ def load_input_catalogs(settings, db):
     return catalogs
 
 
+def table_to_odict(table):
+    """Convert a `astropy.table.Table` to a list of OrderedDict."""
+    colnames = table.colnames
+    return [OrderedDict(zip(colnames, row))
+            for row in zip(*[c.tolist() for c in table.columns.values()])]
+
+
 class ResultSet(Sequence):
 
     def __init__(self, results, whereclause=None, catalog=None):
@@ -205,12 +212,11 @@ class BaseCatalog:
         """
         if not isinstance(table, Table):
             raise ValueError('table should be an Astropy Table object')
+        self.insert_rows(table_to_odict(table), version=version,
+                         show_progress=show_progress)
 
-        rows = [OrderedDict(zip(table.colnames, row))
-                for row in zip(*[c.tolist() for c in table.columns.values()])]
-        self.insert_rows(rows, version=version, show_progress=show_progress)
-
-    def select(self, whereclause=None, columns=None, **params):
+    def select(self, whereclause=None, columns=None, wcs=None, margin=0,
+               **params):
         """Select rows in the catalog.
 
         Parameters
@@ -219,6 +225,12 @@ class BaseCatalog:
             The SQLAlchemy selection clause.
         columns: list of str
             List of columns to retrieve (all columns if None).
+        wcs: `mpdaf.obj.WCS`
+            If present sources are selected inside the given WCS.
+        margin: float
+            Margin from the edges (pixels) for the WCS selection.
+        params: dict
+            Additional parameters are passed to `dataset.Database.query`.
 
         """
         if columns is not None:
@@ -227,7 +239,15 @@ class BaseCatalog:
             columns = [self.table.table]
         query = self.db.query(select(columns=columns, whereclause=whereclause,
                                      **params))
-        return ResultSet(query, whereclause=whereclause, catalog=self)
+        res = ResultSet(query, whereclause=whereclause, catalog=self)
+
+        if wcs is not None:
+            t = res.as_table()
+            t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin)
+            res = ResultSet(table_to_odict(t), whereclause=whereclause,
+                            catalog=self)
+
+        return res
 
     def select_ids(self, idlist, columns=None, **params):
         """Select rows with a list of IDs.
@@ -238,6 +258,8 @@ class BaseCatalog:
             List of IDs.
         columns: list of str
             List of columns to retrieve (all columns if None).
+        params: dict
+            Additional parameters are passed to `dataset.Database.query`.
 
         """
         if not isinstance(idlist, (list, tuple)):
