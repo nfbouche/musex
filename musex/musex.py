@@ -108,8 +108,11 @@ catalogs       : {', '.join(self.catalogs.keys())}
         cat.insert_rows(resultset)
 
         creation_date = datetime.utcnow().isoformat()
-        query = str(resultset.whereclause.compile(
-            compile_kwargs={"literal_binds": True}))
+        if resultset.whereclause is not None:
+            query = str(resultset.whereclause.compile(
+                compile_kwargs={"literal_binds": True}))
+        else:
+            query = ''
 
         self.catalogs[name] = cat
         self.catalogs_table.upsert(OrderedDict(
