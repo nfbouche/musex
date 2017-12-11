@@ -1,5 +1,5 @@
-workdir: '/muse/UDF/private/analysis/musex'
-db: '{workdir}/musex.db'
+workdir: '/muse/UDF/private/analysis/musex/work'
+db: '{workdir}/../musex.db'
 show_banner: true
 author: 'John Doe'
 
@@ -68,11 +68,11 @@ catalogs:
   photutils:
     # class: musex.catalog.PriorCatalog
     version: '1.0'
-    catalog: '{workdir}/photutils-catalog.fits'
+    catalog: '{workdir}/../photutils-catalog.fits'
     idname: id
     raname: ra
     decname: dec
-    segmap: '{workdir}/photutils-segmap.fits'
+    segmap: '{workdir}/../photutils-segmap.fits'
     # masks:
     #   # path, name and size (arcseconds) of the extracted masks
     #   outname: 'mask-source-{{:05d}}.fits'

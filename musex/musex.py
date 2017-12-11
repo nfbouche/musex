@@ -55,7 +55,7 @@ class MuseX:
         self.input_catalogs = load_input_catalogs(self.conf, self.db)
         self.catalogs = {}
         self.catalogs_table = self.db.create_table('catalogs')
-        for row in self.catalogs_table.all():
+        for row in self.catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
                 name, self.db, workdir=self.conf['workdir'],
@@ -107,7 +107,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
                       decname=parent_cat.decname, segmap=parent_cat.segmap)
         cat.insert_rows(resultset)
 
-        creation_date = datetime.utcnow().isoformat()
         if resultset.whereclause is not None:
             query = str(resultset.whereclause.compile(
                 compile_kwargs={"literal_binds": True}))
@@ -117,7 +116,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
         self.catalogs[name] = cat
         self.catalogs_table.upsert(OrderedDict(
             name=name,
-            creation_date=creation_date,
+            creation_date=datetime.utcnow().isoformat(),
+            type='user',
             parent_cat=parent_cat.name,
             idname=cat.idname,
             raname=cat.raname,

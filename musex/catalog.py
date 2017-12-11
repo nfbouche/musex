@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import os
 import textwrap
+from datetime import datetime
 from functools import partial
 
 import astropy.units as u
@@ -40,7 +41,6 @@ __all__ = ['load_input_catalogs', 'Catalog']
 
 def load_input_catalogs(settings, db):
     catalogs = {}
-    workdir = settings['workdir']
     for name, conf in settings['catalogs'].items():
         if 'class' in conf:
             mod, class_ = conf['class'].rsplit('.', 1)
@@ -48,7 +48,7 @@ def load_input_catalogs(settings, db):
             cls = getattr(mod, class_)
         else:
             cls = InputCatalog
-        catalogs[name] = cls.from_settings(name, db, workdir=workdir, **conf)
+        catalogs[name] = cls.from_settings(name, db, **conf)
     return catalogs
 
 
@@ -128,6 +128,10 @@ class BaseCatalog:
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
+    def max(self, colname):
+        res = next(self.db.query(f'SELECT max({colname}) FROM {self.name}'))
+        return res[f'max({colname})']
+
     @property
     def c(self):
         """The list of columns from the SQLAlchemy table object."""
@@ -138,12 +142,16 @@ class BaseCatalog:
         """Return metadata associated with the catalog."""
         return self.db['catalogs'].find_one(name=self.name)
 
+    def update_meta(self, **kwargs):
+        """Update metadata associated with the catalog."""
+        self.db['catalogs'].upsert({'name': self.name, **kwargs}, ['name'])
+
     def info(self):
         """Print information about the catalog (columns etc.)."""
         print(textwrap.dedent(f"""\
         {self.__class__.__name__} '{self.name}' - {len(self)} rows.
 
-        Workdir: {self.workdir}
+        Workdir: {getattr(self, 'workdir', '')}
         Segmap : {self.segmap}
         """))
 
@@ -298,7 +306,7 @@ class Catalog(BaseCatalog):
         if workdir is None:
             raise Exception('FIXME: find a better way to handle this')
         self.workdir = Path(workdir) / self.name
-        self.workdir.mkdir(exist_ok=True)
+        self.workdir.mkdir(exist_ok=True, parents=True)
 
     @lazyproperty
     def segmap_img(self):
@@ -334,8 +342,7 @@ class Catalog(BaseCatalog):
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
-        self.db['catalogs'].upsert(dict(name=self.name, dataset=dataset.name),
-                                   ['name'])
+        self.update_meta(dataset=dataset.name)
 
         # Get a segmap image rotated and aligned with our dataset
         segmap = self.get_segmap_aligned(dataset)
@@ -415,13 +422,13 @@ class Catalog(BaseCatalog):
                       order=0)
 
 
-class InputCatalog(Catalog):
+class InputCatalog(BaseCatalog):
     """Handles catalogs imported from an exiting file."""
 
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname', 'workdir', 'segmap')
+        init_keys = ('idname', 'raname', 'decname', 'segmap')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
         for key in ('catalog', 'version', 'extract'):
@@ -440,3 +447,7 @@ class InputCatalog(Catalog):
             cat = cat[:limit]
         self.insert_table(cat, version=self.version,
                           show_progress=show_progress)
+        self.update_meta(creation_date=datetime.utcnow().isoformat(),
+                         type='input', parent_cat=None, idname=self.idname,
+                         raname=self.raname, decname=self.decname,
+                         segmap=self.segmap, maxid=self.max(self.idname))
