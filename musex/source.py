@@ -82,7 +82,10 @@ class SourceListX(SourceList):
 
         info = self.logger.info
         nfiles = len(self)
+        outfiles = []
         for k, src in enumerate(self):
             outf = f'{path}/{name}-{src.ID:04d}.pdf'
             info('%d/%d: PDF source %s -> %s', k + 1, nfiles, src.ID, outf)
             create_pdf(src, white, outf)
+            outfiles.append(outf)
+        return outfiles
