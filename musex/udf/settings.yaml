@@ -47,7 +47,7 @@ muse_datasets:
     fieldmap: '{muse_data_dir}/1.0b1/FIELDMAP_UDF-MOSAIC.fits'
 
 catalogs:
-  hstprior:
+  rafelski:
     # class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'
