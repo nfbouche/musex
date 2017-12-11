@@ -415,8 +415,7 @@ class Catalog(BaseCatalog):
                                'mask_sky': relpath(sky_path, self.workdir)},
                               [self.idname])
 
-    def add_to_source(self, src, conf, dataset=None):
-        super().add_to_source(src, conf)
+    def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
         src.add_image(segm.img, f'{conf["prefix"]}_SEGMAP', rotate=True,
                       order=0)

@@ -190,8 +190,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 
-            parent_cat.add_to_source(src, parent_cat.extract,
+            cat.add_segmap_to_source(src, parent_cat.extract,
                                      dataset=self.muse_dataset)
+            parent_cat.add_to_source(src, parent_cat.extract)
 
             center = (src.DEC, src.RA)
             # If mask_sky is always the same, reuse it instead of reloading
