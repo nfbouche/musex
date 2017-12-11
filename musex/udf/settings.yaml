@@ -44,8 +44,7 @@ muse_datasets:
     expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-MOSAIC.fits'
     white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
-    images:
-      FIELDMAP: '{muse_data_dir}/1.0b1/FIELDMAP_UDF-MOSAIC.fits'
+    fieldmap: '{muse_data_dir}/1.0b1/FIELDMAP_UDF-MOSAIC.fits'
 
 catalogs:
   hstprior:
