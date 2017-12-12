@@ -60,6 +60,7 @@ def table_to_odict(table):
 
 
 class ResultSet(Sequence):
+    """Contains the result of a query on the database."""
 
     def __init__(self, results, whereclause=None, catalog=None):
         self.results = list(results)
@@ -84,7 +85,10 @@ class ResultSet(Sequence):
 
     def as_table(self, mpdaf_catalog=True):
         cls = _Catalog if mpdaf_catalog else Table
-        return cls(data=self.results, names=self.results[0].keys())
+        tbl = cls(data=self.results, names=self.results[0].keys())
+        tbl.whereclause = self.whereclause
+        tbl.catalog = self.catalog
+        return tbl
 
 
 class BaseCatalog:

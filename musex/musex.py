@@ -2,12 +2,13 @@ import logging
 import numpy as np
 import os
 import sys
+from astropy.table import Table
 from collections import OrderedDict
 from datetime import datetime
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import load_input_catalogs, Catalog
+from .catalog import load_input_catalogs, Catalog, ResultSet
 from .settings import load_db, load_yaml_config
 from .source import SourceListX
 from .utils import extract_subimage
@@ -92,6 +93,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
             Drop the catalog if it already exists.
 
         """
+        if not isinstance(resultset, (Table, ResultSet)):
+            raise ValueError('unknown input type, resultset must be a '
+                             'ResultSet or Table object')
+
         if name in self.db.tables:
             if name in self.input_catalogs or name not in self.catalogs:
                 raise ValueError('a table with the same name already exists, '
@@ -101,17 +106,20 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 self.db[name].drop()
             else:
                 raise ValueError('table already exists')
+
         parent_cat = resultset.catalog
+        wherecl = resultset.whereclause
         cat = Catalog(name, self.db, workdir=self.conf['workdir'],
                       idname=parent_cat.idname, raname=parent_cat.raname,
                       decname=parent_cat.decname, segmap=parent_cat.segmap)
-        cat.insert_rows(resultset)
 
-        if resultset.whereclause is not None:
-            query = str(resultset.whereclause.compile(
-                compile_kwargs={"literal_binds": True}))
+        if isinstance(resultset, Table):
+            cat.insert_table(resultset)
         else:
-            query = ''
+            cat.insert_rows(resultset)
+
+        query = (str(wherecl.compile(compile_kwargs={"literal_binds": True}))
+                 if wherecl is not None else None)
 
         self.catalogs[name] = cat
         self.catalogs_table.upsert(OrderedDict(
