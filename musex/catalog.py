@@ -192,11 +192,7 @@ class BaseCatalog:
         with self.db as tx:
             tbl = tx[self.name]
             for row in rows:
-                if 'version' not in row:
-                    if version is not None:
-                        row['version'] = version
-                    else:
-                        raise ValueError('version should be specified')
+                row.setdefault('version', version)
 
                 res = tbl.upsert(row, [self.idname, 'version'])
                 if res is True:
