@@ -5,8 +5,6 @@ import os
 import textwrap
 from datetime import datetime
 
-import matplotlib.pyplot as plt
-
 # import astropy.units as u
 from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
@@ -368,13 +366,14 @@ class Catalog(BaseCatalog):
             self.logger.info('no segmap available, skipping masks creation')
             return
 
-        debug = self.logger.debug
-
         # create output path if needed
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
-        # FIXME: check if it was already called once (with the same dataset)
+        if 'dataset' in self.meta and dataset.name != self.meta['dataset']:
+            raise ValueError('cannot compute masks with a different '
+                             'dataset as the one used previously')
+
         self.update_meta(dataset=dataset.name, convolve_fwhm=convolve_fwhm,
                          mask_size_x=mask_size[0], mask_size_y=mask_size[1],
                          psf_threshold=psf_threshold)
@@ -387,6 +386,7 @@ class Catalog(BaseCatalog):
                                                        psf_threshold)
 
         # create sky mask
+        debug = self.logger.debug
         if exists(self.masksky_name) and skip_existing:
             debug('sky mask exists, skipping')
         else:
@@ -394,9 +394,13 @@ class Catalog(BaseCatalog):
             segmap.get_mask(0, inverse=True, dilate=dilateit, struct=struct,
                             regrid_to=white, outname=self.masksky_name)
 
-        # check sources inside dataset
-        # TODO: select only active sources!
-        tab = self.select().as_table()
+        # check sources inside dataset, excluding inactive sources
+        if 'active' in self.c:
+            tab = self.select(self.c.active.isnot(False)).as_table()
+        else:
+            tab = self.select().as_table()
+
+        idname = self.idname
         ntot = len(tab)
         tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
         self.logger.info('%d/%d sources inside dataset', len(tab), ntot)
@@ -404,25 +408,28 @@ class Catalog(BaseCatalog):
         # extract source masks
         minsize = min(*mask_size) // 2
         for row in ProgressBar(tab, ipython_widget=isnotebook()):
-            id_ = int(row[self.idname])  # need int, not np.int64
-            if 'merged' in row.colnames and row['merged']:
-                raise Exception('FIXME! handle merged sources')
-
+            id_ = int(row[idname])  # need int, not np.int64
             source_path = self.maskobj_name.format(id_)
             if exists(source_path) and skip_existing:
                 debug('source %05d exists, skipping', id_)
             else:
                 center = (row[self.decname], row[self.raname])
+                if 'merged' in row.colnames and row['merged']:
+                    ids = [o[idname] for o in self.select(
+                        self.c.merged_in == id_, columns=[idname])]
+                    debug('merged sources, using ids %s for the mask', ids)
+                else:
+                    ids = id_
                 segmap.get_source_mask(
-                    id_, center, mask_size, minsize=minsize, struct=struct,
+                    ids, center, mask_size, minsize=minsize, struct=struct,
                     dilate=dilateit, outname=source_path, regrid_to=white)
 
             # update in db
             self.table.upsert(
-                {self.idname: id_,
+                {idname: id_,
                  'mask_obj': relpath(source_path, self.workdir),
                  'mask_sky': relpath(self.masksky_name, self.workdir)},
-                [self.idname])
+                [idname])
 
     def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
@@ -461,7 +468,16 @@ class Catalog(BaseCatalog):
         dec, ra = (np.sum(coords * weights[:, np.newaxis], axis=0) /
                    weights.sum())
 
-        row = {'merged': True, self.raname: ra, self.decname: dec}
+        # version
+        versions = set(s['version'] for s in sources)
+        if len(versions) == 1:
+            version = versions[0]
+        else:
+            self.logger.warning('sources have different version')
+            version = None
+
+        row = {'merged': True, self.raname: ra, self.decname: dec,
+               'version': version}
         if maxid <= cat_maxid:
             row[self.idname] = 10**(len(str(cat_maxid)))
 

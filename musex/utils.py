@@ -44,7 +44,6 @@ def align_with_image(img, other, inplace=False, order=1, fsf_conv=None):
 
     # convolve with FSF
     if fsf_conv:
-        # TODO: replace with dilatation ?
         out.fftconvolve_gauss(fwhm=(fsf_conv, fsf_conv), inplace=True)
 
     # Get the pixel index and Dec,Ra coordinate at the center of

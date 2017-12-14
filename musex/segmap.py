@@ -64,9 +64,18 @@ class SegMap:
                         unit_size=u.arcsec, regrid_to=None, outname=None):
         if minsize is None:
             minsize = size
+
         im = self.img.subimage(center, size, minsize=minsize,
                                unit_center=unit_center, unit_size=unit_size)
-        data = (im._data == iden)
+
+        try:
+            iter(iden)
+        except TypeError:
+            data = (im._data == iden)
+        else:
+            # combine the masks for multiple ids
+            data = np.logical_or.reduce([(im._data == i) for i in iden])
+
         if dilate:
             data = dilate_mask(data, niter=dilate, struct=struct)
 
@@ -79,7 +88,7 @@ class SegMap:
         im._data = data.astype(dtype)
         im._mask = np.ma.nomask
 
-        self.logger.debug('source %05d (%.5f, %.5f), extract mask (%d masked '
+        self.logger.debug('source %s (%.5f, %.5f), extract mask (%d masked '
                           'pixels)', iden, center[1], center[0],
                           np.count_nonzero(im._data))
         if outname:
