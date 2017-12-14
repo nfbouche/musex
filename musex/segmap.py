@@ -1,7 +1,10 @@
 import astropy.units as u
+import logging
 import numpy as np
 from mpdaf.obj import Image
 from scipy import ndimage as ndi
+
+from .utils import regrid_to_image
 
 
 class SegMap:
@@ -11,6 +14,7 @@ class SegMap:
 
     def __init__(self, path=None, data=None, cut_header_after='D001VER'):
         self.path = path
+        self.logger = logging.getLogger(__name__)
         if data is not None:
             if isinstance(data, Image):
                 self.img = data
@@ -31,18 +35,33 @@ class SegMap:
         return self.__class__(path=self.path, data=self.img.copy())
 
     def get_mask(self, value, dtype=np.uint8, dilate=None, inverse=False,
-                 struct=None):
+                 struct=None, regrid_to=None, outname=None):
         if inverse:
             data = (self.img._data != value)
         else:
             data = (self.img._data == value)
         if dilate:
             data = dilate_mask(data, niter=dilate, struct=struct)
-        return Image.new_from_obj(self.img, data.astype(dtype))
+
+        im = Image.new_from_obj(self.img, data)
+        if regrid_to:
+            im = regrid_to_image(im, regrid_to, inplace=True, order=0,
+                                 antialias=False)
+            np.around(im._data, out=im._data)
+
+        im._data = im._data.astype(dtype)
+        im._mask = np.ma.nomask
+        if inverse:
+            np.logical_not(im._data, out=im._data)
+
+        if outname:
+            im.write(outname, savemask='none')
+
+        return im
 
     def get_source_mask(self, iden, center, size, minsize=None, dilate=None,
                         dtype=np.uint8, struct=None, unit_center=u.deg,
-                        unit_size=u.arcsec):
+                        unit_size=u.arcsec, regrid_to=None, outname=None):
         if minsize is None:
             minsize = size
         im = self.img.subimage(center, size, minsize=minsize,
@@ -50,7 +69,22 @@ class SegMap:
         data = (im._data == iden)
         if dilate:
             data = dilate_mask(data, niter=dilate, struct=struct)
-        im.data = data.astype(dtype)
+
+        if regrid_to:
+            im._data = data.astype(float)
+            im = regrid_to_image(im, regrid_to, size=size, order=0,
+                                 inplace=True, antialias=False)
+            data = np.around(im._data, out=im._data)
+
+        im._data = data.astype(dtype)
+        im._mask = np.ma.nomask
+
+        self.logger.debug('source %05d (%.5f, %.5f), extract mask (%d masked '
+                          'pixels)', iden, center[1], center[0],
+                          np.count_nonzero(im._data))
+        if outname:
+            im.write(outname, savemask='none')
+
         return im
 
     def align_with_image(self, other, inplace=False, truncate=False):

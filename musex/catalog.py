@@ -4,16 +4,16 @@ import numpy as np
 import os
 import textwrap
 from datetime import datetime
-from functools import partial
 
-import astropy.units as u
+import matplotlib.pyplot as plt
+
+# import astropy.units as u
 from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
-from mpdaf.obj import moffat_image
 from mpdaf.sdetect import Catalog as _Catalog
 from os.path import exists, relpath
 from pathlib import Path
@@ -21,7 +21,7 @@ from sqlalchemy.sql import select
 
 from .segmap import SegMap
 from .settings import isnotebook
-from .utils import regrid_to_image
+from .utils import struct_from_moffat_fwhm
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -57,6 +57,21 @@ def table_to_odict(table):
     colnames = table.colnames
     return [OrderedDict(zip(colnames, row))
             for row in zip(*[c.tolist() for c in table.columns.values()])]
+
+
+def _get_psf_convolution_params(convolve_fwhm, segmap, psf_threshold):
+    if convolve_fwhm:
+        # compute a structuring element for the dilatation, to simulate
+        # a convolution with a psf, but faster.
+        dilateit = 1
+        logging.getLogger(__name__).debug(
+            'dilate with %d iterations, psf=%.2f', dilateit, convolve_fwhm)
+        struct = struct_from_moffat_fwhm(segmap.img.wcs, convolve_fwhm,
+                                         psf_threshold=psf_threshold)
+    else:
+        dilateit = 0
+        struct = None
+    return dilateit, struct
 
 
 class ResultSet(Sequence):
@@ -322,6 +337,19 @@ class Catalog(BaseCatalog):
                 dataset.white, truncate=True)
         return self._segmap_aligned[name]
 
+    @lazyproperty
+    def maskobj_name(self):
+        name = 'mask-source-{:05d}.fits'  # add setting ?
+        dataset = self.meta['dataset']
+        assert dataset is not None
+        return str(self.workdir / dataset / name)
+
+    @lazyproperty
+    def masksky_name(self):
+        dataset = self.meta['dataset']
+        assert dataset is not None
+        return str(self.workdir / dataset / 'mask-sky.fits')
+
     def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
                        mask_size=(20, 20), psf_threshold=0.5):
         """Attach a dataset to the catalog and generate intermediate products.
@@ -330,95 +358,165 @@ class Catalog(BaseCatalog):
 
         TODO: store preprocessing status?
 
+        Parameters
+        ----------
+        dataset: `musex.Dataset`
+            The dataset.
+
         """
         if self.segmap is None:
-            self.logger.info('No segmap available, skipping masks creation')
+            self.logger.info('no segmap available, skipping masks creation')
             return
 
         debug = self.logger.debug
-        mask_name = 'mask-source-{:05d}.fits'  # add setting ?
 
         # create output path if needed
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
-        self.update_meta(dataset=dataset.name)
+        # FIXME: check if it was already called once (with the same dataset)
+        self.update_meta(dataset=dataset.name, convolve_fwhm=convolve_fwhm,
+                         mask_size_x=mask_size[0], mask_size_y=mask_size[1],
+                         psf_threshold=psf_threshold)
 
         # Get a segmap image rotated and aligned with our dataset
         segmap = self.get_segmap_aligned(dataset)
 
-        if convolve_fwhm:
-            # compute a structuring element for the dilatation, to simulate
-            # a convolution with a psf.
-            dilateit = 1
-            size = round(convolve_fwhm / segmap.img.get_step(u.arcsec)[0]) + 1
-            if size % 2 == 0:
-                size += 1
-            debug('dilate with %d iterations, psf = %d pixels', dilateit, size)
-            psf = moffat_image(fwhm=(convolve_fwhm, convolve_fwhm), n=2.5,
-                               peak=True, wcs=segmap.img.wcs[:51, :51])
-            struct = psf._data > psf_threshold
-        else:
-            dilateit = 0
-            struct = None
+        white = dataset.white
+        dilateit, struct = _get_psf_convolution_params(convolve_fwhm, segmap,
+                                                       psf_threshold)
 
         # create sky mask
-        sky_path = str(self.workdir / dataset.name / 'mask-sky.fits')
-        if exists(sky_path) and skip_existing:
+        if exists(self.masksky_name) and skip_existing:
             debug('sky mask exists, skipping')
         else:
             debug('creating sky mask')
-            sky = segmap.get_mask(0, inverse=True, dilate=dilateit,
-                                  dtype=float, struct=struct)
-            sky = regrid_to_image(sky, dataset.white, inplace=True, order=0,
-                                  antialias=False)
-            sky._data = (~(np.around(sky._data).astype(bool))).astype(np.uint8)
-            sky.write(sky_path, savemask='none')
+            segmap.get_mask(0, inverse=True, dilate=dilateit, struct=struct,
+                            regrid_to=white, outname=self.masksky_name)
 
         # check sources inside dataset
-        wcsref = dataset.white.wcs
-        columns = [self.idname, self.raname, self.decname]
-        tab = self.select(columns=columns).as_table()
+        # TODO: select only active sources!
+        tab = self.select().as_table()
         ntot = len(tab)
-        tab = tab.select(wcsref, ra=self.raname, dec=self.decname)
+        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
         self.logger.info('%d/%d sources inside dataset', len(tab), ntot)
 
         # extract source masks
-        usize = u.arcsec
-        udeg = u.deg
         minsize = min(*mask_size) // 2
-        inc = wcsref.get_axis_increments(unit=usize)
-        newdim = mask_size / wcsref.get_step(unit=usize)
-        get_mask = partial(segmap.get_source_mask, minsize=minsize,
-                           dtype=float, dilate=dilateit, struct=struct,
-                           unit_center=udeg, unit_size=usize)
-        source_mask_path = str(self.workdir / dataset.name / mask_name)
-        for id_, ra, dec in ProgressBar(tab, ipython_widget=isnotebook()):
-            id_ = int(id_)  # need int, not np.int64
-            source_path = source_mask_path.format(id_)
+        for row in ProgressBar(tab, ipython_widget=isnotebook()):
+            id_ = int(row[self.idname])  # need int, not np.int64
+            if 'merged' in row.colnames and row['merged']:
+                raise Exception('FIXME! handle merged sources')
+
+            source_path = self.maskobj_name.format(id_)
             if exists(source_path) and skip_existing:
                 debug('source %05d exists, skipping', id_)
             else:
-                center = (dec, ra)
-                mask = get_mask(id_, center, mask_size)
-                refpos = mask.wcs.pix2sky([0, 0])[0]
-                mask.regrid(newdim, refpos, [0, 0], inc, order=0,
-                            unit_inc=usize, inplace=True, antialias=False)
-                mask._data = np.around(mask._data).astype(np.uint8)
-                debug('source %05d (%.5f, %.5f), extract mask (%d masked '
-                      'pixels)', id_, ra, dec, np.count_nonzero(mask._data))
-                mask.write(source_path, savemask='none')
+                center = (row[self.decname], row[self.raname])
+                segmap.get_source_mask(
+                    id_, center, mask_size, minsize=minsize, struct=struct,
+                    dilate=dilateit, outname=source_path, regrid_to=white)
 
             # update in db
-            self.table.upsert({self.idname: id_,
-                               'mask_obj': relpath(source_path, self.workdir),
-                               'mask_sky': relpath(sky_path, self.workdir)},
-                              [self.idname])
+            self.table.upsert(
+                {self.idname: id_,
+                 'mask_obj': relpath(source_path, self.workdir),
+                 'mask_sky': relpath(self.masksky_name, self.workdir)},
+                [self.idname])
 
     def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
         src.add_image(segm.img, f'{conf["prefix"]}_SEGMAP', rotate=True,
                       order=0)
+
+    def merge_sources(self, idlist, dataset=None):
+        """Merge sources into one.
+
+        A new source is created, with the "merged" column set to True. The new
+        id is stored in the "merged_in" column for the input sources.
+
+        Parameters
+        ----------
+        idlist: list
+            List of ids to merge.
+        dataset: `musex.Dataset`
+            The associated dataset. To compute the masks this dataset must be
+            given, and must be the same as the one used for `attach_dataset`.
+
+        """
+        # compute minimum id for "custom" sources
+        # TODO: add a setting for this ("customid_start") ?
+        maxid = self.max(self.idname)
+        meta = self.meta
+        if meta['parent_cat']:
+            cat_maxid = self.db['catalogs'].find_one(
+                name=meta['parent_cat'])['maxid']
+        else:
+            cat_maxid = self.meta['maxid']
+
+        sources = self.select_ids(idlist)
+        coords = np.array([(s[self.decname], s[self.raname]) for s in sources])
+        # TODO: use better weights (flux)
+        weights = np.ones(coords.shape[0])
+        dec, ra = (np.sum(coords * weights[:, np.newaxis], axis=0) /
+                   weights.sum())
+
+        row = {'merged': True, self.raname: ra, self.decname: dec}
+        if maxid <= cat_maxid:
+            row[self.idname] = 10**(len(str(cat_maxid)))
+
+        meta = self.meta
+
+        with self.db as tx:
+            tbl = tx[self.name]
+            # create new (merged) source
+            newid = tbl.insert(row)
+            # deactivate the other sources
+            idname = self.idname
+            for s in sources:
+                if s.get('merged_in') is not None:
+                    raise ValueError(f'source {s[idname]} is already merged')
+                tbl.upsert({idname: s[idname], 'active': False,
+                            'merged_in': newid}, [idname])
+
+        self.logger.info('sources %s have been merged in %s', idlist, newid)
+
+        if dataset is None:
+            # Just return in this case
+            return
+
+        if dataset.name != meta['dataset']:
+            self.logger.warning('cannot compute masks with a different '
+                                'dataset as the one used previously')
+            return
+
+        try:
+            # maskobj
+            maskobj = self.maskobj_name.format(newid)
+            segmap = self.get_segmap_aligned(dataset)
+            dilateit, struct = _get_psf_convolution_params(
+                meta['convolve_fwhm'], segmap, meta['psf_threshold'])
+
+            mask_size = (meta['mask_size_x'], meta['mask_size_y'])
+            minsize = min(*mask_size) // 2
+            segmap.get_source_mask(
+                idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
+                dilate=dilateit, outname=maskobj, regrid_to=dataset.white)
+
+            # masksky
+            # FIXME: currenlty we suppose that mask_sky is always the same
+            masksky = relpath(self.masksky_name, self.workdir)
+            if any(s['mask_sky'] != masksky for s in sources):
+                self.logger.warning('cannot reuse mask_sky')
+                masksky = None
+        except Exception:
+            self.logger.error('unexpected error while computing the masks',
+                              exc_info=True)
+        else:
+            # update in db
+            self.table.upsert({self.idname: newid, 'mask_sky': masksky,
+                               'mask_obj': relpath(maskobj, self.workdir)},
+                              [self.idname])
 
 
 class InputCatalog(BaseCatalog):

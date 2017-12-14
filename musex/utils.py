@@ -1,6 +1,7 @@
 import astropy.units as u
 import numpy as np
-from mpdaf.obj import Image
+from astropy.io import fits
+from mpdaf.obj import Image, moffat_image
 
 
 def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
@@ -76,13 +77,50 @@ def align_mask_with_image(mask, other, inplace=True, fsf_conv=None,
     return mask
 
 
-def regrid_to_image(im, other, **kwargs):
-    # Get the pixel index and Dec,Ra coordinate at the center of
-    # the image that we are aligning with.
-    centerpix = np.asarray(other.shape) / 2.0
-    centersky = other.wcs.pix2sky(centerpix)[0]
+def regrid_to_image(im, other, order=1, inplace=False, antialias=True,
+                    size=None, unit_size=u.arcsec, **kwargs):
+    im.data = im.data.astype(float)
+    refpos = im.wcs.pix2sky([0, 0])[0]
+    if size is not None:
+        newdim = size / other.wcs.get_step(unit=unit_size)
+    else:
+        newdim = other.shape
+    inc = other.wcs.get_axis_increments(unit=unit_size)
+    im = im.regrid(newdim, refpos, [0, 0], inc, order=order,
+                   unit_inc=unit_size, inplace=inplace, antialias=antialias)
+    return im
 
-    # Re-sample the rotated image to have the same axis increments, offset and
-    # number of pixels as the image that we are aligning it with.
-    return im.regrid(other.shape, centersky, centerpix,
-                     other.wcs.get_axis_increments(unit=u.arcsec))
+
+def combine_masks(imlist, method='union', outname=None):
+    images = [fits.getdata(f).astype(bool) for f in imlist]
+    if method == 'union':
+        data = np.logical_or.reduce(images)
+    elif method == 'intersection':
+        data = np.logical_and.reduce(images)
+    else:
+        raise ValueError("unknown method, must be 'union' or 'intersection'")
+
+    out = Image(imlist[0], copy=False)
+    out._data = data.astype(np.uint8)
+    if outname:
+        out.write(outname, savemask='none')
+    return out
+
+
+def struct_from_moffat_fwhm(wcs, fwhm, psf_threshold=0.5, beta=2.5):
+    """Compute a structuring element for the dilatation, to simulate
+    a convolution with a psf."""
+    # image size will be twice the full-width, to account for
+    # psf_threshold < 0.5
+    size = int(round(fwhm / wcs.get_step(u.arcsec)[0])) * 2 + 1
+    if size % 2 == 0:
+        size += 1
+
+    psf = moffat_image(fwhm=(fwhm, fwhm), n=beta, peak=True,
+                       wcs=wcs[:size, :size])
+
+    # remove useless zeros on the edges.
+    psf.mask_selection(psf._data < psf_threshold)
+    psf.crop()
+    assert tuple(np.array(psf.shape) % 2) == (1, 1)
+    return ~psf.mask

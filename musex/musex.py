@@ -79,7 +79,7 @@ input_catalogs : {', '.join(self.input_catalogs.keys())}
 catalogs       : {', '.join(self.catalogs.keys())}
 """)
 
-    def new_catalog_from_resultset(self, name, resultset, add_active_col=True,
+    def new_catalog_from_resultset(self, name, resultset,
                                    drop_if_exists=False):
         """Create a new user catalog from a query result.
 
@@ -89,8 +89,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
             Name of the catalog.
         resultset: ResultSet
             Result from a query.
-        add_active_col: bool
-            Add an "active" column to store the status of a source.
         drop_if_exists: bool
             Drop the catalog if it already exists.
 
@@ -118,10 +116,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
 
-        # Add the "active" column if requested
-        if add_active_col:
-            for row in resultset:
-                row.setdefault('active', True)
         cat.insert_rows(resultset)
 
         query = (str(wherecl.compile(compile_kwargs={"literal_binds": True}))
