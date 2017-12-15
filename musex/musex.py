@@ -55,8 +55,8 @@ class MuseX:
         # Load catalogs
         self.input_catalogs = load_input_catalogs(self.conf, self.db)
         self.catalogs = {}
-        self.catalogs_table = self.db.create_table('catalogs')
-        for row in self.catalogs_table.find(type='user'):
+        catalogs_table = self.db.create_table('catalogs')
+        for row in catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
                 name, self.db, workdir=self.conf['workdir'],
@@ -120,19 +120,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         query = (str(wherecl.compile(compile_kwargs={"literal_binds": True}))
                  if wherecl is not None else None)
-
+        cat.update_meta(type='user', parent_cat=parent_cat.name,
+                        segmap=parent_cat.segmap, query=query)
         self.catalogs[name] = cat
-        self.catalogs_table.upsert(OrderedDict(
-            name=name,
-            creation_date=datetime.utcnow().isoformat(),
-            type='user',
-            parent_cat=parent_cat.name,
-            idname=cat.idname,
-            raname=cat.raname,
-            decname=cat.decname,
-            segmap=parent_cat.segmap,
-            query=query
-        ), ['name'])
 
     def export_catalog(self, catalog, only_active=True, **kwargs):
         """Export a catalog to a list of Sources. See `export_resultset` for

@@ -134,10 +134,19 @@ class BaseCatalog:
         self.decname = decname
         self.logger = logging.getLogger(__name__)
 
-        if self.name not in self.db:
-            self.logger.debug('create table %s (primary key: %s)',
-                              self.name, self.idname)
+        # if self.name not in self.db:
+        #     self.logger.debug('create table %s (primary key: %s)',
+        #                       self.name, self.idname)
+
+        # Get the reference to the db table, which is created if needed
         self.table = self.db.create_table(self.name, primary_id=self.idname)
+
+        # Insert default meta about the table if it doesn't exist yet
+        if self.meta is None:
+            self.update_meta(creation_date=datetime.utcnow().isoformat(),
+                             type=None, parent_cat=None, idname=self.idname,
+                             raname=self.raname, decname=self.decname,
+                             segmap=self.segmap, maxid=None)
 
     def __len__(self):
         return self.table.count()
@@ -154,7 +163,7 @@ class BaseCatalog:
         """The list of columns from the SQLAlchemy table object."""
         return self.table.table.c
 
-    @property
+    @lazyproperty
     def meta(self):
         """Return metadata associated with the catalog."""
         return self.db['catalogs'].find_one(name=self.name)
@@ -162,6 +171,7 @@ class BaseCatalog:
     def update_meta(self, **kwargs):
         """Update metadata associated with the catalog."""
         self.db['catalogs'].upsert({'name': self.name, **kwargs}, ['name'])
+        del self.meta
 
     def info(self):
         """Print information about the catalog (columns etc.)."""
@@ -172,10 +182,10 @@ class BaseCatalog:
         Segmap : {self.segmap}
         """))
 
-        meta = self.meta
-        if meta:
-            maxlen = max(len(k) for k in meta.keys()) + 1
-            meta = '\n'.join(f'- {k:{maxlen}s}: {v}' for k, v in meta.items()
+        if self.meta:
+            maxlen = max(len(k) for k in self.meta.keys()) + 1
+            meta = '\n'.join(f'- {k:{maxlen}s}: {v}'
+                             for k, v in self.meta.items()
                              if k not in ('id', 'name'))
             print(f"Metadata:\n{meta}\n")
 
@@ -454,10 +464,9 @@ class Catalog(BaseCatalog):
         # compute minimum id for "custom" sources
         # TODO: add a setting for this ("customid_start") ?
         maxid = self.max(self.idname)
-        meta = self.meta
-        if meta['parent_cat']:
+        if self.meta['parent_cat']:
             cat_maxid = self.db['catalogs'].find_one(
-                name=meta['parent_cat'])['maxid']
+                name=self.meta['parent_cat'])['maxid']
         else:
             cat_maxid = self.meta['maxid']
 
@@ -481,8 +490,6 @@ class Catalog(BaseCatalog):
         if maxid <= cat_maxid:
             row[self.idname] = 10**(len(str(cat_maxid)))
 
-        meta = self.meta
-
         with self.db as tx:
             tbl = tx[self.name]
             # create new (merged) source
@@ -502,7 +509,7 @@ class Catalog(BaseCatalog):
             self.logger.debug('cannot compute mask (missing dataset)')
             return
 
-        if dataset.name != meta['dataset']:
+        if dataset.name != self.meta['dataset']:
             self.logger.warning('cannot compute masks with a different '
                                 'dataset as the one used previously')
             return
@@ -512,9 +519,9 @@ class Catalog(BaseCatalog):
             maskobj = self.maskobj_name.format(newid)
             segmap = self.get_segmap_aligned(dataset)
             dilateit, struct = _get_psf_convolution_params(
-                meta['convolve_fwhm'], segmap, meta['psf_threshold'])
+                self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
 
-            mask_size = (meta['mask_size_x'], meta['mask_size_y'])
+            mask_size = (self.meta['mask_size_x'], self.meta['mask_size_y'])
             minsize = min(*mask_size) // 2
             segmap.get_source_mask(
                 idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
@@ -562,6 +569,4 @@ class InputCatalog(BaseCatalog):
         self.insert_table(cat, version=self.version,
                           show_progress=show_progress)
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type='input', parent_cat=None, idname=self.idname,
-                         raname=self.raname, decname=self.decname,
-                         segmap=self.segmap, maxid=self.max(self.idname))
+                         type='input', maxid=self.max(self.idname))
