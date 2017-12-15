@@ -134,11 +134,14 @@ catalogs       : {', '.join(self.catalogs.keys())}
             query=query
         ), ['name'])
 
-    def export_catalog(self, catalog, **kwargs):
+    def export_catalog(self, catalog, only_active=True, **kwargs):
         """Export a catalog to a list of Sources. See `export_resultset` for
         the additional parameters.
         """
-        resultset = catalog.select()
+        if only_active and 'active' in catalog.c:
+            resultset = catalog.select(catalog.c.active.isnot(False))
+        else:
+            resultset = catalog.select()
         return self.export_resultset(resultset, **kwargs)
 
     def export_resultset(self, resultset, size=5, srcvers='', apertures=None,
@@ -163,15 +166,14 @@ catalogs       : {', '.join(self.catalogs.keys())}
                                         idname=cat.idname, raname=cat.raname,
                                         decname=cat.decname)
 
-        meta = self.db['catalogs'].find_one(name=cat.name)
         # FIXME: not sure here, but the current dataset should be the same as
         # the one used to produce the masks
-        assert meta['dataset'] == self.muse_dataset.name
+        assert cat.meta['dataset'] == self.muse_dataset.name
 
         debug = self.logger.debug
         info = self.logger.info
-        info('Exporting results with %s dataset, size=%.1f',
-             self.muse_dataset.name, size)
+        info('Exporting %s sources with %s dataset, size=%.1f',
+             len(resultset), self.muse_dataset.name, size)
         use_datasets = [self.muse_dataset]
         if datasets:
             if not isinstance(datasets, (list, tuple)):
@@ -226,10 +228,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 self.logger.warning('sky mask is too small. Size is %d spaxel '
                                     'or %.1f %% of total area', nsky, nfracsky)
 
-            # FIXME: store fsf and use it here
-            # fsf = self.settings['masks'].get('convolve_fsf', 0)
-            # src.add_attr('FSFMSK', fsf, 'Mask Conv Gauss FWHM in arcsec')
-
+            src.add_attr('FSFMSK', cat.meta['convolve_fwhm'],
+                         'Mask Conv Gauss FWHM in arcsec')
             src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
             src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
             src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')

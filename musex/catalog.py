@@ -471,7 +471,7 @@ class Catalog(BaseCatalog):
         # version
         versions = set(s['version'] for s in sources)
         if len(versions) == 1:
-            version = versions[0]
+            version = versions.pop()
         else:
             self.logger.warning('sources have different version')
             version = None
@@ -499,6 +499,7 @@ class Catalog(BaseCatalog):
 
         if dataset is None:
             # Just return in this case
+            self.logger.debug('cannot compute mask (missing dataset)')
             return
 
         if dataset.name != meta['dataset']:
