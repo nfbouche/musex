@@ -5,7 +5,7 @@ import os
 import textwrap
 from datetime import datetime
 
-# import astropy.units as u
+import astropy.units as u
 from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
@@ -23,18 +23,8 @@ from .utils import struct_from_moffat_fwhm
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ['load_input_catalogs', 'Catalog']
-
-
-#     def merge_close_sources(self, maxdist=0.2*u.arcsec):
-#         from astropy.coordinates import SkyCoord
-#         columns = [self.idname, self.raname, self.decname]
-#         tab = self.select(columns=columns).as_table()
-#         coords = SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
-#                           unit=(u.deg, u.deg), frame='fk5')
-#         dist = coords.separation(coords[:, None])
-#         ind = np.where(np.sum(dist < maxdist, axis=0) > 1)
-#         # FIXME: find how to merge close sources ...
+__all__ = ('load_input_catalogs', 'table_to_odict', 'ResultSet', 'Catalog',
+           'InputCatalog')
 
 
 def load_input_catalogs(settings, db):
@@ -316,6 +306,14 @@ class BaseCatalog:
         name = conf.get('name', 'CAT')
         self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
         src.add_table(scat, f'{conf["prefix"]}_{name}')
+
+    def skycoord(self):
+        """Return an `astropy.coordinates.SkyCoord` object."""
+        from astropy.coordinates import SkyCoord
+        columns = [self.idname, self.raname, self.decname]
+        tab = self.select(columns=columns).as_table()
+        return SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
+                        unit=(u.deg, u.deg), frame='fk5')
 
 
 class Catalog(BaseCatalog):

@@ -3,8 +3,6 @@ import numpy as np
 import os
 import sys
 from astropy.table import Table
-from collections import OrderedDict
-from datetime import datetime
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
