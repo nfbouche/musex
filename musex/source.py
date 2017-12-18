@@ -5,7 +5,6 @@ import os
 # import shutil
 from mpdaf.sdetect import Source, SourceList
 
-from .pdf import create_pdf
 from .version import __version__
 
 
@@ -63,6 +62,12 @@ class SourceListX(SourceList):
     def export_to_pdf(self, name, white, path='.'):
         path = os.path.join(os.path.normpath(path), name)
         os.makedirs(path, exist_ok=True)
+
+        try:
+            from .pdf import create_pdf
+        except ImportError:
+            self.logger.warning('muse_analysis is required for the pdf export')
+            raise
 
         # TODO: pdf filename with infos
         # if info:
