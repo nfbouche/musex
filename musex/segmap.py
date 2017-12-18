@@ -4,7 +4,7 @@ import numpy as np
 from mpdaf.obj import Image
 from scipy import ndimage as ndi
 
-from .utils import regrid_to_image
+from .utils import regrid_to_image, isiter
 
 
 class SegMap:
@@ -68,13 +68,11 @@ class SegMap:
         im = self.img.subimage(center, size, minsize=minsize,
                                unit_center=unit_center, unit_size=unit_size)
 
-        try:
-            iter(iden)
-        except TypeError:
-            data = (im._data == iden)
-        else:
+        if isiter(iden):
             # combine the masks for multiple ids
             data = np.logical_or.reduce([(im._data == i) for i in iden])
+        else:
+            data = (im._data == iden)
 
         if dilate:
             data = dilate_mask(data, niter=dilate, struct=struct)

@@ -4,6 +4,15 @@ from astropy.io import fits
 from mpdaf.obj import Image, moffat_image
 
 
+def isiter(val):
+    try:
+        iter(val)
+    except TypeError:
+        return False
+    else:
+        return True
+
+
 def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
     if isinstance(im, str):
         im = Image(im, copy=False)

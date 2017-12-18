@@ -19,7 +19,7 @@ from sqlalchemy.sql import select
 
 from .segmap import SegMap
 from .settings import isnotebook
-from .utils import struct_from_moffat_fwhm
+from .utils import struct_from_moffat_fwhm, isiter
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -283,7 +283,7 @@ class BaseCatalog:
             Additional parameters are passed to `dataset.Database.query`.
 
         """
-        if not isinstance(idlist, (list, tuple)):
+        if not isiter(idlist):
             idlist = [idlist]
         whereclause = self.c[self.idname].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
