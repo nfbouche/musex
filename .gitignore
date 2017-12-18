@@ -3,6 +3,8 @@
 *.egg-info/
 *~
 ._*
+.cache/
+.coverage
 .DS_Store
 _githash.py
 api/
