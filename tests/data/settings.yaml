@@ -1,0 +1,36 @@
+workdir: '{tmpdir}'
+db: '{{workdir}}/musex.db'
+show_banner: true
+author: 'John Doe'
+
+datasets:
+  test:
+    version: '1.0'
+    prefix: TEST
+    images:
+      FAKE: '{datadir}/image.fits'
+
+muse_datasets:
+  default: hdfs
+
+  hdfs:
+    version: '1.24'
+    prefix: MUSE
+    datacube: '{datadir}/cube.fits'
+    expcube: '{{workdir}}/expcube.fits'
+    expima: '{{workdir}}/expima.fits'
+    white: '{datadir}/image.fits'
+
+catalogs:
+  photutils:
+    version: '1.0'
+    catalog: '{datadir}/catalog.fits'
+    idname: id
+    raname: ra
+    decname: dec
+    segmap: '{datadir}/segmap.fits'
+    extract:
+      prefix: PHU
+      columns: [id, ra, dec, source_sum, area]
+      select_in: FAKE
+      margin: 10
