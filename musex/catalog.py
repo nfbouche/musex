@@ -285,6 +285,9 @@ class BaseCatalog:
         """
         if not isiter(idlist):
             idlist = [idlist]
+        elif isinstance(idlist, np.ndarray):
+            idlist = idlist.tolist()
+
         whereclause = self.c[self.idname].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
 
