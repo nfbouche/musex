@@ -32,7 +32,9 @@ class SegMap:
                 self.img.primary_header = self.img.primary_header[:idx]
 
     def copy(self):
-        return self.__class__(path=self.path, data=self.img.copy())
+        im = self.__class__(path=self.path, data=self.img.copy())
+        im._mask = np.ma.nomask
+        return im
 
     def get_mask(self, value, dtype=np.uint8, dilate=None, inverse=False,
                  struct=None, regrid_to=None, outname=None):
@@ -108,12 +110,13 @@ class SegMap:
                                         [-1, other.shape[1]],
                                         [other.shape[0], other.shape[1]]],
                                        unit=u.deg)
-            dec_min, ra_min = pixsky.min(axis=0)
-            dec_max, ra_max = pixsky.max(axis=0)
-            out.img.truncate(dec_min, dec_max, ra_min, ra_max, mask=False,
-                             unit=u.deg, inplace=True)
+            pixcrd = out.img.wcs.sky2pix(pixsky)
+            ymin, xmin = pixcrd.min(axis=0)
+            ymax, xmax = pixcrd.max(axis=0)
+            out.img.truncate(ymin, ymax, xmin, xmax, mask=False,
+                             unit=None, inplace=True)
 
-        out.img.data = np.around(out.img.data).astype(int)
+        out.img._data = np.around(out.img._data).astype(int)
         return out
 
     def cmap(self, background_color='#000000'):
