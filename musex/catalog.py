@@ -378,7 +378,8 @@ class Catalog(BaseCatalog):
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
 
-        if 'dataset' in self.meta and dataset.name != self.meta['dataset']:
+        ref_dataset = self.meta.get('dataset')
+        if ref_dataset is not None and dataset.name != ref_dataset:
             raise ValueError('cannot compute masks with a different '
                              'dataset as the one used previously')
 
