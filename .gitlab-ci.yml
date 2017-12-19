@@ -2,13 +2,9 @@ before_script:
   - export PYENV_ROOT="$HOME/.pyenv"
   - export PATH="$PYENV_ROOT/bin:$PATH"
   - eval "$(pyenv init -)"
+  - pyenv local 3.6.3
+  - pip install tox
   - pwd
-
 py36:
   script:
-    - pyenv local 3.6.3
-    - which python
-    - pip install wheel
-    - pip install pytest pytest-cov
-    - pip install .
-    - pytest --cov musex --cov-report term .
+    - tox -v
