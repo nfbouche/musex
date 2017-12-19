@@ -34,7 +34,7 @@ def load_db(filename, **kwargs):
     return db
 
 
-def isnotebook():
+def isnotebook():  # pragma: no cover
     try:
         shell = get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
