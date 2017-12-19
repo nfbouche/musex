@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from mpdaf.sdetect import Catalog as _Catalog
 from os.path import exists, relpath
 from pathlib import Path
-from sqlalchemy.sql import select
+from sqlalchemy.sql import select, func
 
 from .segmap import SegMap
 from .settings import isnotebook
@@ -136,7 +136,8 @@ class BaseCatalog:
             self.update_meta(creation_date=datetime.utcnow().isoformat(),
                              type=None, parent_cat=None, idname=self.idname,
                              raname=self.raname, decname=self.decname,
-                             segmap=self.segmap, maxid=None)
+                             segmap=self.segmap)
+            self.db['catalogs'].create_column('maxid', self.db.types.integer)
 
     def __len__(self):
         return self.table.count()
@@ -145,8 +146,7 @@ class BaseCatalog:
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
     def max(self, colname):
-        res = next(self.db.query(f'SELECT max({colname}) FROM {self.name}'))
-        return res[f'max({colname})']
+        return self.db.executable.execute(func.max(self.c[colname])).scalar()
 
     @property
     def c(self):

@@ -19,7 +19,7 @@ def test_ingest(mx):
 
     phot.ingest_input_catalog()
     assert len(phot.select()) == 13
-    assert phot.meta['maxid'] == '13'
+    assert phot.meta['maxid'] == 13
 
     tbl = phot.select().as_table()
     assert tbl[phot.idname].max() == 13
