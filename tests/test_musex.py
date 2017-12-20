@@ -85,7 +85,6 @@ def test_drop_user_catalog(mx):
         mx.delete_user_cat('photutils')
 
     mx.delete_user_cat(catname)
-    __import__('pdb').set_trace()
     assert catname not in mx.db.tables
     assert catname not in mx.catalogs
 
