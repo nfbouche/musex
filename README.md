@@ -5,3 +5,5 @@ status](https://git-cral.univ-lyon1.fr/MUSE/musex/badges/master/pipeline.svg)](h
 
 MuseX is a Python package which allows to manage catalogs of sources, and to
 extract data from MUSE datacubes.
+
+Detailed coverage report: http://urania1.univ-lyon1.fr/UDF/musex/cov/
