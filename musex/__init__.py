@@ -6,4 +6,5 @@ from .musex import MuseX
 from .segmap import SegMap
 from .version import __version__, __description__
 
+setup_logging('mpdaf', level=logging.INFO, stream=sys.stdout)
 setup_logging(__name__, level=logging.DEBUG, stream=sys.stdout)

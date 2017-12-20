@@ -1,11 +1,11 @@
-# import astropy.units as u
-import logging
-# import numpy as np
-import os
-# import shutil
-from mpdaf.sdetect import Source, SourceList
+from mpdaf.sdetect import Source
 
-from .version import __version__
+try:
+    from .pdf import create_pdf
+except ImportError:
+    HAS_PDF = False
+else:
+    HAS_PDF = True
 
 
 class SourceX(Source):
@@ -38,59 +38,24 @@ class SourceX(Source):
         self.add_attr('REFSPEC', 'MUSE_PSF_SKYSUB',
                       desc='Name of reference spectra')
 
+    def to_pdf(self, filename, white):
+        if not HAS_PDF:
+            raise ImportError('muse_analysis is required')
+        create_pdf(self, white, filename)
+        self._logger.info('pdf written to %s', filename)
 
-class SourceListX(SourceList):
-
-    source_class = SourceX
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.logger = logging.getLogger(__name__)
-
-    @classmethod
-    def from_coords(cls, coords, origin=None, idname='ID', raname='RA',
-                    decname='DEC', srcvers=''):
-        origin = origin or ('MuseX', __version__, '', '')
-        srclist = cls()
-        for res in coords:
-            src = cls.source_class.from_data(res[idname], res[raname],
-                                             res[decname], origin)
-            src.SRC_V = srcvers
-            srclist.append(src)
-        return srclist
-
-    def export_to_pdf(self, name, white, path='.'):
-        path = os.path.join(os.path.normpath(path), name)
-        os.makedirs(path, exist_ok=True)
-
-        try:
-            from .pdf import create_pdf
-        except ImportError:
-            self.logger.warning('muse_analysis is required for the pdf export')
-            raise
-
-        # TODO: pdf filename with infos
-        # if info:
-        #     # f = os.path.splitext(os.path.basename(src.filename))[0]
-        #     confid = str(src.CONFID) if hasattr(src, 'CONFID') else 'u'
-        #     stype = str(src.TYPE) if hasattr(src, 'TYPE') else 'u'
-        #     z = src.get_zmuse()
-        #     if z is None:
-        #         zval = 'uu'
-        #     else:
-        #         if z < 0:
-        #             zval = '00'
-        #         else:
-        #             zval = '{:.1f}'.format(z)
-        #             zval = zval[0] + zval[2]
-        #     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
-
-        info = self.logger.info
-        nfiles = len(self)
-        outfiles = []
-        for k, src in enumerate(self):
-            outf = f'{path}/{name}-{src.ID:04d}.pdf'
-            info('%d/%d: PDF source %s -> %s', k + 1, nfiles, src.ID, outf)
-            create_pdf(src, white, outf)
-            outfiles.append(outf)
-        return outfiles
+# TODO: pdf filename with infos
+# if info:
+#     # f = os.path.splitext(os.path.basename(src.filename))[0]
+#     confid = str(src.CONFID) if hasattr(src, 'CONFID') else 'u'
+#     stype = str(src.TYPE) if hasattr(src, 'TYPE') else 'u'
+#     z = src.get_zmuse()
+#     if z is None:
+#         zval = 'uu'
+#     else:
+#         if z < 0:
+#             zval = '00'
+#         else:
+#             zval = '{:.1f}'.format(z)
+#             zval = zval[0] + zval[2]
+#     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)

@@ -8,7 +8,7 @@ from mpdaf.obj import Image
 from .dataset import load_datasets, MuseDataSet
 from .catalog import load_input_catalogs, Catalog, ResultSet, table_to_odict
 from .settings import load_db, load_yaml_config
-from .source import SourceListX
+from .source import SourceX
 from .utils import extract_subimage
 from .version import __version__, __description__
 
@@ -147,9 +147,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         """
         cat = resultset.catalog
-        slist = SourceListX.from_coords(resultset, srcvers=srcvers,
-                                        idname=cat.idname, raname=cat.raname,
-                                        decname=cat.decname)
+        origin = ('MuseX', __version__, '', '')
 
         # FIXME: not sure here, but the current dataset should be the same as
         # the one used to produce the masks
@@ -177,8 +175,12 @@ catalogs       : {', '.join(self.catalogs.keys())}
         nskywarn = (50, 5)
         refskyf = resultset[0]['mask_sky']
         refskyim = Image(str(cat.workdir / refskyf), copy=False)
+        idname, raname, decname = cat.idname, cat.raname, cat.decname
 
-        for row, src in zip(resultset, slist):
+        for row in resultset:
+            src = SourceX.from_data(row[idname], row[raname], row[decname],
+                                    origin)
+            src.SRC_V = srcvers
             info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
             src.add_history('New source created', author=self.conf['author'])
@@ -225,8 +227,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             info('MASK_SKY: %.1f%%, MASK_OBJ: %.1f%%', nfracsky, nfracobj)
 
             src.extract_all_spectra(apertures=apertures)
-
-        return slist
+            yield src
 
     def delete_user_cat(self, name):
         if name not in self.db.tables or name not in self.catalogs:
