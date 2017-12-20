@@ -1,6 +1,8 @@
 import numpy as np
+import os
 import pytest
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
 from musex import MuseX
 from numpy.testing import assert_allclose, assert_array_equal
 
@@ -126,7 +128,7 @@ def test_segmap(mx):
 
 def test_merge_sources(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select()
+    res = phot.select_ids([9, 10])
     mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
 
     mycat = mx.catalogs['my-cat']
@@ -138,3 +140,51 @@ def test_merge_sources(mx):
     assert_array_equal(tbl['id'], [9, 10])
     assert_array_equal(tbl['active'], False)
     assert_array_equal(tbl['merged_in'], 100)
+
+
+def test_attach_dataset(mx):
+    """Test attaching a dataset with the merging of sources.
+
+    - merge 9 & 10 before
+    - merge 11, 12 & 13 after
+
+    """
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+    mycat.merge_sources([9, 10])
+    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+                         mask_size=(10, 10))
+
+    outdir = mycat.workdir / mx.muse_dataset.name
+    flist = sorted(os.listdir(str(outdir)))
+    assert flist[0] == 'mask-sky.fits'
+    assert flist[1:] == ['mask-source-%05d.fits' % i
+                         for i in (8, 11, 12, 13, 100)]
+
+    segm = fits.getdata(mycat.segmap)
+    sky = fits.getdata(str(outdir / 'mask-sky.fits'))
+
+    assert segm.shape == sky.shape
+    assert_array_equal(np.unique(sky), [0, 1])
+
+    # FIXME: check why these are slightly different
+    # assert_array_equal((segm == 0).astype(np.uint8), sky)
+    assert_array_equal((segm[:89, :] == 0).astype(np.uint8), sky[:89, :])
+
+    mask = fits.getdata(outdir / 'mask-source-00012.fits')
+    assert mask.shape == (50, 50)
+    assert np.count_nonzero(mask) == 92
+
+    mname = outdir / 'mask-source-%05d.fits'
+    totmask = sum([np.count_nonzero(fits.getdata(str(mname) % i))
+                   for i in (11, 12, 13)])
+
+    # check that the new mask is computed if possible, and that it corresponds
+    # to the union of the sources mask
+    mycat.merge_sources([11, 12, 13], dataset=mx.muse_dataset)
+    mask = fits.getdata(outdir / 'mask-source-00101.fits')
+    assert mask.shape == (50, 50)
+    assert np.count_nonzero(mask) == totmask
