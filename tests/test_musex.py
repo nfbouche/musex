@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from astropy.coordinates import SkyCoord
 from musex import MuseX
+from numpy.testing import assert_allclose
 
 
 def test_settings(settings_file):
@@ -88,6 +89,29 @@ def test_drop_user_catalog(mx):
     mx.delete_user_cat(catname)
     assert catname not in mx.db.tables
     assert catname not in mx.catalogs
+
+
+def test_update_rows(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] < 5)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+
+    # insert rows
+    for i, r in enumerate(res):
+        r['ra'] = i
+    mycat.insert_rows(res, show_progress=False)
+    assert len(mycat) == 4
+    assert_allclose([o['ra'] for o in mycat.select(columns=['ra'])],
+                    np.arange(4, dtype=float))
+
+    # insert table
+    tbl = res.as_table()
+    tbl['dec'] = 2.0
+    mycat.insert_table(tbl, show_progress=False)
+    assert len(mycat) == 4
+    assert_allclose([o['dec'] for o in mycat.select(columns=['dec'])], 2.0)
 
 
 def test_segmap(mx):

@@ -92,10 +92,12 @@ class ResultSet(Sequence):
         names = list(self.results[0].keys())
         for name, val in zip(names, zip(*[r.values() for r in self.results])):
             col = self.catalog.c[name]
-            fill_value = fill_values.get(col.type.python_type)
+            dtype = col.type.python_type
+            fill_value = fill_values.get(dtype)
             mask = [v is None for v in val]
             val = [fill_value if v is None else v for v in val]
-            columns.append(ma.array(val, mask=mask, fill_value=fill_value))
+            columns.append(ma.array(val, mask=mask, dtype=dtype,
+                                    fill_value=fill_value))
 
         cls = _Catalog if mpdaf_catalog else Table
         tbl = cls(data=columns, names=names)
