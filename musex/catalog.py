@@ -184,6 +184,10 @@ class BaseCatalog:
                             for k, v in self.table.table.columns.items())
         print(f"Columns:\n{columns}\n")
 
+    def drop(self):
+        self.table.drop()
+        self.db['catalogs'].delete(name=self.name)
+
     def insert_rows(self, rows, version=None, show_progress=True):
         """Insert rows in the catalog.
 

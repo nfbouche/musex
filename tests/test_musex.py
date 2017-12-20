@@ -67,6 +67,29 @@ def test_user_catalog(mx):
     assert isinstance(mycat.skycoord(), SkyCoord)
 
 
+def test_drop_user_catalog(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] < 5)
+
+    catname = 'my-cat-tmp'
+    mx.new_catalog_from_resultset(catname, res, drop_if_exists=True)
+    assert catname in mx.db.tables
+
+    mycat = mx.catalogs[catname]
+    assert len(mycat) == 4
+
+    with pytest.raises(ValueError):
+        mx.delete_user_cat('foocat')
+
+    with pytest.raises(ValueError):
+        mx.delete_user_cat('photutils')
+
+    mx.delete_user_cat(catname)
+    __import__('pdb').set_trace()
+    assert catname not in mx.db.tables
+    assert catname not in mx.catalogs
+
+
 def test_segmap(mx):
     mycat = mx.catalogs['my-cat']
     segmap = mycat.get_segmap_aligned(mx.muse_dataset)

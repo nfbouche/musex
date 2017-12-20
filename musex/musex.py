@@ -230,3 +230,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
             src.extract_all_spectra(apertures=apertures)
 
         return slist
+
+    def delete_user_cat(self, name):
+        if name not in self.db.tables or name not in self.catalogs:
+            raise ValueError('not a valid catalog name')
+        self.catalogs[name].drop()
+        del self.catalogs[name]
