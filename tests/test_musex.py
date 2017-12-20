@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from astropy.coordinates import SkyCoord
 from musex import MuseX
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 
 
 def test_settings(settings_file):
@@ -122,3 +122,19 @@ def test_segmap(mx):
     assert segmap.img.dtype == np.int64
     assert np.max(segmap.img._data) == 13
     assert np.all(np.unique(segmap.img._data) == np.arange(14))
+
+
+def test_merge_sources(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select()
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+    mycat.merge_sources([9, 10])
+
+    assert mycat.table.find_one(id=100)['merged'] is True
+
+    tbl = mycat.select(mycat.c.active.is_(False)).as_table()
+    assert_array_equal(tbl['id'], [9, 10])
+    assert_array_equal(tbl['active'], False)
+    assert_array_equal(tbl['merged_in'], 100)
