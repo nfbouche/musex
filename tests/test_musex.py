@@ -37,13 +37,14 @@ def test_catalog(mx):
     assert phot.meta['type'] == 'input'
 
     res = phot.select(phot.c[phot.idname] < 5, columns=[phot.idname])
+    assert res.whereclause == 'photutils.id < 5'
     assert repr(res) == "<ResultSet(photutils.id < 5)>, 4 results"
     assert len(res) == 4
     assert res[0][phot.idname] == 1
 
     res = phot.select_ids([1, 2, 3], columns=[phot.idname])
     tbl = res.as_table()
-    assert str(tbl.whereclause) == 'photutils.id IN (:id_1, :id_2, :id_3)'
+    assert tbl.whereclause == 'photutils.id IN (1, 2, 3)'
     assert tbl.catalog is phot
     assert len(tbl) == 3
     assert tbl.colnames == ['id']

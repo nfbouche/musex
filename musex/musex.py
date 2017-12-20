@@ -106,20 +106,17 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 raise ValueError('table already exists')
 
         parent_cat = resultset.catalog
-        wherecl = resultset.whereclause
         cat = Catalog(name, self.db, workdir=self.conf['workdir'],
                       idname=parent_cat.idname, raname=parent_cat.raname,
                       decname=parent_cat.decname, segmap=parent_cat.segmap)
 
+        wherecl = resultset.whereclause
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
 
         cat.insert_rows(resultset)
-
-        query = (str(wherecl.compile(compile_kwargs={"literal_binds": True}))
-                 if wherecl is not None else None)
         cat.update_meta(type='user', parent_cat=parent_cat.name,
-                        segmap=parent_cat.segmap, query=query)
+                        segmap=parent_cat.segmap, query=wherecl)
         self.catalogs[name] = cat
 
     def export_catalog(self, catalog, only_active=True, **kwargs):

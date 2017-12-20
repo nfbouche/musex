@@ -67,18 +67,17 @@ class ResultSet(Sequence):
 
     def __init__(self, results, whereclause=None, catalog=None):
         self.results = list(results)
-        self.whereclause = whereclause
         # TODO: use weakref here ?
         self.catalog = catalog
 
+        self.whereclause = whereclause
+        if whereclause is not None and not isinstance(whereclause, str):
+            self.whereclause = str(whereclause.compile(
+                compile_kwargs={"literal_binds": True}))
+
     def __repr__(self):
-        out = f'<{self.__class__.__name__}('
-        if self.whereclause is not None:
-            query = self.whereclause.compile(
-                compile_kwargs={"literal_binds": True})
-            out += f'{query}'
-        out += f')>, {len(self)} results'
-        return out
+        wherecl = self.whereclause or ''
+        return f'<{self.__class__.__name__}({wherecl})>, {len(self)} results'
 
     def __len__(self):
         return len(self.results)
