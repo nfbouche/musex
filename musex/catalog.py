@@ -13,6 +13,7 @@ from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict
 from collections.abc import Sequence
 from mpdaf.sdetect import Catalog as _Catalog
+from numpy import ma
 from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy.sql import select, func
@@ -86,8 +87,18 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self, mpdaf_catalog=True):
+        fill_values = {int: -9999, float: np.nan, str: ''}
+        columns = []
+        names = list(self.results[0].keys())
+        for name, val in zip(names, zip(*[r.values() for r in self.results])):
+            col = self.catalog.c[name]
+            fill_value = fill_values.get(col.type.python_type)
+            mask = [v is None for v in val]
+            val = [fill_value if v is None else v for v in val]
+            columns.append(ma.array(val, mask=mask, fill_value=fill_value))
+
         cls = _Catalog if mpdaf_catalog else Table
-        tbl = cls(data=self.results, names=self.results[0].keys())
+        tbl = cls(data=columns, names=names)
         tbl.whereclause = self.whereclause
         tbl.catalog = self.catalog
         return tbl
@@ -179,7 +190,7 @@ class BaseCatalog:
             print(f"Metadata:\n{meta}\n")
 
         maxlen = max(len(k) for k in self.table.table.columns.keys()) + 1
-        columns = '\n'.join(f'- {k:{maxlen}s}: {v.type}'
+        columns = '\n'.join(f"- {k:{maxlen}s}: {v.type} {v.default or ''}"
                             for k, v in self.table.table.columns.items())
         print(f"Columns:\n{columns}\n")
 
@@ -334,6 +345,14 @@ class Catalog(BaseCatalog):
             raise Exception('FIXME: find a better way to handle this')
         self.workdir = Path(workdir) / self.name
         self.workdir.mkdir(exist_ok=True, parents=True)
+
+        # FIXME: sadly this doesn't work well currently, it is not taken into
+        # account until an insert is done
+        # from sqlalchemy.schema import ColumnDefault
+        # self.table.create_column('active', self.db.types.boolean)
+        # self.c.active.default = ColumnDefault(True)
+        # self.table.create_column('merged', self.db.types.boolean)
+        # self.c.merged.default = ColumnDefault(False)
 
     @lazyproperty
     def segmap_img(self):
