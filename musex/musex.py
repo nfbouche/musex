@@ -119,22 +119,14 @@ catalogs       : {', '.join(self.catalogs.keys())}
                         segmap=parent_cat.segmap, query=wherecl)
         self.catalogs[name] = cat
 
-    def export_catalog(self, catalog, only_active=True, **kwargs):
-        """Export a catalog to a list of Sources. See `export_resultset` for
-        the additional parameters.
-        """
-        if only_active and 'active' in catalog.c:
-            resultset = catalog.select(catalog.c.active.isnot(False))
-        else:
-            resultset = catalog.select()
-        return self.export_resultset(resultset, **kwargs)
-
-    def export_resultset(self, resultset, size=5, srcvers='', apertures=None,
-                         datasets=None):
-        """Export a catalog selection (`ResultSet`) to a SourceList.
+    def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
+                   datasets=None, only_active=True):
+        """Export a catalog selection (`ResultSet`) to sources (SourceX).
 
         Parameters
         ----------
+        res_or_cat: `ResultSet` or `Catalog`
+            Either a result from a query or a catalog to export.
         size: float
             Size of the images (in arcseconds) added in the sources.
         srcvers: str
@@ -146,6 +138,17 @@ catalogs       : {', '.join(self.catalogs.keys())}
             datasets are used.
 
         """
+        if isinstance(res_or_cat, Catalog):
+            if only_active and 'active' in res_or_cat.c:
+                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
+            else:
+                resultset = res_or_cat.select()
+        elif isinstance(res_or_cat, ResultSet):
+            # TODO: filter active sources
+            resultset = res_or_cat
+        else:
+            raise ValueError
+
         cat = resultset.catalog
         origin = ('MuseX', __version__, '', '')
 
