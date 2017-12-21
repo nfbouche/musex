@@ -238,4 +238,36 @@ def test_export_sources(mx):
         'MASK_OBJ']
     assert list(src.spectra.keys()) == [
         'MUSE_TOT', 'MUSE_WHITE', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
-        'MUSE_WHITE_SKYSUB']
+        'MUSE_WHITE_SKYSUB', 'MUSE_PSF', 'MUSE_PSF_SKYSUB']
+
+    ref_header = """\
+ID      =                    8 / object ID u.unitless %d
+RA      =    338.2289866204975 / RA u.degree %.7f
+DEC     =   -60.56824280312122 / DEC u.degree %.7f
+FROM    = 'MuseX   '           / detection software
+FROM_V  = '0.1.dev133'         / version of the detection software
+CUBE    = 'cube.fits'          / datacube
+CUBE_V  = '1.24    '           / version of the datacube
+SRC_V   = '0.1     '
+CATALOG = 'photutils'
+SIZE    =                    5
+EXPMEAN =                 52.0 / Mean value of EXPMAP
+EXPMIN  =                   52 / Minimum value of EXPMAP
+EXPMAX  =                   52 / Maximum value of EXPMAP
+FSFMODE = 'MOFFAT1 '
+FSF00BET=                  2.8
+FSF00FWA=                  0.8
+FSF00FWB=               -3E-05
+FSFMSK  =                    0 / Mask Conv Gauss FWHM in arcsec
+NSKYMSK =                  467 / Size of MASK_SKY in spaxels
+FSKYMSK =                74.72 / Relative Size of MASK_SKY in %
+NOBJMSK =                   25 / Size of MASK_OBJ in spaxels
+FOBJMSK =                  4.0 / Relative Size of MASK_OBJ in %
+REFSPEC = 'MUSE_PSF_SKYSUB'    / Name of reference spectra
+"""
+
+    cards = [fits.Card.fromstring(s) for s in ref_header.splitlines()]
+    hdr = src.header
+    for card in cards:
+        assert hdr[card.keyword] == card.value
+        assert hdr.comments[card.keyword] == card.comment
