@@ -3,6 +3,7 @@ import logging
 import matplotlib.pylab as plt
 import os
 
+from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
 from mpdaf.obj import Image
@@ -16,27 +17,21 @@ from muse_analysis.udf.display import (
 
 from .version import __version__
 
-err_report = {}
+err_report = defaultdict(list)
+
+HST_TAGS = ['HST_F225W', 'HST_F336W', 'HST_F435W', 'HST_F606W', 'HST_F775W',
+            'HST_F814W', 'HST_F850LP', 'HST_F105W', 'HST_F125W', 'HST_F140W',
+            'HST_F160W']
 
 
-def report_error(source_id, msg):
-    if source_id not in err_report:
-        err_report[source_id] = [msg]
-    else:
-        err_report[source_id].append(msg)
+def report_error(source_id, msg, log=True):
+    if log:
+        logging.getLogger(__name__).error(msg)
+    err_report[source_id].append(msg)
 
 
-def get_hstkeys(src,
-                tags=['HST_F225W', 'HST_F336W', 'HST_F435W', 'HST_F606W',
-                      'HST_F775W', 'HST_F814W', 'HST_F850LP', 'HST_F105W',
-                      'HST_F125W', 'HST_F140W', 'HST_F160W']):
-    hsttags = []
-    for tag in tags:
-        if tag in src.images:
-            hsttags.append(tag)
-        else:
-            hsttags.append(None)
-    return hsttags
+def get_hstkeys(src, tags=HST_TAGS):
+    return [tag for tag in tags if tag in src.images]
 
 
 def create_pdf(src, white, outfile, mastercat=None, debug=False):
@@ -104,8 +99,6 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
         gs = GridSpec(1, len(hstkeys), left=0.05, right=0.98, top=0.64,
                       bottom=0.56)
         for k, key in enumerate(hstkeys):
-            if key is None:
-                continue
             ax[key] = plt.subplot(gs[0, k])
             show_image(ax[key], src, key)
 

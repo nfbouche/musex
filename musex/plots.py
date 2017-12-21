@@ -1,17 +1,13 @@
 # module for UDF source and catalog display
 # Taken from muse_analysis/udf/display.py
-from __future__ import absolute_import, print_function
 
 import astropy.units as u
 import logging
-import matplotlib.cm as cm
-# import matplotlib.colors as colors
 import matplotlib.pylab as plt
 import numpy as np
 import warnings
 from itertools import cycle
 
-from adjustText import adjust_text
 from astropy.convolution import convolve, Box1DKernel
 from astropy.io.votable import exceptions
 from astropy.stats import sigma_clipped_stats
@@ -26,7 +22,7 @@ from muse_analysis import lineid_utils
 # from numpy.ma.core import MaskedArrayFutureWarning
 # warnings.simplefilter('ignore', category=MaskedArrayFutureWarning)
 
-from muse_analysis.udf.globalvars import report_error, err_report
+from .pdf import report_error, err_report
 
 warnings.filterwarnings('ignore', category=UnitsWarning)
 warnings.filterwarnings('ignore', category=exceptions.VOWarning)
@@ -54,9 +50,8 @@ def show_ima(ax, src, key, center=(0.1, 'red'), **kwargs):
     src.show_ima(ax, key, center, **kwargs)
 
 
-def show_title(ax, src, outfile, date, numpage, srcfont=12, textfont=9, version=None):
-    logger = logging.getLogger(__name__)
-    logger.debug('Writing title')
+def show_title(ax, src, outfile, date, numpage, srcfont=12, textfont=9,
+               version=None):
     text = 'ID: {:04d} version: {}'.format(src.ID, src.SRC_V)
     bcol = title_colors[src.header.get('CONFID', 0)]
     ax.text(0.02, 0.8, text, fontsize=srcfont,
@@ -71,8 +66,6 @@ def show_title(ax, src, outfile, date, numpage, srcfont=12, textfont=9, version=
 
 
 def show_comments(ax, src, textfont=8):
-    logger = logging.getLogger(__name__)
-    logger.debug('Writing Comments')
     h, v = (0.02, 0.95)
     dv = 0.05
     bbox = {'facecolor': 'lightgray', 'alpha': 0.3, 'pad': 2}
@@ -86,7 +79,6 @@ def show_comments(ax, src, textfont=8):
                 break
             ax.text(h, v, text, fontsize=textfont, ha='left')
 
-    logger.debug('Writing History')
     if 'HISTORY' in src.header:
         v = v - dv
         text = 'History'
@@ -103,16 +95,12 @@ def show_comments(ax, src, textfont=8):
 
 
 def show_errors(ax, src, textfont=8):
-    logger = logging.getLogger(__name__)
-    if src.ID not in err_report:
-        return
-    logger.debug('Writing Errors')
     h, v = (0.02, 0.95)
     dv = 0.1
     text = 'Processing Errors'
     ax.text(h, v, text, fontsize=textfont + 1, ha='left',
             bbox={'facecolor': 'red', 'alpha': 0.3, 'pad': 2})
-    for text in err_report[src.ID]:
+    for text in err_report.get(src.ID, []):
         v = v - dv
         if v < 0.02:
             break
@@ -169,18 +157,22 @@ def show_info(ax, src, textfont=9):
 
     if hasattr(src, 'z') and (src.z is not None):
         t = ['{} {:.3f} '.format(ztype, z)
-             for ztype, z in zip(src.z['Z_DESC'], src.z['Z']) if ztype != 'MUSE']
+             for ztype, z in zip(src.z['Z_DESC'], src.z['Z'])
+             if ztype != 'MUSE']
         text = 'Published redshifts: '
-        for a in t: text += a
+        for a in t:
+            text += a
         ax.text(0.02, 0.5, text, fontsize=textfont, ha='left')
     else:
         logger.debug('No Published z')
-        ax.text(0.02, 0.5, 'Published redshifts: None', fontsize=textfont, ha='left')
+        ax.text(0.02, 0.5, 'Published redshifts: None', fontsize=textfont,
+                ha='left')
 
     if hasattr(src, 'mag') and src.mag is not None:
         maxlen = 7
         t = []
-        for mag, err, band in zip(src.mag['MAG'], src.mag['MAG_ERR'], src.mag['BAND']):
+        for mag, err, band in zip(src.mag['MAG'], src.mag['MAG_ERR'],
+                                  src.mag['BAND']):
             if (band[0:3] != 'HST') or (mag is np.ma.masked):
                 continue
             if err < 0:
@@ -189,16 +181,19 @@ def show_info(ax, src, textfont=9):
                 t.append('{}:{:.1f} '.format(band[5:], mag))
         if len(t) > 0:
             text = 'HST Mag '
-            for a in t[:min(len(t), maxlen)]: text += a
+            for a in t[:min(len(t), maxlen)]:
+                text += a
             ax.text(0.02, 0.3, text, fontsize=textfont, ha='left')
         else:
             ax.text(0.02, 0.3, 'HST Mag: None', fontsize=textfont, ha='left')
         maxlen = 7
         t = ['{}:{:.1f} '.format(band[6:], mag)
-             for mag, band in zip(src.mag['MAG'], src.mag['BAND']) if band[0:4] == 'MUSE']
+             for mag, band in zip(src.mag['MAG'], src.mag['BAND'])
+             if band[0:4] == 'MUSE']
         if len(t) > 0:
             text = 'MUSE Mag '
-            for a in t[:min(len(t), maxlen)]: text += a
+            for a in t[:min(len(t), maxlen)]:
+                text += a
             ax.text(0.02, 0.1, text, fontsize=textfont, ha='left')
         else:
             ax.text(0.02, 0.1, 'MUSE Mag: None', fontsize=textfont, ha='left')
@@ -210,7 +205,7 @@ def show_info(ax, src, textfont=9):
 def show_field(ax, src, white):
     logger = logging.getLogger(__name__)
     logger.debug('Displaying field location')
-    white.plot(ax=ax, vmin=0, vmax=10, scale='arcsinh', cmap=cm.gray_r,
+    white.plot(ax=ax, vmin=0, vmax=10, scale='arcsinh', cmap='gray_r',
                show_xlabel=False, show_ylabel=False)
     y, x = white.wcs.sky2pix((src.DEC, src.RA))[0]
     ax.scatter(x, y, s=50, marker='s', c='green', alpha=0.5)
@@ -219,11 +214,10 @@ def show_field(ax, src, white):
 
 
 def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
-               showcenter=True, cmap=cm.gray_r, fwhm=0):
+               showcenter=True, cmap='gray_r', fwhm=0):
     logger = logging.getLogger(__name__)
     if key not in src.images:
-        report_error(src.ID, 'ERROR: Image {} not found in source'.format(key))
-        logger.error('Image {} not found in source'.format(key))
+        report_error(src.ID, 'Image {} not found in source'.format(key))
         return
     if fwhm == 0:
         logger.debug('Displaying Image {}'.format(key))
@@ -233,7 +227,8 @@ def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
         logger.debug('Displaying Image {} after gaussian filter of {} arcsec FWHM'.format(key, fwhm))
         ima = src.images[key].fftconvolve_gauss(fwhm=fwhm)
         title = '{} [{:.1f}]'.format(key, fwhm)
-    ima.plot(ax=ax, vmin=cuts[0], vmax=cuts[1], zscale=zscale, scale=scale, cmap=cmap, show_xlabel=False, show_ylabel=False)
+    ima.plot(ax=ax, vmin=cuts[0], vmax=cuts[1], zscale=zscale, scale=scale,
+             cmap=cmap, show_xlabel=False, show_ylabel=False)
     ax.set_title(title, fontsize=8)
     if showcenter:
         p, q = ima.wcs.sky2pix((src.DEC, src.RA))[0]
@@ -244,15 +239,14 @@ def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
 
 
 def show_mask(ax, src, key, col='r', levels=[0], alpha=0.4, surface=False):
-    logger = logging.getLogger(__name__)
     if key not in src.images:
-        report_error(src.ID, 'ERROR: Image {} not found in source'.format(key))
-        logger.error('Image {} not found in source'.format(key))
+        report_error(src.ID, 'Image {} not found in source'.format(key))
         return
     if surface:
         im = src.images[key]
-        ax.contourf(im._data.astype(float), levels=levels, origin='lower', colors=col,
-                    alpha=alpha, extent=[-0.5, im.shape[0] - 0.5, -0.5, im.shape[1] - 0.5])
+        ax.contourf(im._data.astype(float), levels=levels, origin='lower',
+                    colors=col, alpha=alpha,
+                    extent=[-0.5, im.shape[0] - 0.5, -0.5, im.shape[1] - 0.5])
     else:
         ax.contour(src.images[key]._data.astype(float), levels=levels,
                    origin='lower', colors=col, alpha=alpha)
@@ -260,9 +254,8 @@ def show_mask(ax, src, key, col='r', levels=[0], alpha=0.4, surface=False):
 
 def show_white(ax, src, cat=None, showmask=False, showid=True, showz=False,
                idcol='id', zcol='z', showscale=True, cuts=(None, None),
-               zscale=False, scale='arcsinh', showcenter=True, cmap=cm.gray_r,
+               zscale=False, scale='arcsinh', showcenter=True, cmap='gray_r',
                fwhm=0):
-    logger = logging.getLogger(__name__)
     show_image(ax, src, 'MUSE_WHITE', cuts=cuts, zscale=zscale, scale=scale,
                showcenter=showcenter, cmap=cmap, fwhm=fwhm)
     if showscale:
@@ -300,10 +293,10 @@ def show_3dhst(ax, src):
     logger = logging.getLogger(__name__)
     if '3DHST_SPEC' not in src.images:
         report_error(src.ID, '3DHST_SPEC not found in images source')
-        logger.error('3DHST_SPEC not found in images source')
         return
     logger.debug('Display of 3DHST data')
-    show_image(ax, src, '3DHST_SPEC', scale='linear', showcenter=False, cmap=cm.jet)
+    show_image(ax, src, '3DHST_SPEC', scale='linear', showcenter=False,
+               cmap='jet')
     ax.set_title('')
     ax2 = ax.twiny()
     xlim = (src.images['3DHST_SPEC'].get_start()[1] * 1.e6,
@@ -318,7 +311,8 @@ def show_3dhst(ax, src):
     ax2.tick_params(axis='x', labelsize=8)
     ax2.tick_params(axis='y', labelsize=8)
     if '3DHST_LINES' in src.tables:
-        logger.debug('Display of {} lines from 3DHST line table'.format(len(src.tables['3DHST_LINES'])))
+        logger.debug('Display of {} lines from 3DHST line table'
+                     .format(len(src.tables['3DHST_LINES'])))
         for line in src.tables['3DHST_LINES']:
             xpos = line['LBDA_OBS'] * 1.e-4  # wavelength in microns
             iden = line['LINE']
@@ -332,16 +326,18 @@ def show_3dhst(ax, src):
         logger.debug('No 3DHST line table found in source')
 
 
-def show_maxmap(ax, src, zscale=False, showcat=True, showid=False, showscale=True):
+def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
+                showscale=True):
     logger = logging.getLogger(__name__)
     if 'ORIG_MXMAP' not in src.images:
-        logger.debug('No ORIG_MXMAP found in source')
+        report_error('No ORIG_MXMAP found in source')
         return
     show_image(ax, src, 'ORIG_MXMAP', zscale=zscale)
     if showscale:
         show_scale(ax, src.images['ORIG_MXMAP'].wcs)
     if hasattr(src, 'ORIG_RA') and hasattr(src, 'ORIG_DEC'):
-        cen = src.images['ORIG_MXMAP'].wcs.sky2pix((src.ORIG_DEC, src.ORIG_RA), unit=u.deg)[0]
+        cen = src.images['ORIG_MXMAP'].wcs.sky2pix((src.ORIG_DEC, src.ORIG_RA),
+                                                   unit=u.deg)[0]
         _plot_ellipse(ax, cen, 2.0, alpha=0.5, col='cyan', fill=True)
         if hasattr(src, 'ORIG_ID'):
             ax.text(cen[1] + 2, cen[0] + 2, str(src.ORIG_ID), ha='center',
@@ -368,8 +364,7 @@ def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
                 showid=True, showmask=False, showscale=True):
     logger = logging.getLogger(__name__)
     if key not in src.images:
-        gv.err_report.append('WARNING: Image {} not found in source'.format(key))
-        logger.warning('No {} image found in source'.format(key))
+        report_error('Image {} not found in source'.format(key))
         return
     show_image(ax, src, key, zscale=zscale)
     if showscale:
@@ -404,7 +399,8 @@ def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
 def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
     scale = 1.0
     dx = scale / (wcs.naxis1 * 3600 * wcs.get_step()[0])
-    ax.axhline(y * wcs.naxis1, right - dx, right, linewidth=linewidth, color=color)
+    ax.axhline(y * wcs.naxis1, right - dx, right, linewidth=linewidth,
+               color=color)
     ax.text(right - 0.5 * dx, y + 0.06, '1"', horizontalalignment='center',
             fontsize=8, transform=ax.transAxes, color=color)
     return
@@ -412,10 +408,8 @@ def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
 
 def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
                  col='COLOR', symb=0.5, fontsize=8, alpha=0.5, legend=True):
-    logger = logging.getLogger(__name__)
     if key not in src.images:
-        report_error(src.ID, 'ERROR: Image {} not found in source'.format(key))
-        logger.error('Image {} not found in source'.format(key))
+        report_error(src.ID, 'Image {} not found in source'.format(key))
         return
     wcs = src.images[key].wcs
     arr = np.vstack([cat[dec].data, cat[ra].data]).T
@@ -430,10 +424,12 @@ def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
             if (xx < 0) or (yy < 0) or (xx > wcs.naxis1) or (yy > wcs.naxis2):
                 continue
             if not np.ma.is_masked(src[iden]):
-                texts.append((ax.text(xx, yy, src[iden], ha='center', color=src[col],
-                                      fontsize=fontsize), cen[1], cen[0]))
+                texts.append((ax.text(xx, yy, src[iden], ha='center',
+                                      color=src[col], fontsize=fontsize),
+                              cen[1], cen[0]))
             _plot_ellipse(ax, cen, size, alpha=alpha, col=src[col])
         if len(texts) > 0:
+            from adjustText import adjust_text
             text, x, y = zip(*texts)
             adjust_text(text, x=x, y=y, ax=ax, only_move={text: 'xy'})
     else:
@@ -443,7 +439,8 @@ def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
                 continue
             _plot_ellipse(ax, cen, size, alpha=alpha, col=src[col])
     if legend and hasattr(cat, 'name'):
-        ax.text(0.5, -0.07, cat.name, ha='center', transform=ax.transAxes, fontsize=8)
+        ax.text(0.5, -0.07, cat.name, ha='center', transform=ax.transAxes,
+                fontsize=8)
 
 
 def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
@@ -452,12 +449,10 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
     logger = logging.getLogger(__name__)
     logger.debug('Displaying Spectra {} {}'.format(sp1name, sp2name))
     if sp1name not in src.spectra:
-        report_error(src.ID, 'ERROR: Cannot read spectra {} in source'.format(sp1name))
-        logger.error('Cannot read spectra {} in source'.format(sp1name))
+        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp1name))
         return
     if sp2name is not None and sp2name not in src.spectra:
-        report_error(src.ID, 'ERROR: Cannot read spectra {} in source'.format(sp2name))
-        logger.error('Cannot read spectra {} in source'.format(sp2name))
+        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp2name))
         return
     # plot (filtered) refspectra in blue
     sp = src.spectra[sp1name]
@@ -523,10 +518,12 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                         if l['id'] in lines['LINE']:
                             continue
                         lines.add_row([l['id'], l['c'], 'k', fontsize])
-        logger.debug('{} lines displayed on the full spectrum'.format(len(lines)))
+        logger.debug('{} lines displayed on the full spectrum'
+                     .format(len(lines)))
         lines.sort('LBDA_OBS')
-        plot_line_ids(sp1.wave.coord(), sp1._data, lines['LBDA_OBS'], lines['LINE'],
-                      lines['FONTSIZE'], arrow_tip=0.9 * y2, box_axes_space=0.04, ax=ax)
+        plot_line_ids(sp1.wave.coord(), sp1._data, lines['LBDA_OBS'],
+                      lines['LINE'], lines['FONTSIZE'], arrow_tip=0.9 * y2,
+                      box_axes_space=0.04, ax=ax)
         lineid_utils.color_text_boxes(ax, lines['LINE'], lines['COLOR'])
         lineid_utils.color_lines(ax, lines['LINE'], lines['COLOR'])
 
@@ -551,12 +548,10 @@ def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
     logger = logging.getLogger(__name__)
     logger.debug('Displaying Spectra {} {}'.format(sp1name, sp2name))
     if sp1name not in src.spectra:
-        report_error(src.ID, 'ERROR: Cannot read spectra {} in source'.format(sp1name))
-        logger.error('Cannot read spectra {} in source'.format(sp1name))
+        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp1name))
         return
     if sp2name is not None and sp2name not in src.spectra:
-        report_error(src.ID, 'ERROR: Cannot read spectra {} in source'.format(sp2name))
-        logger.error('Cannot read spectra {} in source'.format(sp2name))
+        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp2name))
         return
     # plot (filtered) refspectra in blue
     sp = src.spectra[sp1name]
@@ -602,10 +597,10 @@ def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
 def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
     logger = logging.getLogger(__name__)
     if nb not in src.images:
-        report_error(src.ID, 'ERROR: Image {} not found in source'.format(nb))
-        logger.debug('No {} found in source'.format(nb))
+        report_error(src.ID, 'Image {} not found in source'.format(nb))
         return
-    show_image(ax, src, nb, cmap=cm.coolwarm, scale=scale, zscale=zscale, fwhm=fwhm)
+    show_image(ax, src, nb, cmap='coolwarm', scale=scale, zscale=zscale,
+               fwhm=fwhm)
     if showcat:
         if 'HST_CAT' not in src.tables:
             logger.debug('No HST_CAT catalog found in source')
@@ -643,25 +638,21 @@ def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
 def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
                   fband=0, waverange=None, zero=True, showlines=True, name=None,
                   showvar=True, varlim=None, ymin=None, ymax=None):
-    logger = logging.getLogger(__name__)
     if name is not None:
         if name not in src.lines['LINE']:
-            logger.error('%s not found in src.lines', name)
-            report_error(src.ID, 'ERROR: %s not found in src.lines'.format(name))
+            report_error(src.ID, '%s not found in src.lines'.format(name))
             return 0, 0
         l0 = src.lines.loc[name]['LBDA_OBS']
     if waverange is not None:
         l1, l2 = waverange
     else:
         if l0 is None:
-            logger.error('show_zoomspec with waverange=None and l0=None')
-            report_error(src.ID, 'ERROR: show_zoomspec with waverange=None and l0=None')
+            report_error(src.ID, 'show_zoomspec with waverange=None and l0=None')
             return 0, 0
         l1 = l0 - width / 2 - margin - fband - 10
         l2 = l0 + width / 2 + margin + fband + 10
     if sp1name not in src.spectra:
-        logger.error('cannot find %s in source', sp1name)
-        report_error(src.ID, 'ERROR: Cannot find spectrum {} in source'.format(sp1name))
+        report_error(src.ID, 'Cannot find spectrum {} in source'.format(sp1name))
         return 0, 0
     sp0 = src.spectra[sp1name]
     sp = sp0.subspec(lmin=l1, lmax=l2)
@@ -694,8 +685,7 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
         lines = src.lines
         lines = lines[(lines['LBDA_OBS'] > l1) & (lines['LBDA_OBS'] < l2)]
         if len(lines) == 0:
-            report_error(src.ID, 'ERROR: Line table is empty for the given wavelength window {}-{}'.format(l1, l2))
-            logger.error('ERROR: Line table is empty for the given wavelength window {}-{}'.format(l1, l2))
+            report_error(src.ID, 'Line table is empty for the given wavelength window {}-{}'.format(l1, l2))
             return 0, 0
         lines['COLOR'] = 'r'
         lines['FONTSIZE'] = 7
@@ -724,8 +714,7 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
 def show_pfitspec(ax, src, key, l1, l2):
     logger = logging.getLogger(__name__)
     if key not in src.tables['PFIT_REF_SPFIT']:
-        report_error(src.ID, 'ERROR: Cannot read table {} in source'.format(key))
-        logger.error('Cannot read table {} in source'.format(key))
+        report_error(src.ID, 'Cannot read table {} in source'.format(key))
         return
     tab = src.tables['PFIT_REF_SPFIT']
     lbda = tab['WAVELENGTH']
@@ -751,8 +740,7 @@ def show_pfitspec(ax, src, key, l1, l2):
 def show_pfitline(ax, src, key, l1, l2):
     logger = logging.getLogger(__name__)
     if key not in src.tables['PFIT_REF_SPFIT']:
-        report_error(src.ID, 'ERROR: Cannot find column {} in table PFIT_REF_SPFIT'.format(key))
-        logger.error('Cannot find column {} in table PFIT_REF_SPFIT'.format(key))
+        report_error(src.ID, 'Cannot find column {} in table PFIT_REF_SPFIT'.format(key))
         return
     tab = src.tables['PFIT_REF_SPFIT']
     lbda = tab['WAVELENGTH']
@@ -778,8 +766,7 @@ def show_origspec(ax, src, l0, l1, l2):
     logger = logging.getLogger(__name__)
     spname = 'ORIG_{}'.format(l0)
     if spname not in src.spectra:
-        report_error(src.ID, 'ERROR: Cannot read spectra {} in source'.format(spname))
-        logger.error('Cannot read spectrum {} in source'.format(spname))
+        report_error(src.ID, 'Cannot read spectra {} in source'.format(spname))
         return
     logger.debug('Display {} spectrum'.format(spname))
     sp = src.spectra[spname]
