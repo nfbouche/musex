@@ -32,9 +32,6 @@ class DataSet:
 
     def add_to_source(self, src, size):
         names = list(self.images.keys())
-        # white image is handled separately
-        if 'WHITE' in names:
-            names.remove('WHITE')
         if not names:
             return
         self.logger.debug('Adding images: %s', ','.join(names))

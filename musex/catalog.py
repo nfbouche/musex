@@ -271,6 +271,11 @@ class BaseCatalog:
 
         """
         if columns is not None:
+            if wcs is not None:
+                if self.raname not in columns:
+                    columns.append(self.raname)
+                if self.decname not in columns:
+                    columns.append(self.decname)
             columns = [self.c[col] for col in columns]
         else:
             columns = [self.table.table]

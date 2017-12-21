@@ -22,8 +22,8 @@ def test_ingest(mx):
     assert phot.decname == 'dec'
     assert phot.segmap.endswith('segmap.fits')
 
-    phot.ingest_input_catalog()
-    assert len(phot.select()) == 13
+    phot.ingest_input_catalog(limit=3)
+    assert len(phot.select()) == 3
 
     phot.ingest_input_catalog()
     assert len(phot.select()) == 13
@@ -52,6 +52,18 @@ def test_catalog(mx):
     assert tbl.catalog is phot
     assert len(tbl) == 3
     assert tbl.colnames == ['id']
+
+    res = phot.select_ids(1, columns=[phot.idname])
+    assert len(res) == 1
+    assert res[0]['id'] == 1
+
+    res = phot.select_ids(np.array([1, 2]), columns=[phot.idname])
+    assert len(res) == 2
+    assert res[0]['id'] == 1
+
+    res = phot.select(wcs=mx.muse_dataset.white.wcs, columns=[phot.idname],
+                      margin=2/0.2)
+    assert len(res) == 8
 
 
 def test_user_catalog(mx):
