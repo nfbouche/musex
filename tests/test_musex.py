@@ -245,7 +245,6 @@ ID      =                    8 / object ID u.unitless %d
 RA      =    338.2289866204975 / RA u.degree %.7f
 DEC     =   -60.56824280312122 / DEC u.degree %.7f
 FROM    = 'MuseX   '           / detection software
-FROM_V  = '0.1.dev133'         / version of the detection software
 CUBE    = 'cube.fits'          / datacube
 CUBE_V  = '1.24    '           / version of the datacube
 SRC_V   = '0.1     '
