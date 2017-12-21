@@ -2,10 +2,14 @@
 # Taken from muse_analysis/udf/display.py
 
 import astropy.units as u
+import lineid_plot
 import logging
+import matplotlib as mpl
 import matplotlib.pylab as plt
 import numpy as np
 import warnings
+
+from collections import defaultdict
 from itertools import cycle
 
 from astropy.convolution import convolve, Box1DKernel
@@ -17,12 +21,9 @@ from lineid_plot import plot_line_ids
 from matplotlib.patches import Ellipse
 from matplotlib.ticker import AutoMinorLocator
 from mpdaf.sdetect import get_emlines
-from muse_analysis import lineid_utils
 
 # from numpy.ma.core import MaskedArrayFutureWarning
 # warnings.simplefilter('ignore', category=MaskedArrayFutureWarning)
-
-from .pdf import report_error, err_report
 
 warnings.filterwarnings('ignore', category=UnitsWarning)
 warnings.filterwarnings('ignore', category=exceptions.VOWarning)
@@ -44,6 +45,19 @@ doublets = [['OII3727', 'OII_3726', 'OII_3729'],
             ['NII', 'NII_6548', 'NII_6584']]
 
 title_colors = ['red', 'orange', 'green', 'blue']
+
+err_report = defaultdict(list)
+
+
+def report_error(source_id, msg, log=True, level='ERROR'):
+    if log:
+        logger = logging.getLogger(__name__)
+        if level == 'ERROR':
+            logger.error(msg)
+        elif level == 'WARNING':
+            logger.warning(msg)
+
+    err_report[source_id].append(f'{level}: {msg}')
 
 
 def show_ima(ax, src, key, center=(0.1, 'red'), **kwargs):
@@ -524,8 +538,8 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
         plot_line_ids(sp1.wave.coord(), sp1._data, lines['LBDA_OBS'],
                       lines['LINE'], lines['FONTSIZE'], arrow_tip=0.9 * y2,
                       box_axes_space=0.04, ax=ax)
-        lineid_utils.color_text_boxes(ax, lines['LINE'], lines['COLOR'])
-        lineid_utils.color_lines(ax, lines['LINE'], lines['COLOR'])
+        color_text_boxes(ax, lines['LINE'], lines['COLOR'])
+        color_lines(ax, lines['LINE'], lines['COLOR'])
 
     ax.tick_params(axis='x', labelsize=8)
     ax.tick_params(axis='y', labelsize=8)
@@ -691,8 +705,8 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
         lines['FONTSIZE'] = 7
         plot_line_ids(sp.wave.coord(), sp._data, lines['LBDA_OBS'], lines['LINE'],
                       lines['FONTSIZE'], box_axes_space=0.02, ax=ax)
-        lineid_utils.color_text_boxes(ax, lines['LINE'], lines['COLOR'])
-        lineid_utils.color_lines(ax, lines['LINE'], lines['COLOR'])
+        color_text_boxes(ax, lines['LINE'], lines['COLOR'])
+        color_lines(ax, lines['LINE'], lines['COLOR'])
 
     if (margin > 0) and (fband > 0):
         ax.axvspan(l0 - width / 2, l0 + width / 2, color='g', alpha=0.2)
@@ -793,3 +807,42 @@ def _plot_ellipse(ax, cen, size, alpha=0.5, col='k', fill=False):
     ell.set_alpha(alpha)
     ell.set_edgecolor(col)
     ell.set_facecolor(col)
+
+
+# Taken from muse_analysis/lineid_utils.py
+# 2015/10/12 H. Inami
+#    Taken from http://gist.github.com/phn/2326396
+
+
+def color_text_boxes(ax, labels, colors, color_arrow=True):
+    assert len(labels) == len(colors), \
+        "Equal no. of colors and lables must be given"
+    boxes = ax.findobj(mpl.text.Annotation)
+    box_labels = lineid_plot.unique_labels(labels)
+    for box in boxes:
+        l = box.get_label()
+        try:
+            loc = box_labels.index(l)
+        except ValueError:
+            continue  # No changes for this box
+        box.set_color(colors[loc])
+        if color_arrow:
+            box.arrow_patch.set_color(colors[loc])
+
+    ax.figure.canvas.draw()
+
+
+def color_lines(ax, labels, colors):
+    assert len(labels) == len(colors), \
+        "Equal no. of colors and lables must be given"
+    lines = ax.findobj(mpl.lines.Line2D)
+    line_labels = [i + "_line" for i in lineid_plot.unique_labels(labels)]
+    for line in lines:
+        l = line.get_label()
+        try:
+            loc = line_labels.index(l)
+        except ValueError:
+            continue  # No changes for this line
+        line.set_color(colors[loc])
+
+    ax.figure.canvas.draw()

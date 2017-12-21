@@ -3,31 +3,37 @@ import logging
 import matplotlib.pylab as plt
 import os
 
-from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
 from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog
 
-from muse_analysis.udf.display import (
-    show_title, show_info, show_field, show_fullspec, show_image, show_3dhst,
-    show_hstima, show_white, show_maxmap, show_zoomspec, show_errors,
-    show_nb, show_pfitspec, show_origspec, show_pfitline, show_comments,
-    show_contspec)
+from .plots import (
+    err_report, report_error,
+    show_3dhst,
+    show_comments,
+    show_contspec,
+    show_errors,
+    show_field,
+    show_fullspec,
+    show_hstima,
+    show_image,
+    show_info,
+    show_maxmap,
+    show_nb,
+    show_origspec,
+    show_pfitline,
+    show_pfitspec,
+    show_title,
+    show_white,
+    show_zoomspec,
+)
 
 from .version import __version__
-
-err_report = defaultdict(list)
 
 HST_TAGS = ['HST_F225W', 'HST_F336W', 'HST_F435W', 'HST_F606W', 'HST_F775W',
             'HST_F814W', 'HST_F850LP', 'HST_F105W', 'HST_F125W', 'HST_F140W',
             'HST_F160W']
-
-
-def report_error(source_id, msg, log=True):
-    if log:
-        logging.getLogger(__name__).error(msg)
-    err_report[source_id].append(msg)
 
 
 def get_hstkeys(src, tags=HST_TAGS):
@@ -135,8 +141,7 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
     # loop on NB and zoom on spectra
     if 'NB_PAR' not in src.tables or len(src.tables['NB_PAR']) == 0:
         msg = 'No emission lines (table NB_PAR not found or empty)'
-        report_error(src.ID, f'Warning: {msg}')
-        logger.warning('Source %s - %s', src.ID, msg)
+        report_error(src.ID, msg, level='WARNING')
         bottom = 0.25
     else:
         tab = src.tables['NB_PAR']
@@ -147,14 +152,12 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
         tab.sort('LBDA')
         for k, line in enumerate(tab):
             nb, l0, width, margin, fband = line
-            if width == 0:
-                report_error(src.ID, 'ERROR: bad NB_PAR parameters for NB {}'.format(nb))
-                logger.error('Source {} {}/{} {} bad NB_PAR parameters'
-                             .format(src.ID, k + 1, len(tab), nb))
-                bottom = top
-                continue
             logger.debug('Source {} {}/{} {} display'
                          .format(src.ID, k + 1, len(tab), nb))
+            if width == 0:
+                report_error(src.ID, f'bad NB_PAR parameters for NB {nb}')
+                bottom = top
+                continue
             bottom = top - h
             if bottom < 0:
                 pagenum, top, fig = _newpage(pagenum, fig, src, outfile, date,
@@ -172,9 +175,7 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
             if l1 == 0 or l2 == 0:
                 continue
             if 'PFIT_REF_SPFIT' not in src.tables:
-                report_error(src.ID, 'ERROR: Missing PFIT_REF_SPFIT table in source')
-                logger.error('Source {} {}/{} Missing PFIT_REF_SPFIT table'
-                             .format(src.ID, k + 1, len(tab)))
+                report_error(src.ID, 'Missing PFIT_REF_SPFIT table in source')
                 break
             if nb == 'NB_LYALPHA':
                 key = 'PFIT_{}'.format(k)

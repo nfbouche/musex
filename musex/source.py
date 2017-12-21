@@ -1,11 +1,6 @@
 from mpdaf.sdetect import Source
 
-try:
-    from .pdf import create_pdf
-except ImportError:
-    HAS_PDF = False
-else:
-    HAS_PDF = True
+from .pdf import create_pdf
 
 
 class SourceX(Source):
@@ -39,8 +34,6 @@ class SourceX(Source):
                       desc='Name of reference spectra')
 
     def to_pdf(self, filename, white):
-        if not HAS_PDF:
-            raise ImportError('muse_analysis is required')
         create_pdf(self, white, filename)
 
 # TODO: pdf filename with infos
