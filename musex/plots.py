@@ -344,7 +344,7 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
                 showscale=True):
     logger = logging.getLogger(__name__)
     if 'ORIG_MXMAP' not in src.images:
-        report_error('No ORIG_MXMAP found in source')
+        report_error(src.ID, 'No ORIG_MXMAP found in source')
         return
     show_image(ax, src, 'ORIG_MXMAP', zscale=zscale)
     if showscale:
@@ -378,7 +378,7 @@ def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
                 showid=True, showmask=False, showscale=True):
     logger = logging.getLogger(__name__)
     if key not in src.images:
-        report_error('Image {} not found in source'.format(key))
+        report_error(src.ID, 'Image {} not found in source'.format(key))
         return
     show_image(ax, src, key, zscale=zscale)
     if showscale:

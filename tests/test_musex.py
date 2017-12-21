@@ -217,12 +217,13 @@ def test_export_sources(mx):
     outdir = f'{mycat.workdir}/export'
     os.makedirs(outdir, exist_ok=True)
 
-    mx.export_sources(mycat, outdir=outdir, create_pdf=False, srcvers='0.1',
+    mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
                       apertures=None)
 
     flist = os.listdir(outdir)
-    assert sorted(flist) == [
-        'source-00008.fits', 'source-00100.fits', 'source-00101.fits']
+    assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
+                             'source-00100.fits', 'source-00100.pdf',
+                             'source-00101.fits', 'source-00101.pdf']
 
     src = Source.from_file(f'{outdir}/source-00008.fits')
 
