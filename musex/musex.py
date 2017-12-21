@@ -122,7 +122,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True):
-        """Export a catalog selection (`ResultSet`) to sources (SourceX).
+        """Export a catalog or selection to sources (SourceX).
 
         Parameters
         ----------
@@ -236,6 +236,23 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
+        """Save a catalog or selection to sources (SourceX).
+
+        See `MuseX.to_sources` for the additional arguments.
+
+        Parameters
+        ----------
+        res_or_cat: `ResultSet` or `Catalog`
+            Either a result from a query or a catalog to export.
+        create_pdf: bool
+            If True, create a pdf for each source.
+        outdir: str
+            Output directory. If None the default is
+            `'{self.workdir}/export/{cname}/{self.muse_dataset.name}'`.
+        outdir: str
+            Output directory. If None the default is `'source-{src.ID:05d}'`.
+
+        """
         if outdir is None:
             if isinstance(res_or_cat, Catalog):
                 cname = res_or_cat.name
