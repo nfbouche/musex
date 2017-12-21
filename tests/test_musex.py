@@ -3,6 +3,7 @@ import os
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
+from mpdaf.sdetect import Source
 from musex import MuseX
 from numpy.testing import assert_allclose, assert_array_equal
 
@@ -188,3 +189,41 @@ def test_attach_dataset(mx):
     mask = fits.getdata(outdir / 'mask-source-00101.fits')
     assert mask.shape == (50, 50)
     assert np.count_nonzero(mask) == totmask
+
+
+def test_export_sources(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+    mycat.merge_sources([9, 10])
+    mycat.merge_sources([11, 12, 13])
+    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+                         mask_size=(10, 10))
+
+    outdir = f'{mycat.workdir}/export'
+    os.makedirs(outdir, exist_ok=True)
+
+    for src in mx.to_sources(mycat, srcvers='0.1', apertures=None):
+        src.write(f'{outdir}/source-{src.ID:05d}.fits')
+        # src.to_pdf(f'{outdir}/source-{src.ID:05d}.pdf', mx.muse_dataset.white)
+
+    flist = os.listdir(outdir)
+    assert sorted(flist) == [
+        'source-00008.fits', 'source-00100.fits', 'source-00101.fits']
+
+    src = Source.from_file(f'{outdir}/source-00008.fits')
+
+    assert list(src.tables.keys()) == ['PHU_CAT']
+    assert_array_equal(src.tables['PHU_CAT']['id'], [7, 8])
+
+    assert list(src.cubes.keys()) == ['MUSE_CUBE']
+    assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
+
+    assert list(src.images.keys()) == [
+        'MUSE_WHITE', 'MUSE_EXPMAP', 'TEST_FAKE', 'PHU_SEGMAP', 'MASK_SKY',
+        'MASK_OBJ']
+    assert list(src.spectra.keys()) == [
+        'MUSE_TOT', 'MUSE_WHITE', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
+        'MUSE_WHITE_SKYSUB']

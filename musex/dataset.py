@@ -57,9 +57,9 @@ class MuseDataSet(DataSet):
     def white(self):
         return Image(self.settings['white'], copy=False)
 
-    @lazyproperty
-    def expcube(self):
-        return Cube(self.settings['expcube'], copy=False)
+    # @lazyproperty
+    # def expcube(self):
+    #     return Cube(self.settings['expcube'], copy=False)
 
     @lazyproperty
     def expima(self):

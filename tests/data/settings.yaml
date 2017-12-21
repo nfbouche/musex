@@ -17,8 +17,8 @@ muse_datasets:
     version: '1.24'
     prefix: MUSE
     datacube: '{datadir}/cube.fits'
-    expcube: '{{workdir}}/expcube.fits'
-    expima: '{{workdir}}/expima.fits'
+    # expcube: '{datadir}/expcube.fits'
+    expima: '{datadir}/expima.fits'
     white: '{datadir}/image.fits'
 
 catalogs:
@@ -32,5 +32,5 @@ catalogs:
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
-      select_in: FAKE
-      margin: 10
+      select_in: TEST_FAKE
+      margin: 0

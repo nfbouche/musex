@@ -33,7 +33,7 @@ muse_datasets:
     version: '1.0b1'
     prefix: MUSE
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-10.fits'
-    expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-10.fits'
+    # expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-10.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-10.fits'
     white: '{muse_data_dir}/1.0b1/IMAGE_UDF-10.fits'
 
@@ -41,7 +41,7 @@ muse_datasets:
     version: '1.0b1'
     prefix: MUSE
     datacube: '{muse_data_dir}/1.0b1/DATACUBE_UDF-MOSAIC.fits'
-    expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
+    # expcube: '{muse_data_dir}/1.0b1/EXPMAP_UDF-MOSAIC.fits'
     expima: '{muse_data_dir}/1.0b1/EXPMAP-IMAGE_UDF-MOSAIC.fits'
     white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
     fieldmap: '{muse_data_dir}/1.0b1/FIELDMAP_UDF-MOSAIC.fits'
