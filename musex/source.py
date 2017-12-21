@@ -42,7 +42,6 @@ class SourceX(Source):
         if not HAS_PDF:
             raise ImportError('muse_analysis is required')
         create_pdf(self, white, filename)
-        self._logger.info('pdf written to %s', filename)
 
 # TODO: pdf filename with infos
 # if info:

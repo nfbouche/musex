@@ -217,9 +217,8 @@ def test_export_sources(mx):
     outdir = f'{mycat.workdir}/export'
     os.makedirs(outdir, exist_ok=True)
 
-    for src in mx.to_sources(mycat, srcvers='0.1', apertures=None):
-        src.write(f'{outdir}/source-{src.ID:05d}.fits')
-        # src.to_pdf(f'{outdir}/source-{src.ID:05d}.pdf', mx.muse_dataset.white)
+    mx.export_sources(mycat, outdir=outdir, create_pdf=False, srcvers='0.1',
+                      apertures=None)
 
     flist = os.listdir(outdir)
     assert sorted(flist) == [

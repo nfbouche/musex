@@ -41,6 +41,7 @@ class MuseX:
         self.logger.debug('Loading settings %s', settings_file)
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
+        self.workdir = self.conf['workdir']
         self.db = load_db(self.conf['db'])
 
         # Load datasets
@@ -57,9 +58,9 @@ class MuseX:
         for row in catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
-                name, self.db, workdir=self.conf['workdir'],
-                idname=row['idname'], raname=row['raname'],
-                decname=row['decname'], segmap=row['segmap'])
+                name, self.db, workdir=self.workdir, idname=row['idname'],
+                raname=row['raname'], decname=row['decname'],
+                segmap=row['segmap'])
 
         if self.conf['show_banner']:
             self.info()
@@ -106,7 +107,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 raise ValueError('table already exists')
 
         parent_cat = resultset.catalog
-        cat = Catalog(name, self.db, workdir=self.conf['workdir'],
+        cat = Catalog(name, self.db, workdir=self.workdir,
                       idname=parent_cat.idname, raname=parent_cat.raname,
                       decname=parent_cat.decname, segmap=parent_cat.segmap)
 
@@ -147,7 +148,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             # TODO: filter active sources
             resultset = res_or_cat
         else:
-            raise ValueError
+            raise ValueError('invalid input for res_or_cat')
 
         cat = resultset.catalog
         origin = ('MuseX', __version__, '', '')
@@ -203,7 +204,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
             maskim = Image(str(cat.workdir / row['mask_obj']), copy=False)
             centerpix = maskim.wcs.sky2pix(center)[0]
-            debug('center: %r -> %r', center, centerpix.tolist())
+            debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
+                  *centerpix.tolist())
             src.images['MASK_OBJ'] = extract_subimage(
                 maskim, center, (size, size), minsize=minsize)
 
@@ -231,6 +233,30 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
             src.extract_all_spectra(apertures=apertures)
             yield src
+
+    def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
+                       outname='source-{src.ID:05d}', **kwargs):
+        if outdir is None:
+            if isinstance(res_or_cat, Catalog):
+                cname = res_or_cat.name
+            elif isinstance(res_or_cat, ResultSet):
+                cname = res_or_cat.catalog.name
+            else:
+                raise ValueError('invalid input for res_or_cat')
+            outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
+        os.makedirs(outdir, exist_ok=True)
+
+        white = self.muse_dataset.white
+        info = self.logger.info
+        for src in self.to_sources(res_or_cat, **kwargs):
+            outn = outname.format(src=src)
+            fname = f'{outdir}/{outn}.fits'
+            src.write(fname)
+            info('fits written to %s', fname)
+            if create_pdf:
+                fname = f'{outdir}/{outn}.pdf'
+                src.to_pdf(fname, white)
+                info('pdf written to %s', fname)
 
     def delete_user_cat(self, name):
         if name not in self.db.tables or name not in self.catalogs:
