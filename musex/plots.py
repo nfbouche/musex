@@ -422,11 +422,9 @@ def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
             fontsize=8, transform=ax.transAxes, color=color)
 
 
+@_check_source_input('image')
 def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
                  col='COLOR', symb=0.5, fontsize=8, alpha=0.5, legend=True):
-    if key not in src.images:
-        report_error(src.ID, 'Image {} not found in source'.format(key))
-        return
     wcs = src.images[key].wcs
     arr = np.vstack([cat[dec].data, cat[ra].data]).T
     arr = wcs.sky2pix(arr, unit=u.deg)
@@ -459,14 +457,12 @@ def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
                 fontsize=8)
 
 
+@_check_source_input('spectrum')
 def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                   wfilter=5, fontsize=7, showvar=True, varlim=None,
                   legend=True, showlines=True, expectedlines=True):
     logger = logging.getLogger(__name__)
     logger.debug('Displaying Spectra %s %s', sp1name, sp2name)
-    if sp1name not in src.spectra:
-        report_error(src.ID, 'Spectra {} not found in source'.format(sp1name))
-        return
     if sp2name is not None and sp2name not in src.spectra:
         report_error(src.ID, 'Spectra {} not found in source'.format(sp2name))
         return
@@ -558,13 +554,11 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
     ax.xaxis.set_minor_locator(yminloc)
 
 
+@_check_source_input('spectrum')
 def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
                   wfilter=5, fontsize=7, showvar=False):
     logger = logging.getLogger(__name__)
     logger.debug('Displaying Spectra {} {}'.format(sp1name, sp2name))
-    if sp1name not in src.spectra:
-        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp1name))
-        return
     if sp2name is not None and sp2name not in src.spectra:
         report_error(src.ID, 'Cannot read spectra {} in source'.format(sp2name))
         return
@@ -609,11 +603,9 @@ def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
     ax.set_ylabel('')
 
 
+@_check_source_input('image')
 def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
     logger = logging.getLogger(__name__)
-    if nb not in src.images:
-        report_error(src.ID, 'Image {} not found in source'.format(nb))
-        return
     show_image(ax, src, nb, cmap='coolwarm', scale=scale, zscale=zscale,
                fwhm=fwhm)
     if showcat:
@@ -751,13 +743,13 @@ def show_pfitspec(ax, src, key, l1, l2):
     yminloc = plt.MultipleLocator(5)
     ax.xaxis.set_major_locator(yloc)
     ax.xaxis.set_minor_locator(yminloc)
-    return
 
 
 def show_pfitline(ax, src, key, l1, l2):
     logger = logging.getLogger(__name__)
     if key not in src.tables['PFIT_REF_SPFIT']:
-        report_error(src.ID, 'Cannot find column {} in table PFIT_REF_SPFIT'.format(key))
+        report_error(src.ID, 'Cannot find column {} in table PFIT_REF_SPFIT'
+                     .format(key))
         return
     tab = src.tables['PFIT_REF_SPFIT']
     lbda = tab['WAVELENGTH']
@@ -776,7 +768,6 @@ def show_pfitline(ax, src, key, l1, l2):
     yminloc = plt.MultipleLocator(5)
     ax.xaxis.set_major_locator(yloc)
     ax.xaxis.set_minor_locator(yminloc)
-    return
 
 
 def show_origspec(ax, src, l0, l1, l2):
@@ -800,7 +791,6 @@ def show_origspec(ax, src, l0, l1, l2):
     yminloc = plt.MultipleLocator(5)
     ax.xaxis.set_major_locator(yloc)
     ax.xaxis.set_minor_locator(yminloc)
-    return
 
 
 def _plot_ellipse(ax, cen, size, alpha=0.5, col='k', fill=False):
