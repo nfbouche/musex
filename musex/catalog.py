@@ -12,11 +12,13 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict
 from collections.abc import Sequence
+from joblib import delayed, Parallel
 from mpdaf.sdetect import Catalog as _Catalog
 from numpy import ma
 from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy.sql import select, func
+from tqdm import tqdm, tqdm_notebook
 
 from .segmap import SegMap
 from .settings import isnotebook
@@ -389,7 +391,8 @@ class Catalog(BaseCatalog):
         return str(self.workdir / dataset / 'mask-sky.fits')
 
     def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
-                       mask_size=(20, 20), psf_threshold=0.5):
+                       mask_size=(20, 20), psf_threshold=0.5, n_jobs=1,
+                       verbose=0):
         """Attach a dataset to the catalog and generate intermediate products.
 
         Create masks from the segmap, adapted to a given dataset.
@@ -448,7 +451,8 @@ class Catalog(BaseCatalog):
 
         # extract source masks
         minsize = min(*mask_size) // 2
-        for row in ProgressBar(tab, ipython_widget=isnotebook()):
+        to_compute = []
+        for row in tab:
             id_ = int(row[idname])  # need int, not np.int64
             source_path = self.maskobj_name.format(id_)
             if exists(source_path) and skip_existing:
@@ -461,11 +465,19 @@ class Catalog(BaseCatalog):
                     debug('merged sources, using ids %s for the mask', ids)
                 else:
                     ids = id_
-                segmap.get_source_mask(
-                    ids, center, mask_size, minsize=minsize, struct=struct,
-                    dilate=dilateit, outname=source_path, regrid_to=white)
 
+                to_compute.append(delayed(segmap.get_source_mask)(
+                    ids, center, mask_size, minsize=minsize, struct=struct,
+                    dilate=dilateit, outname=source_path, regrid_to=white))
+
+        progressfunc = tqdm_notebook if isnotebook() else tqdm
+        # FIXME: check which value to use for max_nbytes
+        Parallel(n_jobs=n_jobs, verbose=verbose)(progressfunc(to_compute))
+
+        for row in tab:
             # update in db
+            id_ = int(row[idname])  # need int, not np.int64
+            source_path = self.maskobj_name.format(id_)
             self.table.upsert(
                 {idname: id_,
                  'mask_obj': relpath(source_path, self.workdir),

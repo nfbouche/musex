@@ -14,7 +14,6 @@ class SegMap:
 
     def __init__(self, path=None, data=None, cut_header_after='D001VER'):
         self.path = path
-        self.logger = logging.getLogger(__name__)
         if data is not None:
             if isinstance(data, Image):
                 self.img = data
@@ -88,13 +87,13 @@ class SegMap:
         im._data = data.astype(dtype)
         im._mask = np.ma.nomask
 
-        self.logger.debug('source %s (%.5f, %.5f), extract mask (%d masked '
-                          'pixels)', iden, center[1], center[0],
-                          np.count_nonzero(im._data))
+        logger = logging.getLogger(__name__)
+        logger.debug('source %s (%.5f, %.5f), extract mask (%d masked pixels)',
+                     iden, center[1], center[0], np.count_nonzero(im._data))
         if outname:
             im.write(outname, savemask='none')
-
-        return im
+        else:
+            return im
 
     def align_with_image(self, other, inplace=False, truncate=False):
         """Rotate and truncate the segmap to match 'other'."""
@@ -117,6 +116,10 @@ class SegMap:
                              unit=None, inplace=True)
 
         out.img._data = np.around(out.img._data).astype(int)
+        # FIXME: temporary workaround to make sure that the data_header is
+        # up-to-date when pickling the segmap. This should be detected direclty
+        # in MPDAF.
+        out.img.data_header = out.img.get_wcs_header()
         return out
 
     def cmap(self, background_color='#000000'):
