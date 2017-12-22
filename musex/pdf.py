@@ -40,7 +40,8 @@ def get_hstkeys(src, tags=HST_TAGS):
     return [tag for tag in tags if tag in src.images]
 
 
-def create_pdf(src, white, outfile, mastercat=None, debug=False):
+def create_pdf(src, white, outfile, mastercat=None, debug=False,
+               ima2='HST_F775W'):
     logger = logging.getLogger(__name__)
 
     pdf_pages = PdfPages(outfile)
@@ -91,9 +92,9 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
     show_white(ax['WHITE2'], src, cat, zscale=True, showmask=False, showz=True,
                showscale=False)
     ax['HST1'] = plt.subplot(gs[0, 2])
-    show_hstima(ax['HST1'], src, key='HST_F775W', showscale=True)
+    show_hstima(ax['HST1'], src, key=ima2, showscale=True)
     ax['HST2'] = plt.subplot(gs[0, 3])
-    show_hstima(ax['HST2'], src, key='HST_F775W', showid=False, showmask=True,
+    show_hstima(ax['HST2'], src, key=ima2, showid=False, showmask=True,
                 showscale=False)
     if 'ORIG_MXMAP' in src.images:
         ax['MXMAP'] = plt.subplot(gs[0, 4])

@@ -73,7 +73,14 @@ def _check_source_input(kind, key=None):
         def returned_wrapper(*args, **kwargs):
             # args must be ax, src, key
             src = args[1]
-            tag = args[2] if key is None else key
+            if key is None:
+                try:
+                    tag = args[2]
+                except IndexError:
+                    tag = kwargs.get('key')
+            else:
+                tag = key
+
             if kind == 'image':
                 attr = src.images
             elif kind == 'spectrum':
@@ -376,9 +383,6 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
 def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
                 showid=True, showmask=False, showscale=True):
     logger = logging.getLogger(__name__)
-    if key not in src.images:
-        report_error(src.ID, 'Image {} not found in source'.format(key))
-        return
     show_image(ax, src, key, zscale=zscale)
     if showscale:
         show_scale(ax, src.images[key].wcs)

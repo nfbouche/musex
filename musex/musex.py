@@ -263,8 +263,14 @@ catalogs       : {', '.join(self.catalogs.keys())}
             outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
         os.makedirs(outdir, exist_ok=True)
 
+        try:
+            conf = self.conf['export']['pdf']
+        except KeyError:
+            conf = {}
         white = self.muse_dataset.white
         info = self.logger.info
+        ima2 = conf.get('image', 'HST_F775W')
+
         for src in self.to_sources(res_or_cat, **kwargs):
             outn = outname.format(src=src)
             fname = f'{outdir}/{outn}.fits'
@@ -272,7 +278,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             info('fits written to %s', fname)
             if create_pdf:
                 fname = f'{outdir}/{outn}.pdf'
-                src.to_pdf(fname, white)
+                src.to_pdf(fname, white, ima2=ima2)
                 info('pdf written to %s', fname)
 
     def delete_user_cat(self, name):

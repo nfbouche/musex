@@ -35,8 +35,8 @@ class SourceX(Source):
         # FIXME: handle this correctly... (set_refspec)
         self.add_attr('REFSPEC', refspec, desc='Name of reference spectra')
 
-    def to_pdf(self, filename, white):
-        create_pdf(self, white, filename)
+    def to_pdf(self, filename, white, **kwargs):
+        create_pdf(self, white, filename, **kwargs)
 
 # TODO: pdf filename with infos
 # if info:
