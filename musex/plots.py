@@ -10,6 +10,8 @@ import numpy as np
 import warnings
 
 from collections import defaultdict
+from contextlib import contextmanager
+from functools import wraps
 from itertools import cycle
 
 from astropy.convolution import convolve, Box1DKernel
@@ -22,13 +24,10 @@ from matplotlib.patches import Ellipse
 from matplotlib.ticker import AutoMinorLocator
 from mpdaf.sdetect import get_emlines
 
-# from numpy.ma.core import MaskedArrayFutureWarning
-# warnings.simplefilter('ignore', category=MaskedArrayFutureWarning)
-
 warnings.filterwarnings('ignore', category=UnitsWarning)
 warnings.filterwarnings('ignore', category=exceptions.VOWarning)
 
-__all__ = ['show_ima', 'show_title', 'show_comments', 'show_errors',
+__all__ = ['show_title', 'show_comments', 'show_errors',
            'show_info', 'show_field', 'show_image', 'show_mask', 'show_white',
            'show_3dhst', 'show_maxmap', 'show_hstima', 'show_catalog',
            'show_fullspec', 'show_nb', 'show_zoomspec', 'show_pfitspec',
@@ -60,73 +59,82 @@ def report_error(source_id, msg, log=True, level='ERROR'):
     err_report[source_id].append(f'{level}: {msg}')
 
 
-def show_ima(ax, src, key, center=(0.1, 'red'), **kwargs):
-    src.show_ima(ax, key, center, **kwargs)
+@contextmanager
+def no_axis(ax, hide_frame=True):
+    yield
+    ax.xaxis.set_visible(False)
+    ax.yaxis.set_visible(False)
+    ax.axis('off')
+
+
+def _check_source_input(kind, key=None):
+    def func_wrapper(func):
+        @wraps(func)
+        def returned_wrapper(*args, **kwargs):
+            # args must be ax, src, key
+            src = args[1]
+            tag = args[2] if key is None else key
+            if kind == 'image':
+                attr = src.images
+            elif kind == 'spectrum':
+                attr = src.spectra
+            elif kind == 'table':
+                attr = src.tables
+            if tag not in attr:
+                report_error(src.ID, '{} {} not found in source'
+                             .format(kind.capitalize(), tag))
+                return
+            return func(*args, **kwargs)
+        return returned_wrapper
+    return func_wrapper
 
 
 def show_title(ax, src, outfile, date, numpage, srcfont=12, textfont=9,
                version=None):
-    text = 'ID: {:04d} version: {}'.format(src.ID, src.SRC_V)
-    bcol = title_colors[src.header.get('CONFID', 0)]
-    ax.text(0.02, 0.8, text, fontsize=srcfont,
-            bbox={'facecolor': bcol, 'alpha': 0.5, 'pad': 3}, ha='left')
-    text = 'PDF: {} Date: {} Page: {}'.format(outfile, date, numpage)
-    if version is not None:
-        text += ' UDF_show_source.py v' + version
-    ax.text(0.35, 0.8, text, fontsize=textfont, ha='left')
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-    ax.axis('off')
+    with no_axis(ax):
+        text = 'ID: {:04d} version: {}'.format(src.ID, src.SRC_V)
+        bcol = title_colors[src.header.get('CONFID', 0)]
+        ax.text(0.02, 0.8, text, fontsize=srcfont,
+                bbox={'facecolor': bcol, 'alpha': 0.5, 'pad': 3}, ha='left')
+        text = 'PDF: {} Date: {} Page: {}'.format(outfile, date, numpage)
+        if version is not None:
+            text += ' UDF_show_source.py v' + version
+        ax.text(0.35, 0.8, text, fontsize=textfont, ha='left')
+
+
+def _show_text_block(ax, header_text, lines, textfont=8, h=0.02, v=0.95,
+                     facecolor='lightgray'):
+    dv = 0.05
+    bbox = {'facecolor': facecolor, 'alpha': 0.3, 'pad': 2}
+    with no_axis(ax):
+        ax.text(h, v, header_text, fontsize=textfont + 1, ha='left', bbox=bbox)
+        for text in lines:
+            v = v - dv
+            if v < 0.02:
+                break
+            ax.text(h, v, text, fontsize=textfont, ha='left')
+    return v
 
 
 def show_comments(ax, src, textfont=8):
     h, v = (0.02, 0.95)
     dv = 0.05
-    bbox = {'facecolor': 'lightgray', 'alpha': 0.3, 'pad': 2}
-
     if 'COMMENT' in src.header:
-        text = 'Comments'
-        ax.text(h, v, text, fontsize=textfont + 1, ha='left', bbox=bbox)
-        for text in src.header['COMMENT']:
-            v = v - dv
-            if v < 0.02:
-                break
-            ax.text(h, v, text, fontsize=textfont, ha='left')
-
+        _show_text_block(ax, 'Comments', src.header['COMMENT'],
+                         textfont=textfont, h=h, v=v)
     if 'HISTORY' in src.header:
         v = v - dv
-        text = 'History'
-        ax.text(h, v, text, fontsize=textfont + 1, ha='left', bbox=bbox)
-        for text in reversed(src.header['HISTORY']):
-            v = v - dv
-            if v < 0.02:
-                break
-            ax.text(h, v, text, fontsize=textfont, ha='left')
-
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-    ax.axis('off')
+        _show_text_block(ax, 'History', src.header['HISTORY'],
+                         textfont=textfont, h=h, v=v)
 
 
 def show_errors(ax, src, textfont=8):
-    h, v = (0.02, 0.95)
-    dv = 0.1
-    text = 'Processing Errors'
-    ax.text(h, v, text, fontsize=textfont + 1, ha='left',
-            bbox={'facecolor': 'red', 'alpha': 0.3, 'pad': 2})
-    for text in err_report.get(src.ID, []):
-        v = v - dv
-        if v < 0.02:
-            break
-        ax.text(h, v, text, fontsize=textfont, ha='left')
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-    ax.axis('off')
+    _show_text_block(ax, 'Processing Errors', err_report.get(src.ID, []),
+                     textfont=textfont, facecolor='red')
 
 
 def show_info(ax, src, textfont=9):
     logger = logging.getLogger(__name__)
-    logger.debug('Writing Cube info')
     text = 'Cube: {} v {} Finder: {} v {}'.format(src.CUBE, src.CUBE_V,
                                                   src.FROM, src.FROM_V)
     ax.text(0.02, 0.9, text, fontsize=textfont, ha='left')
@@ -217,45 +225,39 @@ def show_info(ax, src, textfont=9):
 
 
 def show_field(ax, src, white):
-    logger = logging.getLogger(__name__)
-    logger.debug('Displaying field location')
     white.plot(ax=ax, vmin=0, vmax=10, scale='arcsinh', cmap='gray_r',
                show_xlabel=False, show_ylabel=False)
     y, x = white.wcs.sky2pix((src.DEC, src.RA))[0]
-    ax.scatter(x, y, s=50, marker='s', c='green', alpha=0.5)
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+    with no_axis(ax, hide_frame=False):
+        ax.scatter(x, y, s=50, marker='s', c='green', alpha=0.5)
 
 
+@_check_source_input('image')
 def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
                showcenter=True, cmap='gray_r', fwhm=0):
     logger = logging.getLogger(__name__)
-    if key not in src.images:
-        report_error(src.ID, 'Image {} not found in source'.format(key))
-        return
     if fwhm == 0:
-        logger.debug('Displaying Image {}'.format(key))
+        logger.debug('Displaying Image %s', key)
         ima = src.images[key]
         title = key
     else:
-        logger.debug('Displaying Image {} after gaussian filter of {} arcsec FWHM'.format(key, fwhm))
+        logger.debug('Displaying Image %s after gaussian filter of %s '
+                     'arcsec FWHM', key, fwhm)
         ima = src.images[key].fftconvolve_gauss(fwhm=fwhm)
         title = '{} [{:.1f}]'.format(key, fwhm)
-    ima.plot(ax=ax, vmin=cuts[0], vmax=cuts[1], zscale=zscale, scale=scale,
-             cmap=cmap, show_xlabel=False, show_ylabel=False)
-    ax.set_title(title, fontsize=8)
-    if showcenter:
-        p, q = ima.wcs.sky2pix((src.DEC, src.RA))[0]
-        ax.axvline(q, color='r', alpha=0.2)
-        ax.axhline(p, color='r', alpha=0.2)
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+
+    with no_axis(ax, hide_frame=False):
+        ima.plot(ax=ax, vmin=cuts[0], vmax=cuts[1], zscale=zscale, scale=scale,
+                 cmap=cmap, show_xlabel=False, show_ylabel=False)
+        ax.set_title(title, fontsize=8)
+        if showcenter:
+            p, q = ima.wcs.sky2pix((src.DEC, src.RA))[0]
+            ax.axvline(q, color='r', alpha=0.2)
+            ax.axhline(p, color='r', alpha=0.2)
 
 
+@_check_source_input('image')
 def show_mask(ax, src, key, col='r', levels=[0], alpha=0.4, surface=False):
-    if key not in src.images:
-        report_error(src.ID, 'Image {} not found in source'.format(key))
-        return
     if surface:
         im = src.images[key]
         ax.contourf(im._data.astype(float), levels=levels, origin='lower',
@@ -303,11 +305,9 @@ def show_white(ax, src, cat=None, showmask=False, showid=True, showz=False,
                          fontsize=8, showid=showid)
 
 
+@_check_source_input('image', key='3DHST_SPEC')
 def show_3dhst(ax, src):
     logger = logging.getLogger(__name__)
-    if '3DHST_SPEC' not in src.images:
-        report_error(src.ID, '3DHST_SPEC not found in images source')
-        return
     logger.debug('Display of 3DHST data')
     show_image(ax, src, '3DHST_SPEC', scale='linear', showcenter=False,
                cmap='jet')
@@ -340,12 +340,10 @@ def show_3dhst(ax, src):
         logger.debug('No 3DHST line table found in source')
 
 
+@_check_source_input('image', key='ORIG_MXMAP')
 def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
                 showscale=True):
     logger = logging.getLogger(__name__)
-    if 'ORIG_MXMAP' not in src.images:
-        report_error(src.ID, 'No ORIG_MXMAP found in source')
-        return
     show_image(ax, src, 'ORIG_MXMAP', zscale=zscale)
     if showscale:
         show_scale(ax, src.images['ORIG_MXMAP'].wcs)
@@ -374,6 +372,7 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
         show_catalog(ax, src, 'ORIG_MXMAP', cat, symb=0.2, showid=showid)
 
 
+@_check_source_input('image')
 def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
                 showid=True, showmask=False, showscale=True):
     logger = logging.getLogger(__name__)
@@ -417,7 +416,6 @@ def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
                color=color)
     ax.text(right - 0.5 * dx, y + 0.06, '1"', horizontalalignment='center',
             fontsize=8, transform=ax.transAxes, color=color)
-    return
 
 
 def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
@@ -461,12 +459,12 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                   wfilter=5, fontsize=7, showvar=True, varlim=None,
                   legend=True, showlines=True, expectedlines=True):
     logger = logging.getLogger(__name__)
-    logger.debug('Displaying Spectra {} {}'.format(sp1name, sp2name))
+    logger.debug('Displaying Spectra %s %s', sp1name, sp2name)
     if sp1name not in src.spectra:
-        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp1name))
+        report_error(src.ID, 'Spectra {} not found in source'.format(sp1name))
         return
     if sp2name is not None and sp2name not in src.spectra:
-        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp2name))
+        report_error(src.ID, 'Spectra {} not found in source'.format(sp2name))
         return
     # plot (filtered) refspectra in blue
     sp = src.spectra[sp1name]
@@ -532,8 +530,7 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                         if l['id'] in lines['LINE']:
                             continue
                         lines.add_row([l['id'], l['c'], 'k', fontsize])
-        logger.debug('{} lines displayed on the full spectrum'
-                     .format(len(lines)))
+        logger.debug('%d lines displayed on the full spectrum', len(lines))
         lines.sort('LBDA_OBS')
         plot_line_ids(sp1.wave.coord(), sp1._data, lines['LBDA_OBS'],
                       lines['LINE'], lines['FONTSIZE'], arrow_tip=0.9 * y2,
@@ -655,19 +652,19 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
     if name is not None:
         if name not in src.lines['LINE']:
             report_error(src.ID, '%s not found in src.lines'.format(name))
-            return 0, 0
+            return
         l0 = src.lines.loc[name]['LBDA_OBS']
     if waverange is not None:
         l1, l2 = waverange
     else:
         if l0 is None:
             report_error(src.ID, 'show_zoomspec with waverange=None and l0=None')
-            return 0, 0
+            return
         l1 = l0 - width / 2 - margin - fband - 10
         l2 = l0 + width / 2 + margin + fband + 10
     if sp1name not in src.spectra:
         report_error(src.ID, 'Cannot find spectrum {} in source'.format(sp1name))
-        return 0, 0
+        return
     sp0 = src.spectra[sp1name]
     sp = sp0.subspec(lmin=l1, lmax=l2)
     sp.plot(ax=ax, alpha=0.8, color='b')
@@ -699,12 +696,14 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
         lines = src.lines
         lines = lines[(lines['LBDA_OBS'] > l1) & (lines['LBDA_OBS'] < l2)]
         if len(lines) == 0:
-            report_error(src.ID, 'Line table is empty for the given wavelength window {}-{}'.format(l1, l2))
-            return 0, 0
+            report_error(src.ID, 'Line table is empty for the given '
+                         'wavelength window {}-{}'.format(l1, l2))
+            return
         lines['COLOR'] = 'r'
         lines['FONTSIZE'] = 7
-        plot_line_ids(sp.wave.coord(), sp._data, lines['LBDA_OBS'], lines['LINE'],
-                      lines['FONTSIZE'], box_axes_space=0.02, ax=ax)
+        plot_line_ids(sp.wave.coord(), sp._data, lines['LBDA_OBS'],
+                      lines['LINE'], lines['FONTSIZE'], box_axes_space=0.02,
+                      ax=ax)
         color_text_boxes(ax, lines['LINE'], lines['COLOR'])
         color_lines(ax, lines['LINE'], lines['COLOR'])
 

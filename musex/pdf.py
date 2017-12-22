@@ -170,10 +170,13 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False):
             show_nb(ax[key], src, nb)
             key1 = 'ZOOM_{}'.format(k)
             ax[key1] = plt.subplot(gs[0, 1])
-            l1, l2 = show_zoomspec(ax[key1], src, src.REFSPEC, sp2name, l0,
-                                   width, margin, fband)
-            if l1 == 0 or l2 == 0:
+            lbda = show_zoomspec(ax[key1], src, src.REFSPEC, sp2name, l0,
+                                 width, margin, fband)
+            if lbda is None:
                 continue
+            else:
+                l1, l2 = lbda
+
             if 'PFIT_REF_SPFIT' not in src.tables:
                 report_error(src.ID, 'Missing PFIT_REF_SPFIT table in source')
                 break
