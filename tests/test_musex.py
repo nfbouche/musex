@@ -169,7 +169,7 @@ def test_attach_dataset(mx):
     mycat = mx.catalogs['my-cat']
     mycat.merge_sources([9, 10])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         mask_size=(10, 10))
+                         mask_size=(10, 10), n_jobs=2)
 
     outdir = mycat.workdir / mx.muse_dataset.name
     flist = sorted(os.listdir(str(outdir)))
