@@ -279,3 +279,29 @@ REFSPEC = 'MUSE_PSF_SKYSUB'    / Name of reference spectra
     for card in cards:
         assert hdr[card.keyword] == card.value
         assert hdr.comments[card.keyword] == card.comment
+
+
+def test_export_marz(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+    mycat.merge_sources([9, 10])
+    mycat.merge_sources([11, 12, 13])
+    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+                         mask_size=(10, 10))
+
+    outdir = f'{mx.workdir}/export'
+    os.makedirs(outdir, exist_ok=True)
+    mx.export_marz(mycat)
+
+    assert os.listdir(outdir) == ['marz-my-cat-hdfs.fits']
+
+    with fits.open(f'{outdir}/marz-my-cat-hdfs.fits') as hdul:
+        assert [hdu.name for hdu in hdul] == [
+            'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
+        for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
+            assert hdul[name].shape == (3, 200)
+        assert hdul['DETAILS'].data.dtype.names == (
+            'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W')

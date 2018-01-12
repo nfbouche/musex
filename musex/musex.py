@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import os
 import sys
+from astropy.io import fits
 from astropy.table import Table
 from mpdaf.obj import Image
 
@@ -20,6 +21,14 @@ LOGO = r"""
   |_|  |_|\__,_|___/\___/_/\_\
 
 """
+
+def _get_cat_name(res_or_cat):
+    if isinstance(res_or_cat, Catalog):
+        return res_or_cat.name
+    elif isinstance(res_or_cat, ResultSet):
+        return res_or_cat.catalog.name
+    else:
+        raise ValueError('invalid input for res_or_cat')
 
 
 class MuseX:
@@ -262,12 +271,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         """
         if outdir is None:
-            if isinstance(res_or_cat, Catalog):
-                cname = res_or_cat.name
-            elif isinstance(res_or_cat, ResultSet):
-                cname = res_or_cat.catalog.name
-            else:
-                raise ValueError('invalid input for res_or_cat')
+            cname = _get_cat_name(res_or_cat)
             outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
         os.makedirs(outdir, exist_ok=True)
 
@@ -288,6 +292,82 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 fname = f'{outdir}/{outn}.pdf'
                 src.to_pdf(fname, white, ima2=ima2)
                 info('pdf written to %s', fname)
+
+    def export_marz(self, res_or_cat, outfile=None, **kwargs):
+        if outfile is None:
+            cname = _get_cat_name(res_or_cat)
+            outfile = (f'{self.workdir}/export/'
+                       f'marz-{cname}-{self.muse_dataset.name}.fits')
+        wave = []
+        data = []
+        stat = []
+        sky = []
+        meta = []
+
+        # TODO: this should be optimized to extract only the needed data
+        # instead of a complete source
+        for s in self.to_sources(res_or_cat, **kwargs):
+            # self.logger.info('{:03d}/{:03d} - {}'.format(i + 1, nfiles, basename(f)))
+            # TODO: how to choose which spectrum to use ?
+            # if args.selmode == 'udf':
+            #     smag = s.mag[s.mag['BAND'] == 'F775W']
+            #     mag = -99 if len(smag) == 0 else smag['MAG'][0]
+            #     if 'MUSE_PSF_SKYSUB' in s.spectra:
+            #         if hasattr(s,'FWHM'):
+            #             if s.FWHM*0.03 > 0.7: # large object we use WHITE
+            #                 sp = s.spectra['MUSE_WHITE_SKYSUB']
+            #             else:
+            #                 sp = s.spectra['MUSE_PSF_SKYSUB']
+            #     else: # we use mag, no size available
+            #         if mag < 26.5:
+            #             sp = s.spectra['MUSE_WHITE_SKYSUB']
+            # elif args.selmode == 'origin':
+            #     if 'MUSE_PSF' in s.spectra:
+            #         sp = s.spectra['MUSE_PSF']
+            #     else:
+            #         sp = s.spectra['MUSE_TOT']
+            # else:
+            #     self.logger.error('unknown selmode '+args.selmode)
+            #     return
+
+            sp = s.spectra['MUSE_TOT']
+            wave.append(sp.wave.coord())
+            data.append(sp.data.filled(np.nan))
+            stat.append(sp.var.filled(np.nan))
+            sky.append(s.spectra['MUSE_SKY'].data.filled(np.nan))
+
+            # if args.selmode == 'udf':
+            #     zmuse = s.z[s.z['Z_DESC'] == 'MUSE']
+            #     z = 0 if len(zmuse) == 0 else zmuse['Z'][0]
+            #     band1 = s.mag[s.mag['BAND'] == 'F775W']
+            #     mag1 = -99 if len(band1)==0  else band1['MAG'][0]
+            #     band2 = s.mag[s.mag['BAND'] == 'F125W']
+            #     mag2 = -99 if len(band2)==0  else band2['MAG'][0]
+            z = 0
+            mag1 = -99
+            mag2 = -99
+            meta.append(('%05d' % s.ID, s.RA, s.DEC, z,
+                        s.header.get('CONFID', 0),
+                        s.header.get('TYPE', 0), mag1, mag2))
+
+        wave = np.vstack(wave)
+        data = np.vstack(data)
+        stat = np.vstack(stat)
+        sky = np.vstack(sky)
+
+        t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
+                                    'F775W', 'F125W'],
+                  meta={'CUBE_V': s.CUBE_V, 'SRC_V': s.SRC_V})
+        hdulist = fits.HDUList([
+            fits.PrimaryHDU(),
+            fits.ImageHDU(name='WAVE', data=wave),
+            fits.ImageHDU(name='DATA', data=data),
+            fits.ImageHDU(name='STAT', data=stat),
+            fits.ImageHDU(name='SKY', data=sky),
+            fits.BinTableHDU(name='DETAILS', data=t)
+        ])
+        self.logger.info('Writing %s', outfile)
+        hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
 
     def delete_user_cat(self, name):
         if name not in self.db.tables or name not in self.catalogs:
