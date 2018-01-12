@@ -128,6 +128,8 @@ class BaseCatalog:
 
     """
 
+    catalog_type = ''
+
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  segmap=None):
         self.name = name
@@ -148,10 +150,9 @@ class BaseCatalog:
         # Insert default meta about the table if it doesn't exist yet
         if self.meta is None:
             self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                             type=None, parent_cat=None, idname=self.idname,
+                             type=self.catalog_type, parent_cat=None,
                              raname=self.raname, decname=self.decname,
-                             segmap=self.segmap)
-            self.db['catalogs'].create_column('maxid', self.db.types.integer)
+                             idname=self.idname, segmap=self.segmap)
 
     def __len__(self):
         return self.table.count()
@@ -344,6 +345,8 @@ class BaseCatalog:
 
 class Catalog(BaseCatalog):
 
+    catalog_type = 'user'
+
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  segmap=None, workdir=None):
         super().__init__(name, db, idname=idname, raname=raname,
@@ -362,6 +365,18 @@ class Catalog(BaseCatalog):
         # self.c.active.default = ColumnDefault(True)
         # self.table.create_column('merged', self.db.types.boolean)
         # self.c.merged.default = ColumnDefault(False)
+
+    @classmethod
+    def from_parent_cat(cls, parent_cat, name, workdir, whereclause):
+        cat = cls(name, parent_cat.db, workdir=workdir,
+                  idname=parent_cat.idname, raname=parent_cat.raname,
+                  decname=parent_cat.decname, segmap=parent_cat.segmap)
+        if parent_cat.meta.get('query'):
+            # Combine query string with the parent cat's one
+            whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
+        cat.update_meta(parent_cat=parent_cat.name, segmap=parent_cat.segmap,
+                        maxid=parent_cat.meta['maxid'], query=whereclause)
+        return cat
 
     @lazyproperty
     def segmap_img(self):
@@ -507,11 +522,7 @@ class Catalog(BaseCatalog):
         # compute minimum id for "custom" sources
         # TODO: add a setting for this ("customid_start") ?
         maxid = self.max(self.idname)
-        if self.meta['parent_cat']:
-            cat_maxid = self.db['catalogs'].find_one(
-                name=self.meta['parent_cat'])['maxid']
-        else:
-            cat_maxid = self.meta['maxid']
+        cat_maxid = self.meta['maxid']
 
         sources = self.select_ids(idlist)
         coords = np.array([(s[self.decname], s[self.raname]) for s in sources])
@@ -589,6 +600,8 @@ class Catalog(BaseCatalog):
 class InputCatalog(BaseCatalog):
     """Handles catalogs imported from an exiting file."""
 
+    catalog_type = 'input'
+
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
@@ -612,4 +625,4 @@ class InputCatalog(BaseCatalog):
         self.insert_table(cat, version=self.version,
                           show_progress=show_progress)
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type='input', maxid=self.max(self.idname))
+                         type=self.catalog_type, maxid=self.max(self.idname))

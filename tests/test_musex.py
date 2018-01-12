@@ -83,6 +83,15 @@ def test_user_catalog(mx):
     assert mycat.meta['query'] == 'photutils.id < 5'
     assert isinstance(mycat.skycoord(), SkyCoord)
 
+    # Test with a user cat created from a user cat
+    res = mycat.select(mycat.c[phot.idname] > 2)
+    mx.new_catalog_from_resultset('my-cat_2', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat_2']
+    assert len(mycat) == 2
+    assert mycat.meta['type'] == 'user'
+    assert mycat.meta['query'] == 'photutils.id < 5 AND "my-cat".id > 2'
+
 
 def test_drop_user_catalog(mx):
     phot = mx.input_catalogs['photutils']

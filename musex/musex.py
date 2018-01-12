@@ -52,9 +52,10 @@ class MuseX:
                                         settings=settings[muse_dataset])
 
         # Load catalogs
+        catalogs_table = self.db.create_table('catalogs')
+        catalogs_table.create_column('maxid', self.db.types.integer)
         self.input_catalogs = load_input_catalogs(self.conf, self.db)
         self.catalogs = {}
-        catalogs_table = self.db.create_table('catalogs')
         for row in catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
@@ -77,6 +78,22 @@ datasets       : {', '.join(self.datasets.keys())}
 input_catalogs : {', '.join(self.input_catalogs.keys())}
 catalogs       : {', '.join(self.catalogs.keys())}
 """)
+
+    def find_parent_cat(self, cat):
+        current_cat = cat
+        while True:
+            parent = current_cat.meta['parent_cat']
+            if parent is None:
+                parent_cat = current_cat
+                break
+            elif parent in self.input_catalogs:
+                parent_cat = self.input_catalogs[parent]
+                break
+            elif parent in self.catalogs:
+                current_cat = self.catalogs[parent]
+            else:
+                raise ValueError('parent catalog not found')
+        return parent_cat
 
     def new_catalog_from_resultset(self, name, resultset,
                                    drop_if_exists=False):
@@ -107,18 +124,13 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 raise ValueError('table already exists')
 
         parent_cat = resultset.catalog
-        cat = Catalog(name, self.db, workdir=self.workdir,
-                      idname=parent_cat.idname, raname=parent_cat.raname,
-                      decname=parent_cat.decname, segmap=parent_cat.segmap)
+        whereclause = resultset.whereclause
+        self.catalogs[name] = cat = Catalog.from_parent_cat(
+            parent_cat, name, self.workdir, whereclause)
 
-        wherecl = resultset.whereclause
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
-
         cat.insert_rows(resultset)
-        cat.update_meta(type='user', parent_cat=parent_cat.name,
-                        segmap=parent_cat.segmap, query=wherecl)
-        self.catalogs[name] = cat
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True):
@@ -169,11 +181,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         else:
             use_datasets += list(self.datasets.values())
 
-        try:
-            parent_cat = self.input_catalogs[cat.meta['parent_cat']]
-        except TypeError:
-            parent_cat = cat
-
+        parent_cat = self.find_parent_cat(cat)
         # minsize = min(*size) // 2
         minsize = size // 2
         nskywarn = (50, 5)
