@@ -294,6 +294,17 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 info('pdf written to %s', fname)
 
     def export_marz(self, res_or_cat, outfile=None, **kwargs):
+        """Export a catalog or selection for MarZ.
+
+        Parameters
+        ----------
+        res_or_cat: `ResultSet` or `Catalog`
+            Either a result from a query or a catalog to export.
+        outfile: str
+            Output file. If None the default is
+            `'{workdir}/export/marz-{cat.name}-{muse_dataset.name}.fits'`.
+
+        """
         if outfile is None:
             cname = _get_cat_name(res_or_cat)
             outfile = (f'{self.workdir}/export/'
