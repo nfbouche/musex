@@ -23,6 +23,7 @@ LOGO = r"""
 
 """
 
+
 def _get_cat_name(res_or_cat):
     if isinstance(res_or_cat, Catalog):
         return res_or_cat.name
@@ -36,7 +37,6 @@ class MuseX:
     """
     TODO:
     - mean to choose catalog
-    - save history of operations in source
 
     """
 
@@ -53,6 +53,9 @@ class MuseX:
         self.conf.update(kwargs)
         self.workdir = self.conf['workdir']
         self.db = load_db(self.conf['db'])
+
+        # Table to store history of operations
+        self.history = self.db.create_table('history', primary_id='_id')
 
         # Load datasets
         self.datasets = load_datasets(self.conf)
@@ -73,6 +76,7 @@ class MuseX:
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
 
+        # Marz
         self.marzcat = MarzCatalog('marz', self.db)
         # FIXME: handle properly version / revision
         self.marzcat.version = '1'
@@ -202,6 +206,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         refskyf = resultset[0]['mask_sky']
         refskyim = Image(str(cat.workdir / refskyf), copy=False)
         idname, raname, decname = cat.idname, cat.raname, cat.decname
+        author = self.conf['author']
 
         for row in resultset:
             src = SourceX.from_data(row[idname], row[raname], row[decname],
@@ -209,7 +214,11 @@ catalogs       : {', '.join(self.catalogs.keys())}
             src.SRC_V = srcvers
             info('source %05d', src.ID)
             src.CATALOG = os.path.basename(parent_cat.name)
-            src.add_history('New source created', author=self.conf['author'])
+
+            for o in res_or_cat.get_log(src.ID):
+                src.add_history(o['msg'], author=author, date=o['date'])
+            src.add_history('source created', author=author)
+
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 
@@ -323,7 +332,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
         # TODO: this should be optimized to extract only the needed data
         # instead of a complete source
         for s in self.to_sources(res_or_cat, **kwargs):
-            # self.logger.info('{:03d}/{:03d} - {}'.format(i + 1, nfiles, basename(f)))
             # TODO: how to choose which spectrum to use ?
             # if args.selmode == 'udf':
             #     smag = s.mag[s.mag['BAND'] == 'F775W']

@@ -10,7 +10,7 @@ from astropy.table import Table, Column
 from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from joblib import delayed, Parallel
 from mpdaf.sdetect import Catalog as _Catalog
@@ -139,6 +139,7 @@ class BaseCatalog:
         self.raname = raname
         self.decname = decname
         self.logger = logging.getLogger(__name__)
+        self._history = self.db.create_table('history', primary_id='_id')
 
         # if self.name not in self.db:
         #     self.logger.debug('create table %s (primary key: %s)',
@@ -159,6 +160,13 @@ class BaseCatalog:
 
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
+
+    def log(self, id_, msg):
+        self._history.insert(dict(catalog=self.name, id=id_,
+                                  date=datetime.utcnow().isoformat(), msg=msg))
+
+    def get_log(self, id_):
+        return self._history.find(catalog=self.name, id=id_)
 
     def max(self, colname):
         return self.db.executable.execute(func.max(self.c[colname])).scalar()
@@ -217,8 +225,7 @@ class BaseCatalog:
             Show a progress bar.
 
         """
-        count_inserted = 0
-        count_updated = 0
+        count = defaultdict(int)
         if show_progress:
             rows = ProgressBar(rows, ipython_widget=isnotebook())
         with self.db as tx:
@@ -227,15 +234,14 @@ class BaseCatalog:
                 row.setdefault('version', version)
 
                 res = tbl.upsert(row, [self.idname, 'version'])
-                if res is True:
-                    count_updated += 1
-                else:
-                    count_inserted += 1
+                op = 'updated' if res is True else 'inserted'
+                count[op] += 1
+                self.log(row[self.idname], f'{op} from input catalog')
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
-        self.logger.info('%d rows inserted, %s updated', count_inserted,
-                         count_updated)
+        self.logger.info('%d rows inserted, %s updated', count['inserted'],
+                         count['updated'])
 
     def insert_table(self, table, version=None, show_progress=True):
         """Insert rows from an Astropy Table in the catalog.
@@ -361,10 +367,12 @@ class Catalog(BaseCatalog):
         # FIXME: sadly this doesn't work well currently, it is not taken into
         # account until an insert is done
         # from sqlalchemy.schema import ColumnDefault
-        # self.table.create_column('active', self.db.types.boolean)
+        # self.table._sync_columns({idname: 1, raname: 1., decname: 1.,
+        #                           'active': True, 'merged': False}, True)
         # self.c.active.default = ColumnDefault(True)
-        # self.table.create_column('merged', self.db.types.boolean)
         # self.c.merged.default = ColumnDefault(False)
+        # self.table.create_column('active', self.db.types.boolean)
+        # self.table.create_column('merged', self.db.types.boolean)
 
     @classmethod
     def from_parent_cat(cls, parent_cat, name, workdir, whereclause):

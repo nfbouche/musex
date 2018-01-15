@@ -243,14 +243,12 @@ def show_field(ax, src, white):
 def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
                showcenter=True, cmap='gray_r', fwhm=0):
     logger = logging.getLogger(__name__)
-    if fwhm == 0:
-        logger.debug('Displaying Image %s', key)
-        ima = src.images[key]
-        title = key
-    else:
+    ima = src.images[key]
+    title = key
+    if fwhm > 0:
         logger.debug('Displaying Image %s after gaussian filter of %s '
                      'arcsec FWHM', key, fwhm)
-        ima = src.images[key].fftconvolve_gauss(fwhm=fwhm)
+        ima = ima.fftconvolve_gauss(fwhm=fwhm)
         title = '{} [{:.1f}]'.format(key, fwhm)
 
     with no_axis(ax, hide_frame=False):
