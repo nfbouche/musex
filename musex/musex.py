@@ -402,7 +402,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             raise ValueError('catalog must be a valid user catalog')
 
         cat = Table.read(catfile, format='ascii', delimiter=',',
-                         header_start=2)
+                         header_start=2, encoding='utf8')
         cat['catalog'] = catalog
         self.marzcat.ingest_input_catalog(catalog=cat, **kwargs)
 
