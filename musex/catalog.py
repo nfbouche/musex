@@ -27,7 +27,7 @@ from .utils import struct_from_moffat_fwhm, isiter
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('load_input_catalogs', 'table_to_odict', 'ResultSet', 'Catalog',
-           'InputCatalog')
+           'InputCatalog', 'MarzCatalog')
 
 
 def load_input_catalogs(settings, db):
@@ -614,15 +614,40 @@ class InputCatalog(BaseCatalog):
             setattr(cat, key, kwargs[key])
         return cat
 
-    def ingest_input_catalog(self, limit=None, show_progress=True):
-        """Ingest the source catalog (given in the settings file). Existing
-        records are updated."""
-        self.logger.info('ingesting catalog %s', self.catalog)
-        cat = Table.read(self.catalog)
+    def ingest_input_catalog(self, catalog=None, limit=None,
+                             show_progress=True):
+        """Ingest an input catalog.
+
+        The catalog to ingest can be given with the ``catalog`` argument or
+        in the settings file.  Existing records are updated.
+
+        Parameters
+        ----------
+        catalog: str or `astropy.table.Table`
+            Table to insert.
+        limit: int
+            To limit thenumber of rows.
+        show_progress: bool
+            Show a progress bar.
+
+        """
+        catalog = catalog or self.catalog
+        if isinstance(catalog, str):
+            self.logger.info('ingesting catalog %s', catalog)
+            catalog = Table.read(catalog)
+        else:
+            self.logger.info('ingesting catalog')
+
         if limit:
             self.logger.info('keeping only %d rows', limit)
-            cat = cat[:limit]
-        self.insert_table(cat, version=self.version,
+            catalog = catalog[:limit]
+        self.insert_table(catalog, version=self.version,
                           show_progress=show_progress)
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname))
+
+
+class MarzCatalog(InputCatalog):
+    """Handles catalogs imported from MarZ."""
+
+    catalog_type = 'marz'

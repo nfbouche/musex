@@ -7,6 +7,9 @@ from mpdaf.sdetect import Source
 from musex import MuseX
 from numpy.testing import assert_allclose, assert_array_equal
 
+CURDIR = os.path.abspath(os.path.dirname(__file__))
+DATADIR = os.path.join(CURDIR, 'data')
+
 
 def test_settings(settings_file):
     mx = MuseX(settings_file=settings_file, author='Me')
@@ -305,3 +308,16 @@ def test_export_marz(mx):
             assert hdul[name].shape == (3, 200)
         assert hdul['DETAILS'].data.dtype.names == (
             'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W')
+
+    marzfile = os.path.join(DATADIR, 'marz-my-cat-hdfs_SCO.mz')
+    with pytest.raises(ValueError):
+        mx.import_marz(marzfile, 'foobar')
+
+    mx.import_marz(marzfile, mycat)
+    assert len(mx.marzcat) == 3
+
+    res = mx.marzcat.select_ids(1)[0]
+    assert res['ID'] == 1
+    assert res['Name'] == 8
+    assert res['Type'] == 6
+    assert res['catalog'] == 'my-cat'

@@ -7,7 +7,8 @@ from astropy.table import Table
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import load_input_catalogs, Catalog, ResultSet, table_to_odict
+from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
+                      MarzCatalog)
 from .settings import load_db, load_yaml_config
 from .source import SourceX
 from .utils import extract_subimage
@@ -71,6 +72,10 @@ class MuseX:
                 name, self.db, workdir=self.workdir, idname=row['idname'],
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
+
+        self.marzcat = MarzCatalog('marz', self.db)
+        # FIXME: handle properly version / revision
+        self.marzcat.version = '1'
 
         if self.conf['show_banner']:
             self.info()
@@ -379,6 +384,27 @@ catalogs       : {', '.join(self.catalogs.keys())}
         ])
         self.logger.info('Writing %s', outfile)
         hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
+
+    def import_marz(self, catfile, catalog, **kwargs):
+        """Import a MarZ catalog.
+
+        Parameters
+        ----------
+        catfile: str
+            The catalog to import from Marz.
+        catalog: str or `Catalog`
+            The MuseX catalog to which the results are attached.
+
+        """
+        if isinstance(catalog, Catalog):
+            catalog = catalog.name
+        if catalog not in self.catalogs:
+            raise ValueError('catalog must be a valid user catalog')
+
+        cat = Table.read(catfile, format='ascii', delimiter=',',
+                         header_start=2)
+        cat['catalog'] = catalog
+        self.marzcat.ingest_input_catalog(catalog=cat, **kwargs)
 
     def delete_user_cat(self, name):
         if name not in self.db.tables or name not in self.catalogs:
