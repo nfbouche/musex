@@ -307,7 +307,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 src.to_pdf(fname, white, ima2=ima2)
                 info('pdf written to %s', fname)
 
-    def export_marz(self, res_or_cat, outfile=None, **kwargs):
+    def export_marz(self, res_or_cat, outfile=None, refspec='MUSE_TOT',
+                    **kwargs):
         """Export a catalog or selection for MarZ.
 
         Parameters
@@ -317,6 +318,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
         outfile: str
             Output file. If None the default is
             `'{workdir}/export/marz-{cat.name}-{muse_dataset.name}.fits'`.
+        refspec: str
+            The spectrum type.
 
         """
         if outfile is None:
@@ -354,7 +357,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             #     self.logger.error('unknown selmode '+args.selmode)
             #     return
 
-            sp = s.spectra['MUSE_TOT']
+            sp = s.spectra[refspec]
             wave.append(sp.wave.coord())
             data.append(sp.data.filled(np.nan))
             stat.append(sp.var.filled(np.nan))
