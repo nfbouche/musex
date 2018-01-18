@@ -130,7 +130,7 @@ class BaseCatalog:
     catalog_type = ''
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None):
+                 segmap=None, primary_id=None):
         self.name = name
         self.db = db
         self.segmap = segmap
@@ -145,7 +145,8 @@ class BaseCatalog:
         #                       self.name, self.idname)
 
         # Get the reference to the db table, which is created if needed
-        self.table = self.db.create_table(self.name, primary_id=self.idname)
+        primary_id = primary_id or self.idname
+        self.table = self.db.create_table(self.name, primary_id=primary_id)
 
         # Insert default meta about the table if it doesn't exist yet
         if self.meta is None:
@@ -211,29 +212,37 @@ class BaseCatalog:
         self.table.drop()
         self.db['catalogs'].delete(name=self.name)
 
-    def insert_rows(self, rows, version=None, show_progress=True):
+    def insert(self, rows, version=None, show_progress=True, keys=None):
         """Insert rows in the catalog.
 
         Parameters
         ----------
-        rows: list of dict
-            List of rows to insert. Each row must be a dict with column names
-            as keys.
+        rows: list of dict or `astropy.table.Table`
+            List of rows or Astropy Table to insert. Each row must be a dict
+            with column names as keys.
         version: str
             Version added to each row (if not available in the row values).
         show_progress: bool
             Show a progress bar.
+        keys: list of str
+            If rows with matching keys exist they will be updated, otherwise
+            a new row is inserted in the table. Defaults to
+            ``[idname, 'version']``.
 
         """
         count = defaultdict(int)
+        keys = keys or [self.idname, 'version']
+        if isinstance(rows, Table):
+            rows = table_to_odict(rows)
         if show_progress:
             rows = ProgressBar(rows, ipython_widget=isnotebook())
+
         with self.db as tx:
             tbl = tx[self.name]
             for row in rows:
                 row.setdefault('version', version)
 
-                res = tbl.upsert(row, [self.idname, 'version'])
+                res = tbl.upsert(row, keys)
                 op = 'updated' if res is True else 'inserted'
                 count[op] += 1
                 self.log(row[self.idname], f'{op} from input catalog')
@@ -242,24 +251,6 @@ class BaseCatalog:
             tbl.create_index(self.idname)
         self.logger.info('%d rows inserted, %s updated', count['inserted'],
                          count['updated'])
-
-    def insert_table(self, table, version=None, show_progress=True):
-        """Insert rows from an Astropy Table in the catalog.
-
-        Parameters
-        ----------
-        table: `astropy.table.Table`
-            Table to insert.
-        version: str
-            Version added to each row (if not available in the table).
-        show_progress: bool
-            Show a progress bar.
-
-        """
-        if not isinstance(table, Table):
-            raise ValueError('table should be an Astropy Table object')
-        self.insert_rows(table_to_odict(table), version=version,
-                         show_progress=show_progress)
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                **params):
@@ -276,7 +267,7 @@ class BaseCatalog:
         margin: float
             Margin from the edges (pixels) for the WCS selection.
         params: dict
-            Additional parameters are passed to `dataset.Database.query`.
+            Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
         if columns is not None:
@@ -634,7 +625,7 @@ class InputCatalog(BaseCatalog):
             setattr(cat, key, kwargs[key])
         return cat
 
-    def ingest_input_catalog(self, catalog=None, limit=None,
+    def ingest_input_catalog(self, catalog=None, limit=None, keys=None,
                              show_progress=True):
         """Ingest an input catalog.
 
@@ -646,7 +637,11 @@ class InputCatalog(BaseCatalog):
         catalog: str or `astropy.table.Table`
             Table to insert.
         limit: int
-            To limit thenumber of rows.
+            To limit the number of rows.
+        keys: list of str
+            If rows with matching keys exist they will be updated, otherwise
+            a new row is inserted in the table. Defaults to
+            ``[idname, 'version']``.
         show_progress: bool
             Show a progress bar.
 
@@ -661,8 +656,8 @@ class InputCatalog(BaseCatalog):
         if limit:
             self.logger.info('keeping only %d rows', limit)
             catalog = catalog[:limit]
-        self.insert_table(catalog, version=self.version,
-                          show_progress=show_progress)
+        self.insert(catalog, version=self.version, keys=keys,
+                    show_progress=show_progress)
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname))
 

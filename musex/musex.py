@@ -77,7 +77,7 @@ class MuseX:
                 segmap=row['segmap'])
 
         # Marz
-        self.marzcat = MarzCatalog('marz', self.db)
+        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id')
         # FIXME: handle properly version / revision
         self.marzcat.version = '1'
 
@@ -148,7 +148,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
-        cat.insert_rows(resultset)
+        cat.insert(resultset)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB'):
@@ -421,7 +421,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
         cat = Table.read(catfile, format='ascii', delimiter=',',
                          header_start=2, encoding='utf8')
         cat['catalog'] = catalog
-        self.marzcat.ingest_input_catalog(catalog=cat, **kwargs)
+        keys = ['ID', 'version', 'catalog']
+        self.marzcat.ingest_input_catalog(catalog=cat, keys=keys, **kwargs)
 
     def delete_user_cat(self, name):
         if name not in self.db.tables or name not in self.catalogs:

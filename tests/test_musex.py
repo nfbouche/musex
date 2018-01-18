@@ -162,7 +162,7 @@ def test_update_rows(mx):
     # insert rows
     for i, r in enumerate(res):
         r['ra'] = i
-    mycat.insert_rows(res, show_progress=False)
+    mycat.insert(res, show_progress=False)
     assert len(mycat) == 4
     assert_allclose([o['ra'] for o in mycat.select(columns=['ra'])],
                     np.arange(4, dtype=float))
@@ -170,7 +170,7 @@ def test_update_rows(mx):
     # insert table
     tbl = res.as_table()
     tbl['dec'] = 2.0
-    mycat.insert_table(tbl, show_progress=False)
+    mycat.insert(tbl, show_progress=False)
     assert len(mycat) == 4
     assert_allclose([o['dec'] for o in mycat.select(columns=['dec'])], 2.0)
 
