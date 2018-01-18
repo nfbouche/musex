@@ -28,12 +28,6 @@ class SourceX(Source):
                                  apertures=None, **kw)
             self.extract_spectra(cube, skysub=True, psf=fwhm, beta=beta,
                                  apertures=None, **kw)
-            refspec = 'MUSE_PSF_SKYSUB'
-        else:
-            refspec = 'MUSE_WHITE_SKYSUB'
-
-        # FIXME: handle this correctly... (set_refspec)
-        self.add_attr('REFSPEC', refspec, desc='Name of reference spectra')
 
     def to_pdf(self, filename, white, **kwargs):
         create_pdf(self, white, filename, **kwargs)

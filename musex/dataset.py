@@ -31,11 +31,6 @@ class DataSet:
                 for k, v in self.settings['images'].items()}
 
     def add_to_source(self, src, size):
-        names = list(self.images.keys())
-        if not names:
-            return
-        self.logger.debug('Adding images: %s', ','.join(names))
-
         for name, img in self.images.items():
             name = name.upper()
             tagname = getattr(img, 'name', name)
@@ -66,7 +61,6 @@ class MuseDataSet(DataSet):
         # set PA: FIXME - useful ?
         # src.set_pa(self.cube)
 
-        self.logger.debug('Adding Datacube and white light image')
         src.default_size = size
         src.SIZE = size
         src.add_cube(self.cube, f'{self.prefix}_CUBE',
@@ -80,8 +74,6 @@ class MuseDataSet(DataSet):
         src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
         src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
         src.EXPMAX = (np.ma.max(ima.data), 'Maximum value of EXPMAP')
-        self.logger.debug('Adding expmap image, mean %.2f min %.2f max %.2f',
-                          src.EXPMEAN, src.EXPMIN, src.EXPMAX)
 
         # add fsf info
         if self.cube.primary_header.get('FSFMODE') == 'MOFFAT1':

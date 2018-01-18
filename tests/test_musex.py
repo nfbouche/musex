@@ -49,6 +49,7 @@ def test_catalog(mx):
     assert len(res) == 4
     assert res[0][phot.idname] == 1
 
+    # Test selection by ids
     res = phot.select_ids([1, 2, 3], columns=[phot.idname])
     tbl = res.as_table()
     assert tbl.whereclause == 'photutils.id IN (1, 2, 3)'
@@ -64,6 +65,7 @@ def test_catalog(mx):
     assert len(res) == 2
     assert res[0]['id'] == 1
 
+    # Test selection with a wcs
     res = phot.select(wcs=mx.muse_dataset.white.wcs, columns=[phot.idname],
                       margin=2/0.2)
     assert len(res) == 8
@@ -116,6 +118,24 @@ def test_drop_user_catalog(mx):
     mx.delete_user_cat(catname)
     assert catname not in mx.db.tables
     assert catname not in mx.catalogs
+
+
+def test_update_column(mx):
+    # Test addition of a new column
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] < 5)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mycat = mx.catalogs['my-cat']
+
+    assert 'foobar' not in mycat.table.columns
+    mycat.update_column('foobar', 1)
+    assert 'foobar' in mycat.table.columns
+    assert mycat.table.find_one()['foobar'] == 1
+
+    mycat.update_column('foobar', range(len(mycat)))
+    res = mycat.select_ids([1, 2, 3])
+    tbl = res.as_table()
+    assert_array_equal(tbl['foobar'], [0, 1, 2])
 
 
 def test_update_rows(mx):
@@ -230,7 +250,7 @@ def test_export_sources(mx):
     os.makedirs(outdir, exist_ok=True)
 
     mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
-                      apertures=None)
+                      apertures=None, refspec='MUSE_PSF_SKYSUB')
 
     flist = os.listdir(outdir)
     assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
@@ -238,6 +258,7 @@ def test_export_sources(mx):
                              'source-00101.fits', 'source-00101.pdf']
 
     src = Source.from_file(f'{outdir}/source-00008.fits')
+    assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
 
     assert list(src.tables.keys()) == ['PHU_CAT']
     assert_array_equal(src.tables['PHU_CAT']['id'], [7, 8])
@@ -295,6 +316,9 @@ def test_export_marz(mx):
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
                          mask_size=(10, 10))
 
+    refspec = ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'] * 4
+    mycat.update_column('refspec', refspec)
+
     outdir = f'{mx.workdir}/export'
     os.makedirs(outdir, exist_ok=True)
     mx.export_marz(mycat)
@@ -307,7 +331,11 @@ def test_export_marz(mx):
         for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
             assert hdul[name].shape == (3, 200)
         assert hdul['DETAILS'].data.dtype.names == (
-            'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W')
+            'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W',
+            'REFSPEC')
+        assert_array_equal(
+            hdul['DETAILS'].data['REFSPEC'],
+            ['MUSE_PSF_SKYSUB', 'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
 
     marzfile = os.path.join(DATADIR, 'marz-my-cat-hdfs_SCO.mz')
     with pytest.raises(ValueError):

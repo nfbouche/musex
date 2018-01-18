@@ -151,7 +151,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         cat.insert_rows(resultset)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
-                   datasets=None, only_active=True):
+                   datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB'):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -187,7 +187,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         # the one used to produce the masks
         assert cat.meta['dataset'] == self.muse_dataset.name
 
-        debug = self.logger.debug
+        # debug = self.logger.debug
         info = self.logger.info
         info('Exporting %s sources with %s dataset, size=%.1f',
              len(resultset), self.muse_dataset.name, size)
@@ -208,14 +208,20 @@ catalogs       : {', '.join(self.catalogs.keys())}
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
+        if 'refspec' not in resultset[0]:
+            self.logger.warning('refspec column not found, using %s', refspec)
+
         for row in resultset:
             src = SourceX.from_data(row[idname], row[raname], row[decname],
                                     origin)
             src.SRC_V = srcvers
-            info('source %05d', src.ID)
+            info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
             src.CATALOG = os.path.basename(parent_cat.name)
 
-            for o in res_or_cat.get_log(src.ID):
+            src.add_attr('REFSPEC', row.get('refspec', refspec),
+                         desc='Name of reference spectra')
+
+            for o in cat.get_log(src.ID):
                 src.add_history(o['msg'], author=author, date=o['date'])
             src.add_history('source created', author=author)
 
@@ -225,6 +231,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             cat.add_segmap_to_source(src, parent_cat.extract,
                                      dataset=self.muse_dataset)
             parent_cat.add_to_source(src, parent_cat.extract)
+            info('IMAGES: %s', ', '.join(src.images.keys()))
 
             center = (src.DEC, src.RA)
             # If mask_sky is always the same, reuse it instead of reloading
@@ -234,9 +241,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 skyim, center, (size, size), minsize=minsize)
 
             maskim = Image(str(cat.workdir / row['mask_obj']), copy=False)
-            centerpix = maskim.wcs.sky2pix(center)[0]
-            debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
-                  *centerpix.tolist())
+            # centerpix = maskim.wcs.sky2pix(center)[0]
+            # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
+            #       *centerpix.tolist())
+            # FIXME: check that center is inside mask
             src.images['MASK_OBJ'] = extract_subimage(
                 maskim, center, (size, size), minsize=minsize)
 
@@ -263,6 +271,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             info('MASK_SKY: %.1f%%, MASK_OBJ: %.1f%%', nfracsky, nfracobj)
 
             src.extract_all_spectra(apertures=apertures)
+            info('SPECTRA: %s', ', '.join(src.spectra.keys()))
             yield src
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
@@ -307,8 +316,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 src.to_pdf(fname, white, ima2=ima2)
                 info('pdf written to %s', fname)
 
-    def export_marz(self, res_or_cat, outfile=None, refspec='MUSE_TOT',
-                    **kwargs):
+    def export_marz(self, res_or_cat, outfile=None, **kwargs):
         """Export a catalog or selection for MarZ.
 
         Parameters
@@ -318,8 +326,6 @@ catalogs       : {', '.join(self.catalogs.keys())}
         outfile: str
             Output file. If None the default is
             `'{workdir}/export/marz-{cat.name}-{muse_dataset.name}.fits'`.
-        refspec: str
-            The spectrum type.
 
         """
         if outfile is None:
@@ -357,7 +363,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             #     self.logger.error('unknown selmode '+args.selmode)
             #     return
 
-            sp = s.spectra[refspec]
+            sp = s.spectra[s.REFSPEC]
             wave.append(sp.wave.coord())
             data.append(sp.data.filled(np.nan))
             stat.append(sp.var.filled(np.nan))
@@ -375,7 +381,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             mag2 = -99
             meta.append(('%05d' % s.ID, s.RA, s.DEC, z,
                         s.header.get('CONFID', 0),
-                        s.header.get('TYPE', 0), mag1, mag2))
+                        s.header.get('TYPE', 0), mag1, mag2, s.REFSPEC))
 
         wave = np.vstack(wave)
         data = np.vstack(data)
@@ -383,7 +389,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         sky = np.vstack(sky)
 
         t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
-                                    'F775W', 'F125W'],
+                                    'F775W', 'F125W', 'REFSPEC'],
                   meta={'CUBE_V': s.CUBE_V, 'SRC_V': s.SRC_V})
         hdulist = fits.HDUList([
             fits.PrimaryHDU(),

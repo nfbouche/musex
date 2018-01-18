@@ -413,6 +413,18 @@ class Catalog(BaseCatalog):
         assert dataset is not None
         return str(self.workdir / dataset / 'mask-sky.fits')
 
+    def update_column(self, name, values):
+        if np.isscalar(values):
+            values = [values] * len(self)
+        if name not in self.table.columns:
+            self.logger.info('creating column %s', name)
+            self.table.create_column_by_example(name, values[0])
+        with self.db as tx:
+            tbl = tx[self.name]
+            for i, row in enumerate(tbl.find()):
+                row[name] = values[i]
+                tbl.upsert(row, [self.idname])
+
     def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
                        mask_size=(20, 20), psf_threshold=0.5, n_jobs=1,
                        verbose=0):
