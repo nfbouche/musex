@@ -17,7 +17,7 @@ from mpdaf.sdetect import Catalog as _Catalog
 from numpy import ma
 from os.path import exists, relpath
 from pathlib import Path
-from sqlalchemy.sql import select, func
+from sqlalchemy import sql
 from tqdm import tqdm, tqdm_notebook
 
 from .segmap import SegMap
@@ -28,6 +28,8 @@ DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('load_input_catalogs', 'table_to_odict', 'ResultSet', 'Catalog',
            'InputCatalog', 'MarzCatalog')
+
+FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
 
 def load_input_catalogs(settings, db):
@@ -89,22 +91,19 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self, mpdaf_catalog=True):
-        fill_values = {int: -9999, float: np.nan, str: ''}
-        columns = []
-        names = list(self.results[0].keys())
-        for name, val in zip(names, zip(*[r.values() for r in self.results])):
-            col = self.catalog.c[name]
-            dtype = col.type.python_type
-            fill_value = fill_values.get(dtype)
-            mask = [v is None for v in val]
-            val = [fill_value if v is None else v for v in val]
-            columns.append(ma.array(val, mask=mask, dtype=dtype,
-                                    fill_value=fill_value))
-
         cls = _Catalog if mpdaf_catalog else Table
-        tbl = cls(data=columns, names=names)
+        tbl = cls(masked=True)
         tbl.whereclause = self.whereclause
         tbl.catalog = self.catalog
+        if len(self) > 0:
+            for name, val in zip(self.results[0],
+                                 zip(*[r.values() for r in self.results])):
+                dtype = self.catalog.c[name].type.python_type
+                fill_value = FILL_VALUES.get(dtype)
+                mask = [v is None for v in val]
+                val = [fill_value if v is None else v for v in val]
+                tbl[name] = ma.array(val, mask=mask, dtype=dtype,
+                                     fill_value=fill_value)
         return tbl
 
 
@@ -169,7 +168,8 @@ class BaseCatalog:
         return self._history.find(catalog=self.name, id=id_)
 
     def max(self, colname):
-        return self.db.executable.execute(func.max(self.c[colname])).scalar()
+        return self.db.executable.execute(
+            sql.func.max(self.c[colname])).scalar()
 
     @property
     def c(self):
@@ -288,8 +288,8 @@ class BaseCatalog:
             columns = [self.c[col] for col in columns]
         else:
             columns = [self.table.table]
-        query = self.db.query(select(columns=columns, whereclause=whereclause,
-                                     **params))
+        query = self.db.query(sql.select(columns=columns,
+                                         whereclause=whereclause, **params))
         res = ResultSet(query, whereclause=whereclause, catalog=self)
 
         if wcs is not None:

@@ -37,7 +37,7 @@ def settings_file(workdir):
 
 @pytest.fixture
 def mx(settings_file):
-    return MuseX(settings_file=settings_file)
+    return MuseX(settings_file=settings_file, show_banner=False)
 
 
 # def pytest_report_header(config):

@@ -11,10 +11,18 @@ CURDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(CURDIR, 'data')
 
 
-def test_settings(settings_file):
+def test_settings(capsys, settings_file):
     mx = MuseX(settings_file=settings_file, author='Me')
     assert mx.muse_dataset.name == 'hdfs'
     assert mx.conf['author'] == 'Me'
+
+    expected = """\
+muse_dataset   : hdfs
+datasets       : test
+input_catalogs : photutils
+"""
+    captured = capsys.readouterr()
+    assert expected in captured.out
 
 
 def test_ingest(mx):
@@ -48,6 +56,12 @@ def test_catalog(mx):
     assert repr(res) == "<ResultSet(photutils.id < 5)>, 4 results"
     assert len(res) == 4
     assert res[0][phot.idname] == 1
+
+    # Test empty selection
+    res = phot.select(phot.c[phot.idname] > 20)
+    assert repr(res) == "<ResultSet(photutils.id > 20)>, 0 results"
+    assert len(res) == 0
+    assert len(res.as_table()) == 0
 
     # Test selection by ids
     res = phot.select_ids([1, 2, 3], columns=[phot.idname])
