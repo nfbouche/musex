@@ -7,7 +7,6 @@ from datetime import datetime
 
 import astropy.units as u
 from astropy.table import Table, Column
-from astropy.utils.console import ProgressBar
 from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict, defaultdict
@@ -18,11 +17,9 @@ from numpy import ma
 from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy import sql
-from tqdm import tqdm, tqdm_notebook
 
 from .segmap import SegMap
-from .settings import isnotebook
-from .utils import struct_from_moffat_fwhm, isiter
+from .utils import struct_from_moffat_fwhm, isiter, progressbar
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -235,7 +232,7 @@ class BaseCatalog:
         if isinstance(rows, Table):
             rows = table_to_odict(rows)
         if show_progress:
-            rows = ProgressBar(rows, ipython_widget=isnotebook())
+            rows = progressbar(rows)
 
         with self.db as tx:
             tbl = tx[self.name]
@@ -551,9 +548,8 @@ class Catalog(BaseCatalog):
                     ids, center, mask_size, minsize=minsize, struct=struct,
                     dilate=dilateit, outname=source_path, regrid_to=white))
 
-        progressfunc = tqdm_notebook if isnotebook() else tqdm
         # FIXME: check which value to use for max_nbytes
-        Parallel(n_jobs=n_jobs, verbose=verbose)(progressfunc(to_compute))
+        Parallel(n_jobs=n_jobs, verbose=verbose)(progressbar(to_compute))
 
         for row in tab:
             # update in db

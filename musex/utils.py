@@ -12,6 +12,25 @@ def isiter(val):
         return True
 
 
+def isnotebook():  # pragma: no cover
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
+
+def progressbar(*args, **kwargs):
+    from tqdm import tqdm, tqdm_notebook
+    func = tqdm_notebook if isnotebook() else tqdm
+    return func(*args, **kwargs)
+
+
 def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
     if isinstance(im, str):
         im = Image(im, copy=False)
