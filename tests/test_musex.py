@@ -379,3 +379,10 @@ def test_join(mx):
     # a corresponding id in photcat
     assert len(res) == 1
     assert res[0]['my-cat_id'] == 8
+
+    res = mycat.join([photcat, mx.marzcat],
+                     whereclause=(mx.marzcat.c.catalog == mycat.name),
+                     isouter=True, debug=True)
+    # Now with outer join we get all results
+    assert len(res) == 3
+    assert_array_equal(res.as_table()['my-cat_id'], [8, 100, 101])

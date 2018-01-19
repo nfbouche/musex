@@ -315,7 +315,7 @@ class BaseCatalog:
         return self.select(whereclause=whereclause, columns=columns, **params)
 
     def join(self, othercats, whereclause=None, columns=None, keys=None,
-             use_labels=True, debug=False, **params):
+             use_labels=True, isouter=False, debug=False, **params):
         """Join catalog with other catalogs.
 
         Parameters
@@ -333,6 +333,8 @@ class BaseCatalog:
             By default, all columns are selected which may gives name
             conflicts. So ``use_labels`` allows to rename the columns by
             prefixinf the name with the catalog name.
+        isouter: bool
+            If True, render a LEFT OUTER JOIN, instead of JOIN.
         params: dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
@@ -351,7 +353,8 @@ class BaseCatalog:
                            whereclause=whereclause, **params)
         joincl = tbl
         for (key1, key2), other in zip(keys, tables):
-            joincl = joincl.join(other, tbl.c[key1] == other.c[key2])
+            joincl = joincl.join(other, tbl.c[key1] == other.c[key2],
+                                 isouter=isouter)
         query = query.select_from(joincl)
 
         # FIXME: .reduce_columns() should allow to filter duplicate columns
