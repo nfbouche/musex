@@ -321,8 +321,10 @@ REFSPEC = 'MUSE_PSF_SKYSUB'    / Name of reference spectra
 
 def test_export_marz(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select(phot.c[phot.idname] > 7)
+    res = phot.select(phot.c[phot.idname] > 7,
+                      columns=[phot.idname, phot.raname, phot.decname])
     mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my-cat2', res, drop_if_exists=True)
 
     mycat = mx.catalogs['my-cat']
     mycat.merge_sources([9, 10])
@@ -357,9 +359,23 @@ def test_export_marz(mx):
 
     mx.import_marz(marzfile, mycat)
     assert len(mx.marzcat) == 3
+    mx.import_marz(marzfile, 'my-cat2')
+    assert len(mx.marzcat) == 6
 
-    res = mx.marzcat.select_ids(1)[0]
-    assert res['ID'] == 1
-    assert res['Name'] == 8
-    assert res['Type'] == 6
-    assert res['catalog'] == 'my-cat'
+    res = mx.marzcat.select_ids(8)
+    assert res[0]['ID'] == 8
+    assert res[0]['Type'] == 6
+    assert res[0]['catalog'] == 'my-cat'
+    assert res[1]['catalog'] == 'my-cat2'
+
+
+def test_join(mx):
+    mycat = mx.catalogs['my-cat']
+    photcat = mx.find_parent_cat(mycat)
+    res = mycat.join([photcat, mx.marzcat],
+                     whereclause=(mx.marzcat.c.catalog == mycat.name),
+                     debug=True)
+    # This gives only one result because merged sources do not have
+    # a corresponding id in photcat
+    assert len(res) == 1
+    assert res[0]['my-cat_id'] == 8

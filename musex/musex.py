@@ -420,6 +420,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         cat = Table.read(catfile, format='ascii', delimiter=',',
                          header_start=2, encoding='utf8')
+        # The real ID column in Marz is "Name"
+        cat.remove_column('ID')
+        cat.rename_column('Name', 'ID')
         cat['catalog'] = catalog
         keys = ['ID', 'version', 'catalog']
         self.marzcat.ingest_input_catalog(catalog=cat, keys=keys, **kwargs)

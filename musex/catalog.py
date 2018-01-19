@@ -70,10 +70,11 @@ def _get_psf_convolution_params(convolve_fwhm, segmap, psf_threshold):
 class ResultSet(Sequence):
     """Contains the result of a query on the database."""
 
-    def __init__(self, results, whereclause=None, catalog=None):
+    def __init__(self, results, whereclause=None, catalog=None, columns=None):
         self.results = list(results)
         # TODO: use weakref here ?
         self.catalog = catalog
+        self.columns = columns
 
         self.whereclause = whereclause
         if whereclause is not None and not isinstance(whereclause, str):
@@ -95,14 +96,13 @@ class ResultSet(Sequence):
         tbl = cls(masked=True)
         tbl.whereclause = self.whereclause
         tbl.catalog = self.catalog
-        if len(self) > 0:
-            for name, val in zip(self.results[0],
-                                 zip(*[r.values() for r in self.results])):
-                dtype = self.catalog.c[name].type.python_type
-                fill_value = FILL_VALUES.get(dtype)
-                mask = [v is None for v in val]
-                val = [fill_value if v is None else v for v in val]
-                tbl[name] = ma.array(val, mask=mask, dtype=dtype,
+        for col, val in zip(self.columns,
+                            zip(*[r.values() for r in self.results])):
+            dtype = col.type.python_type
+            fill_value = FILL_VALUES.get(dtype)
+            mask = [v is None for v in val]
+            val = [fill_value if v is None else v for v in val]
+            tbl[col.name] = ma.array(val, mask=mask, dtype=dtype,
                                      fill_value=fill_value)
         return tbl
 
@@ -279,15 +279,17 @@ class BaseCatalog:
             columns = [self.c[col] for col in columns]
         else:
             columns = [self.table.table]
-        query = self.db.query(sql.select(columns=columns,
-                                         whereclause=whereclause, **params))
-        res = ResultSet(query, whereclause=whereclause, catalog=self)
+
+        query = sql.select(columns=columns, whereclause=whereclause, **params)
+        res = self.db.query(query)
+        res = ResultSet(res, whereclause=whereclause, catalog=self,
+                        columns=query.columns)
 
         if wcs is not None:
             t = res.as_table()
             t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin)
             res = ResultSet(table_to_odict(t), whereclause=whereclause,
-                            catalog=self)
+                            catalog=self, columns=query.columns)
 
         return res
 
@@ -311,6 +313,56 @@ class BaseCatalog:
 
         whereclause = self.c[self.idname].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
+
+    def join(self, othercats, whereclause=None, columns=None, keys=None,
+             use_labels=True, debug=False, **params):
+        """Join catalog with other catalogs.
+
+        Parameters
+        ----------
+        whereclause:
+            The SQLAlchemy selection clause.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+        keys: list of tuple
+            List of keys to do the join for each catalog. If None, the IDs of
+            each catalog are used (from the ``idname`` attribute). Otherwise it
+            must be a list of tuples, where each tuple contains the key for
+            self and the key for the other catalog.
+        use_labels: bool
+            By default, all columns are selected which may gives name
+            conflicts. So ``use_labels`` allows to rename the columns by
+            prefixinf the name with the catalog name.
+        params: dict
+            Additional parameters are passed to `sqlalchemy.sql.select`.
+
+        """
+        tbl = self.table.table
+        if isinstance(othercats, BaseCatalog):
+            othercats = [othercats]
+        tables = [cat.table.table for cat in othercats]
+        if columns is None:
+            columns = [tbl] + tables
+
+        if keys is None:
+            keys = [(self.idname, cat.idname) for cat in othercats]
+
+        query = sql.select(columns, use_labels=use_labels,
+                           whereclause=whereclause, **params)
+        joincl = tbl
+        for (key1, key2), other in zip(keys, tables):
+            joincl = joincl.join(other, tbl.c[key1] == other.c[key2])
+        query = query.select_from(joincl)
+
+        # FIXME: .reduce_columns() should allow to filter duplicate columns
+        # (removing the need to use use_labels), but it does not work for float
+        # values ?
+
+        if debug:
+            print(query)
+        res = self.db.query(query)
+        return ResultSet(res, whereclause=whereclause, catalog=self,
+                         columns=query.columns)
 
     def add_to_source(self, src, conf):
         """Add information to the Source object.
