@@ -5,16 +5,6 @@ from .pdf import create_pdf
 
 class SourceX(Source):
 
-    def get_fsf(self):
-        if 'FSFMODE' not in self.header:
-            return
-        for field in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 99):
-            if f'FSF{field:02d}BET' in self.header:
-                beta = self.header[f'FSF{field:02d}BET']
-                a = self.header[f'FSF{field:02d}FWA']
-                b = self.header[f'FSF{field:02d}FWB']
-                return a, b, beta, field
-
     def extract_all_spectra(self, cube=None, apertures=None):
         self._logger.debug('Extract spectra for apertures %s', apertures)
         cube = cube or self.cubes['MUSE_CUBE']
@@ -22,7 +12,7 @@ class SourceX(Source):
         self.extract_spectra(cube, skysub=False, apertures=apertures, **kw)
         self.extract_spectra(cube, skysub=True, apertures=apertures, **kw)
         if 'FSFMODE' in self.header:
-            a, b, beta, field = self.get_fsf()
+            a, b, beta, field = self.get_FSF()
             fwhm = b * cube.wave.coord() + a
             self.extract_spectra(cube, skysub=False, psf=fwhm, beta=beta,
                                  apertures=None, **kw)

@@ -273,7 +273,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
             # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
             # return nobj, nfracobj, nsky, nfracobj
-            info('MASK_SKY: %.1f%%, MASK_OBJ: %.1f%%', nfracsky, nfracobj)
+            info('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
 
             src.extract_all_spectra(apertures=apertures)
             info('SPECTRA: %s', ', '.join(src.spectra.keys()))
