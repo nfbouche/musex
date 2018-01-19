@@ -151,7 +151,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
         cat.insert(resultset)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
-                   datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB'):
+                   datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
+                   content=('parentcat', 'segmap', 'history')):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -192,7 +193,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         info('Exporting %s sources with %s dataset, size=%.1f',
              len(resultset), self.muse_dataset.name, size)
         use_datasets = [self.muse_dataset]
-        if datasets:
+        if datasets is not None:
             if not isinstance(datasets, (list, tuple)):
                 datasets = [datasets]
             use_datasets += [self.datasets[a] for a in datasets]
@@ -221,16 +222,20 @@ catalogs       : {', '.join(self.catalogs.keys())}
             src.add_attr('REFSPEC', row.get('refspec', refspec),
                          desc='Name of reference spectra')
 
-            for o in cat.get_log(src.ID):
-                src.add_history(o['msg'], author=author, date=o['date'])
-            src.add_history('source created', author=author)
+            if 'history' in content:
+                for o in cat.get_log(src.ID):
+                    src.add_history(o['msg'], author=author, date=o['date'])
+                src.add_history('source created', author=author)
 
             for ds in use_datasets:
                 ds.add_to_source(src, size)
 
-            cat.add_segmap_to_source(src, parent_cat.extract,
-                                     dataset=self.muse_dataset)
-            parent_cat.add_to_source(src, parent_cat.extract)
+            if 'segmap' in content:
+                cat.add_segmap_to_source(src, parent_cat.extract,
+                                         dataset=self.muse_dataset)
+            if 'parentcat' in content:
+                parent_cat.add_to_source(src, parent_cat.extract)
+
             info('IMAGES: %s', ', '.join(src.images.keys()))
 
             center = (src.DEC, src.RA)
@@ -340,7 +345,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         # TODO: this should be optimized to extract only the needed data
         # instead of a complete source
-        for s in self.to_sources(res_or_cat, **kwargs):
+        for s in self.to_sources(res_or_cat, datasets=[], content=tuple(),
+                                 **kwargs):
             # TODO: how to choose which spectrum to use ?
             # if args.selmode == 'udf':
             #     smag = s.mag[s.mag['BAND'] == 'F775W']
