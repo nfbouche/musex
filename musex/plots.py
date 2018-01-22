@@ -68,8 +68,8 @@ def no_axis(ax, hide_frame=True):
 
 
 def add_text_with_fontsize(ax, fontsize=12):
-    def _add(x, y, text):
-        ax.text(x, y, text, fontsize=fontsize, ha='left')
+    def _add(x, y, text, **kwargs):
+        ax.text(x, y, text, fontsize=fontsize, ha='left', **kwargs)
     return _add
 
 

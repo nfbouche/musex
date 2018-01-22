@@ -5,6 +5,12 @@ from .pdf import create_pdf
 
 class SourceX(Source):
 
+    def get_zmuse(self):
+        """Return the MUSE redshift if available."""
+        sel = self.z[self.z['Z_DESC'] == 'MUSE']
+        if len(sel) > 0:
+            return sel['Z'][0]
+
     def extract_all_spectra(self, cube=None, apertures=None):
         self._logger.debug('Extract spectra for apertures %s', apertures)
         cube = cube or self.cubes['MUSE_CUBE']

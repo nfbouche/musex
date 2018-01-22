@@ -130,9 +130,9 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False,
     gs = GridSpec(2, 1, left=0.05, right=0.98, top=0.45, bottom=0.25,
                   hspace=0.03)
     ax['FULLSPEC1'] = plt.subplot(gs[0, 0])
-    show_fullspec(ax['FULLSPEC1'], src, sp1name=src.REFSPEC, sp2name=sp2name)
+    show_fullspec(ax['FULLSPEC1'], src, src.REFSPEC, sp2name=sp2name)
     ax['FULLSPEC2'] = plt.subplot(gs[1, 0], sharex=ax['FULLSPEC1'])
-    show_contspec(ax['FULLSPEC2'], src, sp1name=src.REFSPEC, sp2name=sp2name)
+    show_contspec(ax['FULLSPEC2'], src, src.REFSPEC, sp2name=sp2name)
     plt.setp(ax['FULLSPEC1'].get_xticklabels(), visible=False)
 
     # find wavelengths of ORIGIN spectra if any
