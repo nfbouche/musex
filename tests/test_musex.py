@@ -249,76 +249,6 @@ def test_attach_dataset(mx):
     assert np.count_nonzero(mask) == totmask
 
 
-def test_export_sources(mx):
-    phot = mx.input_catalogs['photutils']
-    res = phot.select(phot.c[phot.idname] > 7)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
-
-    mycat = mx.catalogs['my-cat']
-    mycat.merge_sources([9, 10])
-    mycat.merge_sources([11, 12, 13])
-    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         mask_size=(10, 10))
-
-    outdir = f'{mycat.workdir}/export'
-    os.makedirs(outdir, exist_ok=True)
-
-    mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
-                      apertures=None, refspec='MUSE_PSF_SKYSUB')
-
-    flist = os.listdir(outdir)
-    assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
-                             'source-00100.fits', 'source-00100.pdf',
-                             'source-00101.fits', 'source-00101.pdf']
-
-    src = Source.from_file(f'{outdir}/source-00008.fits')
-    assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
-
-    assert list(src.tables.keys()) == ['PHU_CAT']
-    assert_array_equal(src.tables['PHU_CAT']['id'], [7, 8])
-
-    assert list(src.cubes.keys()) == ['MUSE_CUBE']
-    assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
-
-    assert list(src.images.keys()) == [
-        'MUSE_WHITE', 'MUSE_EXPMAP', 'TEST_FAKE', 'PHU_SEGMAP', 'MASK_SKY',
-        'MASK_OBJ']
-    assert list(src.spectra.keys()) == [
-        'MUSE_TOT', 'MUSE_WHITE', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
-        'MUSE_WHITE_SKYSUB', 'MUSE_PSF', 'MUSE_PSF_SKYSUB']
-
-    ref_header = """\
-ID      =                    8 / object ID u.unitless %d
-RA      =    338.2289866204975 / RA u.degree %.7f
-DEC     =   -60.56824280312122 / DEC u.degree %.7f
-FROM    = 'MuseX   '           / detection software
-CUBE    = 'cube.fits'          / datacube
-CUBE_V  = '1.24    '           / version of the datacube
-SRC_V   = '0.1     '
-CATALOG = 'photutils'
-SIZE    =                    5
-EXPMEAN =                 52.0 / Mean value of EXPMAP
-EXPMIN  =                   52 / Minimum value of EXPMAP
-EXPMAX  =                   52 / Maximum value of EXPMAP
-FSFMODE = 'MOFFAT1 '
-FSF00BET=                  2.8
-FSF00FWA=                  0.8
-FSF00FWB=               -3E-05
-FSFMSK  =                    0 / Mask Conv Gauss FWHM in arcsec
-NSKYMSK =                  467 / Size of MASK_SKY in spaxels
-FSKYMSK =                74.72 / Relative Size of MASK_SKY in %
-NOBJMSK =                   25 / Size of MASK_OBJ in spaxels
-FOBJMSK =                  4.0 / Relative Size of MASK_OBJ in %
-REFSPEC = 'MUSE_PSF_SKYSUB'    / Name of reference spectra
-"""
-
-    cards = [fits.Card.fromstring(s) for s in ref_header.splitlines()]
-    hdr = src.header
-    for card in cards:
-        assert hdr[card.keyword] == card.value
-        assert hdr.comments[card.keyword] == card.comment
-
-
 def test_export_marz(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] > 7,
@@ -367,6 +297,78 @@ def test_export_marz(mx):
     assert res[0]['Type'] == 6
     assert res[0]['catalog'] == 'my-cat'
     assert res[1]['catalog'] == 'my-cat2'
+
+
+def test_export_sources(mx):
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my-cat']
+    mycat.merge_sources([9, 10])
+    mycat.merge_sources([11, 12, 13])
+    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+                         mask_size=(10, 10))
+
+    outdir = f'{mycat.workdir}/export'
+    os.makedirs(outdir, exist_ok=True)
+
+    mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
+                      apertures=None, refspec='MUSE_PSF_SKYSUB')
+
+    flist = os.listdir(outdir)
+    assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
+                             'source-00100.fits', 'source-00100.pdf',
+                             'source-00101.fits', 'source-00101.pdf']
+
+    src = Source.from_file(f'{outdir}/source-00008.fits')
+    assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
+
+    assert list(src.tables.keys()) == ['PHU_CAT']
+    assert_array_equal(src.tables['PHU_CAT']['id'], [7, 8])
+
+    assert list(src.cubes.keys()) == ['MUSE_CUBE']
+    assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
+
+    assert list(src.images.keys()) == [
+        'MUSE_WHITE', 'MUSE_EXPMAP', 'TEST_FAKE', 'PHU_SEGMAP', 'MASK_SKY',
+        'MASK_OBJ']
+    assert list(src.spectra.keys()) == [
+        'MUSE_TOT', 'MUSE_WHITE', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
+        'MUSE_WHITE_SKYSUB', 'MUSE_PSF', 'MUSE_PSF_SKYSUB']
+
+    ref_header = """\
+ID      =                    8 / object ID u.unitless %d
+RA      =    338.2289866204975 / RA u.degree %.7f
+DEC     =   -60.56824280312122 / DEC u.degree %.7f
+FROM    = 'MuseX   '           / detection software
+CUBE    = 'cube.fits'          / datacube
+CUBE_V  = '1.24    '           / version of the datacube
+SRC_V   = '0.1     '           / Source Version
+CATALOG = 'photutils'
+REFSPEC = 'MUSE_PSF_SKYSUB'    / Name of reference spectra
+SIZE    =                    5
+EXPMEAN =                 52.0 / Mean value of EXPMAP
+EXPMIN  =                   52 / Minimum value of EXPMAP
+EXPMAX  =                   52 / Maximum value of EXPMAP
+FSFMODE = 'MOFFAT1 '
+FSF00BET=                  2.8
+FSF00FWA=                  0.8
+FSF00FWB=               -3E-05
+FSFMSK  =                    0 / Mask Conv Gauss FWHM in arcsec
+NSKYMSK =                  467 / Size of MASK_SKY in spaxels
+FSKYMSK =                74.72 / Relative Size of MASK_SKY in %
+NOBJMSK =                   25 / Size of MASK_OBJ in spaxels
+FOBJMSK =                  4.0 / Relative Size of MASK_OBJ in %
+AUTHOR  = 'MPDAF   '           / Origin of the file
+FORMAT  = '0.5     '           / Version of the Source format
+"""
+
+    cards = [fits.Card.fromstring(s) for s in ref_header.splitlines()]
+    hdr = src.header
+    for card in cards:
+        assert hdr[card.keyword] == card.value
+        assert hdr.comments[card.keyword] == card.comment
 
 
 def test_join(mx):

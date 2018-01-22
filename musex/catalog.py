@@ -600,7 +600,7 @@ class Catalog(BaseCatalog):
                    weights.sum())
 
         # version
-        versions = set(s['version'] for s in sources)
+        versions = set(s.get('version') for s in sources)
         if len(versions) == 1:
             version = versions.pop()
         else:
