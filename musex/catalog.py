@@ -228,7 +228,12 @@ class BaseCatalog:
 
         """
         count = defaultdict(int)
-        keys = keys or [self.idname, 'version']
+        if keys is None:
+            if version is None:
+                keys = [self.idname]
+            else:
+                keys = [self.idname, 'version']
+
         if isinstance(rows, Table):
             rows = table_to_odict(rows)
         if show_progress:
@@ -237,7 +242,8 @@ class BaseCatalog:
         with self.db as tx:
             tbl = tx[self.name]
             for row in rows:
-                row.setdefault('version', version)
+                if version is not None:
+                    row.setdefault('version', version)
 
                 res = tbl.upsert(row, keys)
                 op = 'updated' if res is True else 'inserted'

@@ -33,17 +33,17 @@ __all__ = ['show_title', 'show_comments', 'show_errors',
            'show_fullspec', 'show_nb', 'show_zoomspec', 'show_pfitspec',
            'show_pfitline', 'show_origspec']
 
-musetype = ['Star', 'Ha emi.', 'OII emi.', 'Abs. gal.',
-            'CIII emi.', 'OIII emi.', 'Lya emi.', 'Other']
+SPECTRA_TYPES = {0: 'Star', 1: 'Ha emi.', 2: 'OII emi.', 3: 'Abs. gal.',
+                 4: 'CIII emi.', 5: 'OIII emi.', 6: 'Lya emi.', 7: 'Other'}
 
-doublets = [['OII3727', 'OII_3726', 'OII_3729'],
-            ['CIII1909', 'CIII_1907', 'CIII_1909'],
-            ['OIII', 'OIII_4959', 'OIII_5007'],
-            ['MGII', 'MGII_2796', 'MGII_2803'],
-            ['SII', 'SII_6717', 'SII_6731'],
-            ['NII', 'NII_6548', 'NII_6584']]
+# doublets = [['OII3727', 'OII_3726', 'OII_3729'],
+#             ['CIII1909', 'CIII_1907', 'CIII_1909'],
+#             ['OIII', 'OIII_4959', 'OIII_5007'],
+#             ['MGII', 'MGII_2796', 'MGII_2803'],
+#             ['SII', 'SII_6717', 'SII_6731'],
+#             ['NII', 'NII_6548', 'NII_6584']]
 
-title_colors = ['red', 'orange', 'green', 'blue']
+CONFID_COLORS = ['red', 'orange', 'green', 'blue']
 
 err_report = defaultdict(list)
 
@@ -65,6 +65,12 @@ def no_axis(ax, hide_frame=True):
     ax.xaxis.set_visible(False)
     ax.yaxis.set_visible(False)
     ax.axis('off')
+
+
+def add_text_with_fontsize(ax, fontsize=12):
+    def _add(x, y, text):
+        ax.text(x, y, text, fontsize=fontsize, ha='left')
+    return _add
 
 
 def _check_source_input(kind, key=None):
@@ -100,7 +106,7 @@ def show_title(ax, src, outfile, date, numpage, srcfont=12, textfont=9,
                version=None):
     with no_axis(ax):
         text = 'ID: {:04d} version: {}'.format(src.ID, src.SRC_V)
-        bcol = title_colors[src.header.get('CONFID', 0)]
+        bcol = CONFID_COLORS[src.header.get('CONFID', 0)]
         ax.text(0.02, 0.8, text, fontsize=srcfont,
                 bbox={'facecolor': bcol, 'alpha': 0.5, 'pad': 3}, ha='left')
         text = 'PDF: {} Date: {} Page: {}'.format(outfile, date, numpage)
@@ -142,90 +148,69 @@ def show_errors(ax, src, textfont=8):
 
 def show_info(ax, src, textfont=9):
     logger = logging.getLogger(__name__)
-    text = 'Cube: {} v {} Finder: {} v {}'.format(src.CUBE, src.CUBE_V,
-                                                  src.FROM, src.FROM_V)
-    ax.text(0.02, 0.9, text, fontsize=textfont, ha='left')
+
+    add_text = add_text_with_fontsize(ax, fontsize=textfont)
+    text = f'Cube: {src.CUBE} v {src.CUBE_V} Finder: {src.FROM} v {src.FROM_V}'
+    add_text(0.02, 0.9, text)
 
     if hasattr(src, 'CONFID'):
         bcol = 'green'
-        logger.debug('Writing MUSE Z info')
-        if hasattr(src, 'TYPE'):
-            text = 'MUSE Class Type: {}'.format(musetype[src.TYPE])
-        else:
-            text = 'Unknown MUSE Class Type'
+        text = f"MUSE Class Type: {SPECTRA_TYPES.get(src.TYPE, 'Unknown')}"
+
         if 'MUSE' in src.z['Z_DESC']:
             zmuse = src.z[src.z['Z_DESC'] == 'MUSE']['Z'][0]
             text += ' Redshift {:.3f}'.format(zmuse)
         else:
             text += ' Redshift ?'
             bcol = 'red'
-        text += ' Confid: {}'.format(src.CONFID)
-        if hasattr(src, 'DEFECT'):
-            text += ' Defect: {}'.format(src.DEFECT)
-            if src.DEFECT != 0:
-                bcol = 'magenta'
-        else:
-            text += ' Defect: ?'
-        if hasattr(src, 'BLEND'):
-            text += ' Blend: {}'.format(src.BLEND)
-            if src.BLEND != 0:
-                bcol = 'orange'
-        else:
-            text += ' Blend: ?'
-        if hasattr(src, 'REVISIT'):
-            text += ' Revisit: {}'.format(src.REVISIT)
-            if src.REVISIT != 0:
-                bcol = 'yellow'
-        else:
-            text += ' Revisit: ?'
-        ax.text(0.02, 0.7, text, fontsize=textfont, ha='left',
-                bbox={'facecolor': bcol, 'alpha': 0.3, 'pad': 2})
+
+        text += (
+            f" Confid: {src.CONFID}"
+            f" Defect: {src.header.get('DEFECT', '?')}"
+            f" Blend: {src.header.get('BLEND', '?')}"
+            f" Revisit: {src.header.get('REVISIT', '?')}"
+        )
+
+        if src.header.get('DEFECT') != 0:
+            bcol = 'magenta'
+        if src.header.get('BLEND') != 0:
+            bcol = 'orange'
+        if src.header.get('REVISIT') != 0:
+            bcol = 'yellow'
+
+        add_text(0.02, 0.7, text,
+                 bbox={'facecolor': bcol, 'alpha': 0.3, 'pad': 2})
     else:
         logger.debug('No MUSE Z info')
-        ax.text(0.02, 0.7, 'No MUSE z', fontsize=textfont, ha='left')
+        add_text(0.02, 0.7, 'No MUSE z')
 
     if hasattr(src, 'z') and (src.z is not None):
-        t = ['{} {:.3f} '.format(ztype, z)
+        t = [f'{ztype} {z:.3f} '
              for ztype, z in zip(src.z['Z_DESC'], src.z['Z'])
              if ztype != 'MUSE']
-        text = 'Published redshifts: '
-        for a in t:
-            text += a
-        ax.text(0.02, 0.5, text, fontsize=textfont, ha='left')
+        add_text(0.02, 0.5, 'Published redshifts: ' + ''.join(t))
     else:
         logger.debug('No Published z')
-        ax.text(0.02, 0.5, 'Published redshifts: None', fontsize=textfont,
-                ha='left')
+        add_text(0.02, 0.5, 'Published redshifts: None')
 
-    if hasattr(src, 'mag') and src.mag is not None:
+    srcmag = getattr(src, 'mag')
+    if srcmag is not None:
         maxlen = 7
         t = []
-        for mag, err, band in zip(src.mag['MAG'], src.mag['MAG_ERR'],
-                                  src.mag['BAND']):
-            if (band[0:3] != 'HST') or (mag is np.ma.masked):
+        for mag, err, band in zip(srcmag['MAG'], srcmag['MAG_ERR'],
+                                  srcmag['BAND']):
+            if band[0:3] != 'HST' or mag is np.ma.masked:
                 continue
-            if err < 0:
-                t.append('{}>{:.1f} '.format(band[5:], mag))
-            else:
-                t.append('{}:{:.1f} '.format(band[5:], mag))
-        if len(t) > 0:
-            text = 'HST Mag '
-            for a in t[:min(len(t), maxlen)]:
-                text += a
-            ax.text(0.02, 0.3, text, fontsize=textfont, ha='left')
-        else:
-            ax.text(0.02, 0.3, 'HST Mag: None', fontsize=textfont, ha='left')
-        maxlen = 7
+            t.append('{}{}{:.1f} '
+                     .format(band[5:], '>' if err < 0 else ':', mag))
+
+        add_text(0.02, 0.3, 'HST Mag: ' + ''.join(t[:maxlen]))
+
         t = ['{}:{:.1f} '.format(band[6:], mag)
-             for mag, band in zip(src.mag['MAG'], src.mag['BAND'])
+             for mag, band in zip(srcmag['MAG'], srcmag['BAND'])
              if band[0:4] == 'MUSE']
-        if len(t) > 0:
-            text = 'MUSE Mag '
-            for a in t[:min(len(t), maxlen)]:
-                text += a
-            ax.text(0.02, 0.1, text, fontsize=textfont, ha='left')
-        else:
-            ax.text(0.02, 0.1, 'MUSE Mag: None', fontsize=textfont, ha='left')
+        add_text(0.02, 0.1, 'MUSE Mag: ' + ''.join(t[:maxlen]))
+
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
     ax.axis('off')
@@ -242,10 +227,10 @@ def show_field(ax, src, white):
 @_check_source_input('image')
 def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
                showcenter=True, cmap='gray_r', fwhm=0):
-    logger = logging.getLogger(__name__)
     ima = src.images[key]
     title = key
     if fwhm > 0:
+        logger = logging.getLogger(__name__)
         logger.debug('Displaying Image %s after gaussian filter of %s '
                      'arcsec FWHM', key, fwhm)
         ima = ima.fftconvolve_gauss(fwhm=fwhm)
@@ -348,7 +333,6 @@ def show_3dhst(ax, src):
 @_check_source_input('image', key='ORIG_MXMAP')
 def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
                 showscale=True):
-    logger = logging.getLogger(__name__)
     show_image(ax, src, 'ORIG_MXMAP', zscale=zscale)
     if showscale:
         show_scale(ax, src.images['ORIG_MXMAP'].wcs)
@@ -360,6 +344,7 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
             ax.text(cen[1] + 2, cen[0] + 2, str(src.ORIG_ID), ha='center',
                     color='cyan', fontsize=8)
     if showcat:
+        logger = logging.getLogger(__name__)
         if 'HST_CAT' not in src.tables:
             logger.debug('No HST_CAT catalog found in source')
             return
@@ -373,7 +358,7 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
             rafids = [int(iden) for iden in src.RAF_ID.split(',')]
             if len(rafids) > 0:
                 cat['COLOR'][np.in1d(cat['ID'], rafids)] = 'r'
-        logger.debug('{} HST sources to display from catalog'.format(len(cat)))
+        logger.debug('%d HST sources to display from catalog', len(cat))
         show_catalog(ax, src, 'ORIG_MXMAP', cat, symb=0.2, showid=showid)
 
 
@@ -390,15 +375,12 @@ def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
             return
         cat = src.tables['HST_CAT']
         cat.name = 'Rafelski Catalog'
-        if zscale:
-            cat['COLOR'] = 'w'
-        else:
-            cat['COLOR'] = 'b'
+        cat['COLOR'] = 'w' if zscale else 'b'
         if hasattr(src, 'RAF_ID'):
             rafids = [int(iden) for iden in src.RAF_ID.split(',')]
             if len(rafids) > 0:
                 cat['COLOR'][np.in1d(cat['ID'], rafids)] = 'r'
-        logger.debug('{} HST sources to display from catalog'.format(len(cat)))
+        logger.debug('%d HST sources to display from catalog', len(cat))
         show_catalog(ax, src, key, cat, symb=0.2, showid=showid)
     if showmask:
         if 'HST_CAT' not in src.tables:

@@ -1,7 +1,9 @@
 import logging
 import numpy as np
 import os
+import re
 import sys
+import textwrap
 from astropy.io import fits
 from astropy.table import Table
 from mpdaf.obj import Image
@@ -215,12 +217,31 @@ catalogs       : {', '.join(self.catalogs.keys())}
         for row in resultset:
             src = SourceX.from_data(row[idname], row[raname], row[decname],
                                     origin)
-            src.SRC_V = srcvers
+            src.SRC_V = (srcvers, 'Source Version')
             info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
             src.CATALOG = os.path.basename(parent_cat.name)
 
             src.add_attr('REFSPEC', row.get('refspec', refspec),
                          desc='Name of reference spectra')
+
+            if row.get('Confid') is not None:
+                src.CONFID = (row.get('Confid'), 'Z Confidence Flag')
+            if row.get('Blend') is not None:
+                src.BLEND = (row.get('Blend'), 'Blending flag')
+            if row.get('Defect') is not None:
+                src.DEFECT = (row.get('Defect'), 'Defect flag')
+            if row.get('Revisit') is not None:
+                src.REVISIT = (row.get('Revisit'),
+                               'Reconciliation Revisit Flag')
+            if row.get('Z') is not None:
+                src.add_z('MUSE', row.get('Z'))
+            if row.get('Type') is not None:
+                src.TYPE = (row.get('Type'), 'Object classification')
+            if row.get('Comment') is not None:
+                com = re.sub('[^\s!-~]', '', row.get('Comment'))
+                # truncate comment if too long
+                for txt in textwrap.wrap(com, 50):
+                    src.add_comment(txt, '')
 
             if 'history' in content:
                 for o in cat.get_log(src.ID):
