@@ -1,5 +1,6 @@
 import dataset
-# import logging
+import logging
+import os
 import yaml
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
@@ -18,7 +19,12 @@ def load_yaml_config(filename):
 
 def load_db(filename, **kwargs):
     """Open a sqlite database with dataset."""
-    # kwargs.setdefault('echo', True)
+
+    debug = os.getenv('SQLDEBUG')
+    if debug is not None:
+        logging.getLogger(__name__).info('Activate debug mode')
+        kwargs.setdefault('engine_kwargs', {})
+        kwargs['engine_kwargs']['echo'] = True
     # if not verbose:
     #     dataset.persistence.database.log.addHandler(logging.NullHandler())
     db = dataset.connect('sqlite:///{}'.format(filename), **kwargs)
