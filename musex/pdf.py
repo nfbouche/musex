@@ -127,6 +127,8 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False,
             sp2name = 'MUSE_PSF_SKYSUB'
         elif 'MUSE_TOT_SKYSUB' in src.spectra:
             sp2name = 'MUSE_TOT_SKYSUB'
+
+    logger.debug('Displaying Spectra %s %s', src.REFSPEC, sp2name)
     gs = GridSpec(2, 1, left=0.05, right=0.98, top=0.45, bottom=0.25,
                   hspace=0.03)
     ax['FULLSPEC1'] = plt.subplot(gs[0, 0])

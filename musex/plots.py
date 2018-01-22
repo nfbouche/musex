@@ -442,7 +442,6 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                   wfilter=5, fontsize=7, showvar=True, varlim=None,
                   legend=True, showlines=True, expectedlines=True):
     logger = logging.getLogger(__name__)
-    logger.debug('Displaying Spectra %s %s', sp1name, sp2name)
     if sp2name is not None and sp2name not in src.spectra:
         report_error(src.ID, 'Spectra {} not found in source'.format(sp2name))
         return
@@ -505,11 +504,12 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
                 z = src.get_zmuse()
                 olines = get_emlines(z=z, vac=False, lbrange=[4750, 9350])
                 if len(olines) > 0:
-                    for l in olines:
-                        # skip the abs line if already in the emission line list
-                        if l['id'] in lines['LINE']:
+                    for line in olines:
+                        # skip the abs line if already in the emission line
+                        # list
+                        if line['id'] in lines['LINE']:
                             continue
-                        lines.add_row([l['id'], l['c'], 'k', fontsize])
+                        lines.add_row([line['id'], line['c'], 'k', fontsize])
         logger.debug('%d lines displayed on the full spectrum', len(lines))
         lines.sort('LBDA_OBS')
         plot_line_ids(sp1.wave.coord(), sp1._data, lines['LBDA_OBS'],
@@ -537,10 +537,8 @@ def show_fullspec(ax, src, sp1name, sp2name=None, ymin=-20, ymax=None,
 @_check_source_input('spectrum')
 def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
                   wfilter=5, fontsize=7, showvar=False):
-    logger = logging.getLogger(__name__)
-    logger.debug('Displaying Spectra {} {}'.format(sp1name, sp2name))
     if sp2name is not None and sp2name not in src.spectra:
-        report_error(src.ID, 'Cannot read spectra {} in source'.format(sp2name))
+        report_error(src.ID, f'Cannot read spectra {sp2name} in source')
         return
     # plot (filtered) refspectra in blue
     sp = src.spectra[sp1name]
@@ -563,17 +561,20 @@ def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
     sp_mean, sp_med, sp_std = sigma_clipped_stats(sp1._data, sigma=2.0)
     y1 = np.round(max(sp_mean - nsig * sp_std, ymin), 0)
     y2 = np.round(max(sp_mean + nsig * sp_std, ymin + dymin), 0)
-    logger.debug('Clipped stat: mean %.1f med %.1f std %.1f Y range: %.1f %.1f',
+
+    logger = logging.getLogger(__name__)
+    logger.debug('contspec mean=%.1f med=%.1f std=%.1f yaxis=(%.1f,%.1f)',
                  sp_mean, sp_med, sp_std, y1, y2)
+
     if showvar:
         ax2 = ax.twinx()
         err = np.sqrt(sp._var)
         ax2.plot(sp.wave.coord(), err, alpha=0.2, color='m')
         ax2.invert_yaxis()
         ax2.axis('off')
-    ax.set_xlim(4750, 9350)
-    ax.set_ylim(y1, y2)
 
+    # ax.set_xlim(4750, 9350)
+    ax.set_ylim(y1, y2)
     yminloc = AutoMinorLocator(5)
     ax.xaxis.set_minor_locator(yminloc)
 
@@ -585,10 +586,10 @@ def show_contspec(ax, src, sp1name, sp2name=None, ymin=-20, dymin=30, nsig=5,
 
 @_check_source_input('image')
 def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
-    logger = logging.getLogger(__name__)
     show_image(ax, src, nb, cmap='coolwarm', scale=scale, zscale=zscale,
                fwhm=fwhm)
     if showcat:
+        logger = logging.getLogger(__name__)
         if 'HST_CAT' not in src.tables:
             logger.debug('No HST_CAT catalog found in source')
             return
@@ -619,12 +620,13 @@ def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
             flux = flux[0]
             snr = snr[0]
         text = 'F: {:.1f} SNR: {:.1f}'.format(flux, snr)
-        ax.text(0.5, -0.09, text, ha='center', transform=ax.transAxes, fontsize=8)
+        ax.text(0.5, -0.09, text, ha='center', transform=ax.transAxes,
+                fontsize=8)
 
 
 def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
-                  fband=0, waverange=None, zero=True, showlines=True, name=None,
-                  showvar=True, varlim=None, ymin=None, ymax=None):
+                  fband=0, waverange=None, zero=True, showlines=True,
+                  name=None, showvar=True, varlim=None, ymin=None, ymax=None):
     if name is not None:
         if name not in src.lines['LINE']:
             report_error(src.ID, '%s not found in src.lines'.format(name))
@@ -634,12 +636,13 @@ def show_zoomspec(ax, src, sp1name, sp2name=None, l0=None, width=50, margin=0,
         l1, l2 = waverange
     else:
         if l0 is None:
-            report_error(src.ID, 'show_zoomspec with waverange=None and l0=None')
+            report_error(src.ID,
+                         'show_zoomspec with waverange=None and l0=None')
             return
         l1 = l0 - width / 2 - margin - fband - 10
         l2 = l0 + width / 2 + margin + fband + 10
     if sp1name not in src.spectra:
-        report_error(src.ID, 'Cannot find spectrum {} in source'.format(sp1name))
+        report_error(src.ID, f'Cannot find spectrum {sp1name} in source')
         return
     sp0 = src.spectra[sp1name]
     sp = sp0.subspec(lmin=l1, lmax=l2)
@@ -793,9 +796,9 @@ def color_text_boxes(ax, labels, colors, color_arrow=True):
     boxes = ax.findobj(mpl.text.Annotation)
     box_labels = lineid_plot.unique_labels(labels)
     for box in boxes:
-        l = box.get_label()
+        label = box.get_label()
         try:
-            loc = box_labels.index(l)
+            loc = box_labels.index(label)
         except ValueError:
             continue  # No changes for this box
         box.set_color(colors[loc])
@@ -811,9 +814,9 @@ def color_lines(ax, labels, colors):
     lines = ax.findobj(mpl.lines.Line2D)
     line_labels = [i + "_line" for i in lineid_plot.unique_labels(labels)]
     for line in lines:
-        l = line.get_label()
+        label = line.get_label()
         try:
-            loc = line_labels.index(l)
+            loc = line_labels.index(label)
         except ValueError:
             continue  # No changes for this line
         line.set_color(colors[loc])
