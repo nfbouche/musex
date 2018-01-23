@@ -101,6 +101,11 @@ class ResultSet(Sequence):
             val = [fill_value if v is None else v for v in val]
             tbl[col.name] = ma.array(val, mask=mask, dtype=dtype,
                                      fill_value=fill_value)
+
+        tbl.meta['name'] = self.catalog.name
+        tbl.meta['idname'] = self.catalog.idname
+        tbl.meta['raname'] = self.catalog.raname
+        tbl.meta['decname'] = self.catalog.decname
         return tbl
 
 
@@ -385,9 +390,15 @@ class BaseCatalog:
         scat.add_column(Column(name='DIST', data=dist))
         # FIXME: is it the same ?
         # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-        name = conf.get('name', 'CAT')
-        self.logger.debug('Adding catalog %s (%d rows)', name, len(scat))
-        src.add_table(scat, f'{conf["prefix"]}_{name}')
+        catname = f"{conf['prefix']}_{conf.get('name', 'CAT')}"
+        self.logger.debug('Adding catalog %s (%d rows)', catname, len(scat))
+        src.add_table(scat, catname)
+        src.REFCAT = catname
+        cat = src.tables[catname]
+        cat.meta['name'] = self.name
+        cat.meta['idname'] = self.idname
+        cat.meta['raname'] = self.raname
+        cat.meta['decname'] = self.decname
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""
@@ -569,8 +580,9 @@ class Catalog(BaseCatalog):
 
     def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
-        src.add_image(segm.img, f'{conf["prefix"]}_SEGMAP', rotate=True,
-                      order=0)
+        tag = f'{conf["prefix"]}_SEGMAP'
+        src.SEGMAP = tag
+        src.add_image(segm.img, tag, rotate=True, order=0)
 
     def merge_sources(self, idlist, dataset=None):
         """Merge sources into one.

@@ -259,7 +259,7 @@ def show_mask(ax, src, key, col='r', levels=[0], alpha=0.4, surface=False):
 
 
 def show_white(ax, src, cat=None, showmask=False, showid=True, showz=False,
-               idcol='id', zcol='z', showscale=True, cuts=(None, None),
+               idcol=None, zcol='z', showscale=True, cuts=(None, None),
                zscale=False, scale='arcsinh', showcenter=True, cmap='gray_r',
                fwhm=0):
     show_image(ax, src, 'MUSE_WHITE', cuts=cuts, zscale=zscale, scale=scale,
@@ -283,6 +283,9 @@ def show_white(ax, src, cat=None, showmask=False, showid=True, showz=False,
             cat['COLOR'][cat['CONFID'] == 1] = 'blue'
             cat['COLOR'][cat['CONFID'] == 2] = 'cyan'
             cat['COLOR'][cat['CONFID'] == 3] = 'lime'
+
+        if idcol is None:
+            idcol = cat.meta.get('idname', 'id')
         ksrc = (cat[idcol] == src.ID)
         cat['COLOR'][ksrc] = 'r'
         if showz and 'hasz' in cat.colnames:
@@ -344,52 +347,49 @@ def show_maxmap(ax, src, zscale=False, showcat=True, showid=False,
             ax.text(cen[1] + 2, cen[0] + 2, str(src.ORIG_ID), ha='center',
                     color='cyan', fontsize=8)
     if showcat:
-        logger = logging.getLogger(__name__)
-        if 'HST_CAT' not in src.tables:
-            logger.debug('No HST_CAT catalog found in source')
+        cat = src.refcat
+        if cat is None:
             return
-        cat = src.tables['HST_CAT']
-        cat.name = 'Rafelski Catalog'
-        if zscale:
-            cat['COLOR'] = 'w'
-        else:
-            cat['COLOR'] = 'b'
+        # cat.name = 'Rafelski Catalog'
+        cat['COLOR'] = 'w' if zscale else 'b'
         if hasattr(src, 'RAF_ID'):
             rafids = [int(iden) for iden in src.RAF_ID.split(',')]
             if len(rafids) > 0:
-                cat['COLOR'][np.in1d(cat['ID'], rafids)] = 'r'
-        logger.debug('%d HST sources to display from catalog', len(cat))
+                idcol = cat.meta.get('idname', 'ID')
+                cat['COLOR'][np.in1d(cat[idcol], rafids)] = 'r'
+
+        # logger = logging.getLogger(__name__)
+        # logger.debug('%d sources to display from catalog', len(cat))
         show_catalog(ax, src, 'ORIG_MXMAP', cat, symb=0.2, showid=showid)
 
 
 @_check_source_input('image')
 def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
                 showid=True, showmask=False, showscale=True):
-    logger = logging.getLogger(__name__)
     show_image(ax, src, key, zscale=zscale)
     if showscale:
         show_scale(ax, src.images[key].wcs)
+
+    cat = src.refcat
+    if cat is None:
+        return
+    # cat.name = 'Rafelski Catalog'
+    idcol = cat.meta.get('idname', 'ID')
+
     if showcat:
-        if 'HST_CAT' not in src.tables:
-            logger.debug('No HST_CAT catalog found in source')
-            return
-        cat = src.tables['HST_CAT']
-        cat.name = 'Rafelski Catalog'
         cat['COLOR'] = 'w' if zscale else 'b'
         if hasattr(src, 'RAF_ID'):
             rafids = [int(iden) for iden in src.RAF_ID.split(',')]
             if len(rafids) > 0:
-                cat['COLOR'][np.in1d(cat['ID'], rafids)] = 'r'
-        logger.debug('%d HST sources to display from catalog', len(cat))
+                cat['COLOR'][np.in1d(cat[idcol], rafids)] = 'r'
+        # logger = logging.getLogger(__name__)
+        # logger.debug('%d sources to display from catalog', len(cat))
         show_catalog(ax, src, key, cat, symb=0.2, showid=showid)
+
     if showmask:
-        if 'HST_CAT' not in src.tables:
-            logger.debug('No HST_CAT catalog found in source')
-            return
-        cat = src.tables['HST_CAT']
         cycol = cycle('bgrcmy')
-        for iden in cat['ID']:
-            show_mask(ax, src, 'HST_SEGMAP', levels=[iden - 0.1, iden + 0.1],
+        for iden in cat[idcol]:
+            show_mask(ax, src, src.SEGMAP, levels=[iden - 0.1, iden + 0.1],
                       col=next(cycol), alpha=0.5, surface=True)
 
 
@@ -403,8 +403,15 @@ def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
 
 
 @_check_source_input('image')
-def show_catalog(ax, src, key, cat, showid=True, iden='ID', ra='RA', dec='DEC',
+def show_catalog(ax, src, key, cat, showid=True, iden=None, ra=None, dec=None,
                  col='COLOR', symb=0.5, fontsize=8, alpha=0.5, legend=True):
+    if iden is None:
+        iden = cat.meta.get('idname', 'ID')
+    if ra is None:
+        ra = cat.meta.get('raname', 'RA')
+    if dec is None:
+        dec = cat.meta.get('decname', 'DEC')
+
     wcs = src.images[key].wcs
     arr = np.vstack([cat[dec].data, cat[ra].data]).T
     arr = wcs.sky2pix(arr, unit=u.deg)
@@ -589,19 +596,20 @@ def show_nb(ax, src, nb, zscale=False, scale='linear', fwhm=0.6, showcat=True):
     show_image(ax, src, nb, cmap='coolwarm', scale=scale, zscale=zscale,
                fwhm=fwhm)
     if showcat:
-        logger = logging.getLogger(__name__)
-        if 'HST_CAT' not in src.tables:
-            logger.debug('No HST_CAT catalog found in source')
+        cat = src.refcat
+        if cat is None:
             return
-        cat = src.tables['HST_CAT']
-        cat.name = 'Rafelski Catalog'
+        # cat.name = 'Rafelski Catalog'
         cat['COLOR'] = 'w'
         if hasattr(src, 'RAF_ID'):
             rafids = [int(iden) for iden in src.RAF_ID.split(',')]
             if len(rafids) > 0:
                 cat['COLOR'][np.in1d(cat['ID'], rafids)] = 'k'
-        logger.debug('{} HST sources to display from catalog'.format(len(cat)))
+
+        # logger = logging.getLogger(__name__)
+        # logger.debug('%d sources to display from catalog', len(cat))
         show_catalog(ax, src, nb, cat, symb=0.2, showid=False, legend=False)
+
     lines = src.nb_to_lines([nb])
     snr = []
     flux = []

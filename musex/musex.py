@@ -319,8 +319,15 @@ catalogs       : {', '.join(self.catalogs.keys())}
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
         """
+        if isinstance(res_or_cat, ResultSet):
+            cat = res_or_cat.as_table()
+        elif isinstance(res_or_cat, Catalog):
+            cat = res_or_cat.select().as_table()
+        else:
+            raise ValueError('invalid input for res_or_cat')
+
         if outdir is None:
-            cname = _get_cat_name(res_or_cat)
+            cname = cat.catalog.name
             outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
         os.makedirs(outdir, exist_ok=True)
 
@@ -339,7 +346,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             info('fits written to %s', fname)
             if create_pdf:
                 fname = f'{outdir}/{outn}.pdf'
-                src.to_pdf(fname, white, ima2=ima2)
+                src.to_pdf(fname, white, ima2=ima2, mastercat=cat)
                 info('pdf written to %s', fname)
 
     def export_marz(self, res_or_cat, outfile=None, **kwargs):

@@ -50,18 +50,17 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False,
         white = Image(white)
 
     if mastercat is not None:
-        try:
+        if isinstance(mastercat, str):
             cat = Catalog.read(mastercat)
-            # cat = cat[cat[args['colactive']]]  # filter out non-active src
-            # cat.name = os.path.basename(mastercat)
-            # cat.rename_column(args['colid'], 'id')
-            # cat.rename_column(args['coltype'], 'type')
-            # cat.rename_column(args['colhasz'], 'hasz')
-            # cat.rename_column(args['colz'], 'z')
-            # cat.rename_column(args['colconfid'], 'confid')
-        except Exception:
-            logger.error('Source %s Cannot read catalog %s', src.ID, mastercat)
-            return
+        else:
+            cat = Catalog(mastercat)
+        # cat = cat[cat[args['colactive']]]  # filter out non-active src
+        # cat.name = os.path.basename(mastercat)
+        # cat.rename_column(args['colid'], 'id')
+        # cat.rename_column(args['coltype'], 'type')
+        # cat.rename_column(args['colhasz'], 'hasz')
+        # cat.rename_column(args['colz'], 'z')
+        # cat.rename_column(args['colconfid'], 'confid')
     else:
         cat = None
 

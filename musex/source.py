@@ -25,6 +25,13 @@ class SourceX(Source):
             self.extract_spectra(cube, skysub=True, psf=fwhm, beta=beta,
                                  apertures=None, **kw)
 
+    @property
+    def refcat(self):
+        try:
+            return self.tables[self.REFCAT]
+        except KeyError:
+            self._logger.debug('Ref catalog "%s" not found', self.REFCAT)
+
     def to_pdf(self, filename, white, **kwargs):
         create_pdf(self, white, filename, **kwargs)
 
