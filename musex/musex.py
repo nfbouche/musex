@@ -10,7 +10,7 @@ from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
-                      MarzCatalog)
+                      MarzCatalog, IdMapping)
 from .settings import load_db, load_yaml_config
 from .source import SourceX
 from .utils import extract_subimage
@@ -151,6 +151,9 @@ catalogs       : {', '.join(self.catalogs.keys())}
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
         cat.insert(resultset)
+
+    def new_id_mapping(self, name):
+        self.idmap = IdMapping(name, self.db)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',

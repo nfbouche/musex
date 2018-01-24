@@ -24,7 +24,7 @@ from .utils import struct_from_moffat_fwhm, isiter, progressbar
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('load_input_catalogs', 'table_to_odict', 'ResultSet', 'Catalog',
-           'InputCatalog', 'MarzCatalog')
+           'InputCatalog', 'MarzCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
@@ -214,7 +214,8 @@ class BaseCatalog:
         self.table.drop()
         self.db['catalogs'].delete(name=self.name)
 
-    def insert(self, rows, version=None, show_progress=True, keys=None):
+    def insert(self, rows, version=None, show_progress=True, keys=None,
+               allow_upsert=True):
         """Insert rows in the catalog.
 
         Parameters
@@ -234,10 +235,9 @@ class BaseCatalog:
         """
         count = defaultdict(int)
         if keys is None:
-            if version is None:
-                keys = [self.idname]
-            else:
-                keys = [self.idname, 'version']
+            keys = [self.idname]
+            if version is not None:
+                keys.append('version')
 
         if isinstance(rows, Table):
             rows = table_to_odict(rows)
@@ -246,11 +246,12 @@ class BaseCatalog:
 
         with self.db as tx:
             tbl = tx[self.name]
+            func = tbl.upsert if allow_upsert else tbl.insert
             for row in rows:
                 if version is not None:
                     row.setdefault('version', version)
 
-                res = tbl.upsert(row, keys)
+                res = func(row, keys)
                 op = 'updated' if res is True else 'inserted'
                 count[op] += 1
                 self.log(row[self.idname], f'{op} from input catalog')
@@ -605,6 +606,9 @@ class Catalog(BaseCatalog):
         cat_maxid = self.meta['maxid']
 
         sources = self.select_ids(idlist)
+        if len(sources) == 0:
+            raise ValueError('no sources found')
+
         coords = np.array([(s[self.decname], s[self.raname]) for s in sources])
         # TODO: use better weights (flux)
         weights = np.ones(coords.shape[0])
@@ -735,3 +739,30 @@ class MarzCatalog(InputCatalog):
     """Handles catalogs imported from MarZ."""
 
     catalog_type = 'marz'
+
+
+class IdMapping(BaseCatalog):
+    """Handles Id mapping."""
+
+    catalog_type = 'id'
+
+    def insert(self, rows, cat, allow_upsert=True):
+        """Insert a new id which references another id from `cat`."""
+        if isinstance(cat, BaseCatalog):
+            catname = cat.name
+        elif isinstance(cat, str):
+            catname = cat
+        else:
+            raise ValueError('cat must be a Catalog instance or name')
+
+        if len(rows) == 2:
+            if np.isscalar(rows[0]) and np.isscalar(rows[1]):
+                rows = [rows]
+            else:
+                raise ValueError('rows must be a tuple of ids or a list '
+                                 'of tuple')
+
+        keys = (self.idname, f'{catname}_id')
+        rows = [dict(zip(keys, (int(x) for x in row))) for row in rows]
+        super().insert(rows, show_progress=False, keys=[self.idname],
+                       allow_upsert=allow_upsert)
