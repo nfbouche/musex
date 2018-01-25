@@ -2,6 +2,7 @@ workdir: '/muse/UDF/private/analysis/musex/work'
 db: '{workdir}/../musex.db'
 show_banner: true
 author: 'John Doe'
+idmapping: null
 
 hst_data_dir: '/muse/UDF/private/HST'
 muse_data_dir: '/muse/UDF/public/dataproducts'

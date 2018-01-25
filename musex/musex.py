@@ -6,11 +6,12 @@ import sys
 import textwrap
 from astropy.io import fits
 from astropy.table import Table
+from contextlib import contextmanager
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
-                      MarzCatalog, IdMapping)
+                      MarzCatalog, IdMapping, get_cat_name)
 from .settings import load_db, load_yaml_config
 from .source import SourceX
 from .utils import extract_subimage
@@ -26,23 +27,27 @@ LOGO = r"""
 """
 
 
-def _get_cat_name(res_or_cat):
-    if isinstance(res_or_cat, Catalog):
-        return res_or_cat.name
-    elif isinstance(res_or_cat, ResultSet):
-        return res_or_cat.catalog.name
-    else:
-        raise ValueError('invalid input for res_or_cat')
-
-
 class MuseX:
-    """
-    TODO:
-    - mean to choose catalog
+    """The main MuseX class.
+
+    This class is the central part of MuseX, it gives access to all the
+    catalogs and datasets, and provides some high-level operations.
+
+    Parameters
+    ----------
+    settings_file: str
+        Path of the settings file. If None, it defaults to
+        ``~/.musex/settings.yaml`` if possible, otherwise to the
+        ``udf/settings.yaml`` file which comes with MuseX.
+    muse_dataset: str
+        Name of the Muse dataset to work on.
+    id_mapping: str
+        Name of a IdMapping catalog to use.
 
     """
 
-    def __init__(self, settings_file=None, muse_dataset=None, **kwargs):
+    def __init__(self, settings_file=None, muse_dataset=None, id_mapping=None,
+                 **kwargs):
         if settings_file is None:
             settings_file = os.path.expanduser('~/.musex/settings.yaml')
             if not os.path.exists(settings_file):
@@ -54,10 +59,16 @@ class MuseX:
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
         self.workdir = self.conf['workdir']
-        self.db = load_db(self.conf['db'])
+        self.db = db = load_db(self.conf['db'])
+
+        # Creating the IdMapping object if required
+        self.id_mapping = None
+        id_mapping = id_mapping or self.conf.get('idmapping')
+        if id_mapping:
+            self.create_id_mapping(id_mapping)
 
         # Table to store history of operations
-        self.history = self.db.create_table('history', primary_id='_id')
+        self.history = db.create_table('history', primary_id='_id')
 
         # Load datasets
         self.datasets = load_datasets(self.conf)
@@ -67,19 +78,19 @@ class MuseX:
                                         settings=settings[muse_dataset])
 
         # Load catalogs
-        catalogs_table = self.db.create_table('catalogs')
-        catalogs_table.create_column('maxid', self.db.types.integer)
-        self.input_catalogs = load_input_catalogs(self.conf, self.db)
+        catalogs_table = db.create_table('catalogs')
+        catalogs_table.create_column('maxid', db.types.integer)
+        self.input_catalogs = load_input_catalogs(self.conf, db)
         self.catalogs = {}
         for row in catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
-                name, self.db, workdir=self.workdir, idname=row['idname'],
+                name, db, workdir=self.workdir, idname=row['idname'],
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
 
         # Marz
-        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id')
+        self.marzcat = MarzCatalog('marz', db, primary_id='_id')
         # FIXME: handle properly version / revision
         self.marzcat.version = '1'
 
@@ -151,9 +162,16 @@ catalogs       : {', '.join(self.catalogs.keys())}
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
         cat.insert(resultset)
+        return cat
 
-    def new_id_mapping(self, name):
-        self.idmap = IdMapping(name, self.db)
+    def create_id_mapping(self, name):
+        self.id_mapping = IdMapping(name, self.db)
+
+    @contextmanager
+    def use_id_mapping(self, cat):
+        cat.idmap = self.id_mapping
+        yield
+        cat.idmap = None
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
@@ -365,7 +383,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         """
         if outfile is None:
-            cname = _get_cat_name(res_or_cat)
+            cname = get_cat_name(res_or_cat)
             outfile = (f'{self.workdir}/export/'
                        f'marz-{cname}-{self.muse_dataset.name}.fits')
         wave = []

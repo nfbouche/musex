@@ -49,13 +49,24 @@ def table_to_odict(table):
             for row in zip(*[c.tolist() for c in table.columns.values()])]
 
 
+def get_cat_name(res_or_cat):
+    if isinstance(res_or_cat, str):
+        return res_or_cat
+    elif isinstance(res_or_cat, BaseCatalog):
+        return res_or_cat.name
+    elif isinstance(res_or_cat, ResultSet):
+        return res_or_cat.catalog.name
+    else:
+        raise ValueError('cat must be a Catalog instance or name')
+
+
 def _get_psf_convolution_params(convolve_fwhm, segmap, psf_threshold):
     if convolve_fwhm:
         # compute a structuring element for the dilatation, to simulate
         # a convolution with a psf, but faster.
         dilateit = 1
-        logging.getLogger(__name__).debug(
-            'dilate with %d iterations, psf=%.2f', dilateit, convolve_fwhm)
+        # logging.getLogger(__name__).debug(
+        #     'dilate with %d iterations, psf=%.2f', dilateit, convolve_fwhm)
         struct = struct_from_moffat_fwhm(segmap.img.wcs, convolve_fwhm,
                                          psf_threshold=psf_threshold)
     else:
@@ -139,6 +150,7 @@ class BaseCatalog:
         self.idname = idname
         self.raname = raname
         self.decname = decname
+        self.idmap = None
         self.logger = logging.getLogger(__name__)
         self._history = self.db.create_table('history', primary_id='_id')
 
@@ -233,7 +245,7 @@ class BaseCatalog:
             ``[idname, 'version']``.
 
         """
-        count = defaultdict(int)
+        count = defaultdict(list)
         if keys is None:
             keys = [self.idname]
             if version is not None:
@@ -253,13 +265,16 @@ class BaseCatalog:
 
                 res = func(row, keys)
                 op = 'updated' if res is True else 'inserted'
-                count[op] += 1
+                count[op].append(res)
                 self.log(row[self.idname], f'{op} from input catalog')
+
+        if self.idmap:
+            self.idmap.add_ids(count['inserted'])
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
-        self.logger.info('%d rows inserted, %s updated', count['inserted'],
-                         count['updated'])
+        self.logger.info('%d rows inserted, %s updated',
+                         len(count['inserted']), len(count['updated']))
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                **params):
@@ -478,7 +493,7 @@ class Catalog(BaseCatalog):
         if np.isscalar(values):
             values = [values] * len(self)
         if name not in self.table.columns:
-            self.logger.info('creating column %s', name)
+            self.logger.info("creating column '%s.%s'", self.name, name)
             self.table.create_column_by_example(name, values[0])
         with self.db as tx:
             tbl = tx[self.name]
@@ -526,11 +541,10 @@ class Catalog(BaseCatalog):
                                                        psf_threshold)
 
         # create sky mask
-        debug = self.logger.debug
         if exists(self.masksky_name) and skip_existing:
-            debug('sky mask exists, skipping')
+            self.logger.debug('sky mask exists, skipping')
         else:
-            debug('creating sky mask')
+            self.logger.debug('creating sky mask')
             segmap.get_mask(0, inverse=True, dilate=dilateit, struct=struct,
                             regrid_to=white, outname=self.masksky_name)
 
@@ -543,31 +557,35 @@ class Catalog(BaseCatalog):
         idname = self.idname
         ntot = len(tab)
         tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
-        self.logger.info('%d/%d sources inside dataset', len(tab), ntot)
+        self.logger.info('%d sources inside dataset (%d in catalog)',
+                         len(tab), ntot)
 
         # extract source masks
         minsize = min(*mask_size) // 2
         to_compute = []
+        stats = defaultdict(list)
         for row in tab:
             id_ = int(row[idname])  # need int, not np.int64
             source_path = self.maskobj_name.format(id_)
             if exists(source_path) and skip_existing:
-                debug('source %05d exists, skipping', id_)
+                stats['skipped'].append(id_)
             else:
                 center = (row[self.decname], row[self.raname])
                 if 'merged' in row.colnames and row['merged']:
                     ids = [o[idname] for o in self.select(
                         self.c.merged_in == id_, columns=[idname])]
-                    debug('merged sources, using ids %s for the mask', ids)
+                    # debug('merged sources, using ids %s for the mask', ids)
                 else:
                     ids = id_
 
+                stats['computed'].append(ids)
                 to_compute.append(delayed(segmap.get_source_mask)(
                     ids, center, mask_size, minsize=minsize, struct=struct,
                     dilate=dilateit, outname=source_path, regrid_to=white))
 
         # FIXME: check which value to use for max_nbytes
-        Parallel(n_jobs=n_jobs, verbose=verbose)(progressbar(to_compute))
+        if to_compute:
+            Parallel(n_jobs=n_jobs, verbose=verbose)(progressbar(to_compute))
 
         for row in tab:
             # update in db
@@ -578,6 +596,9 @@ class Catalog(BaseCatalog):
                  'mask_obj': relpath(source_path, self.workdir),
                  'mask_sky': relpath(self.masksky_name, self.workdir)},
                 [idname])
+
+        for key, val in stats.items():
+            self.logger.info('%s %d sources: %r', key, len(val), val)
 
     def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
@@ -640,17 +661,20 @@ class Catalog(BaseCatalog):
                 tbl.upsert({idname: s[idname], 'active': False,
                             'merged_in': newid}, [idname])
 
+        if self.idmap:
+            self.idmap.add_ids(newid)
+
         self.logger.info('sources %s have been merged in %s', idlist, newid)
 
         if dataset is None:
             # Just return in this case
             self.logger.debug('cannot compute mask (missing dataset)')
-            return
+            return newid
 
         if dataset.name != self.meta['dataset']:
             self.logger.warning('cannot compute masks with a different '
                                 'dataset as the one used previously')
-            return
+            return newid
 
         try:
             # maskobj
@@ -679,6 +703,8 @@ class Catalog(BaseCatalog):
             self.table.upsert({self.idname: newid, 'mask_sky': masksky,
                                'mask_obj': relpath(maskobj, self.workdir)},
                               [self.idname])
+
+        return newid
 
 
 class InputCatalog(BaseCatalog):
@@ -747,22 +773,20 @@ class IdMapping(BaseCatalog):
     catalog_type = 'id'
 
     def insert(self, rows, cat, allow_upsert=True):
-        """Insert a new id which references another id from `cat`."""
-        if isinstance(cat, BaseCatalog):
-            catname = cat.name
-        elif isinstance(cat, str):
-            catname = cat
-        else:
-            raise ValueError('cat must be a Catalog instance or name')
-
-        if len(rows) == 2:
-            if np.isscalar(rows[0]) and np.isscalar(rows[1]):
-                rows = [rows]
-            else:
-                raise ValueError('rows must be a tuple of ids or a list '
-                                 'of tuple')
+        """Insert new ids which references other ids from `cat`."""
+        catname = get_cat_name(cat)
+        rows = np.atleast_2d(rows)
+        if rows.shape[1] != 2:
+            raise ValueError('rows must be a tuple of ids or a list of tuple')
 
         keys = (self.idname, f'{catname}_id')
         rows = [dict(zip(keys, (int(x) for x in row))) for row in rows]
         super().insert(rows, show_progress=False, keys=[self.idname],
                        allow_upsert=allow_upsert)
+
+    def add_ids(self, idlist, cat):
+        """Insert new ids which references other ids from `cat`."""
+        idlist = np.atleast_1d(idlist)
+        key = '{}_id'.format(get_cat_name(cat))
+        rows = [{key: int(id_)} for id_ in idlist]
+        super().insert(rows, show_progress=False, allow_upsert=False)
