@@ -7,7 +7,7 @@ import yaml
 
 from mpdaf.obj import Image, moffat_image
 from sqlalchemy.engine import Engine
-from sqlalchemy import event
+from sqlalchemy import event, pool
 
 
 def load_yaml_config(filename):
@@ -21,14 +21,18 @@ def load_yaml_config(filename):
 def load_db(filename, **kwargs):
     """Open a sqlite database with dataset."""
 
+    kwargs.setdefault('engine_kwargs', {})
+
+    # Use a NullPool by default, which is sqlalchemy's default but dataset
+    # uses instead a StaticPool.
+    kwargs['engine_kwargs'].setdefault('poolclass', pool.NullPool)
+
     debug = os.getenv('SQLDEBUG')
     if debug is not None:
         logging.getLogger(__name__).info('Activate debug mode')
-        kwargs.setdefault('engine_kwargs', {})
         kwargs['engine_kwargs']['echo'] = True
-    # if not verbose:
-    #     dataset.persistence.database.log.addHandler(logging.NullHandler())
-    db = dataset.connect('sqlite:///{}'.format(filename), **kwargs)
+
+    db = dataset.connect(f'sqlite:///{filename}', **kwargs)
 
     @event.listens_for(Engine, 'connect')
     def set_sqlite_pragma(dbapi_connection, connection_record):
