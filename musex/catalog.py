@@ -598,7 +598,8 @@ class Catalog(BaseCatalog):
                 [idname])
 
         for key, val in stats.items():
-            self.logger.info('%s %d sources: %r', key, len(val), val)
+            self.logger.info('%s %d sources: %r', key, len(val),
+                             np.array(val, dtype=object))
 
     def add_segmap_to_source(self, src, conf, dataset):
         segm = self.get_segmap_aligned(dataset)
