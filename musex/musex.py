@@ -12,9 +12,8 @@ from mpdaf.obj import Image
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name)
-from .settings import load_db, load_yaml_config
 from .source import SourceX
-from .utils import extract_subimage
+from .utils import extract_subimage, load_db, load_yaml_config
 from .version import __version__, __description__
 
 LOGO = r"""
