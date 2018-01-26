@@ -334,8 +334,8 @@ def test_export_sources(mx):
         'MUSE_WHITE', 'MUSE_EXPMAP', 'TEST_FAKE', 'PHU_SEGMAP', 'MASK_SKY',
         'MASK_OBJ']
     assert list(src.spectra.keys()) == [
-        'MUSE_TOT', 'MUSE_WHITE', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
-        'MUSE_WHITE_SKYSUB', 'MUSE_PSF', 'MUSE_PSF_SKYSUB']
+        'MUSE_TOT', 'MUSE_WHITE', 'MUSE_PSF', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
+        'MUSE_WHITE_SKYSUB', 'MUSE_PSF_SKYSUB']
 
     ref_header = """\
 ID      =                    8 / object ID u.unitless %d

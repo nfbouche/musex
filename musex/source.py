@@ -1,3 +1,4 @@
+from mpdaf.MUSE.PSF import create_psf_cube
 from mpdaf.sdetect import Source
 
 from .pdf import create_pdf
@@ -14,16 +15,18 @@ class SourceX(Source):
     def extract_all_spectra(self, cube=None, apertures=None):
         self._logger.debug('Extract spectra for apertures %s', apertures)
         cube = cube or self.cubes['MUSE_CUBE']
-        kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY', unit_wave=None)
-        self.extract_spectra(cube, skysub=False, apertures=apertures, **kw)
-        self.extract_spectra(cube, skysub=True, apertures=apertures, **kw)
+        kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY',
+                  apertures=apertures, unit_wave=None)
+
         if 'FSFMODE' in self.header:
             a, b, beta, field = self.get_FSF()
-            fwhm = b * cube.wave.coord() + a
-            self.extract_spectra(cube, skysub=False, psf=fwhm, beta=beta,
-                                 apertures=None, **kw)
-            self.extract_spectra(cube, skysub=True, psf=fwhm, beta=beta,
-                                 apertures=None, **kw)
+            kw['beta'] = beta
+            psf = b * cube.wave.coord() + a
+            kw['psf'] = create_psf_cube(cube.shape, psf, beta=beta,
+                                        wcs=cube.wcs)
+
+        self.extract_spectra(cube, skysub=False, **kw)
+        self.extract_spectra(cube, skysub=True, **kw)
 
     @property
     def refcat(self):
