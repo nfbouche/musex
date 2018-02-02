@@ -5,7 +5,7 @@ import re
 import sys
 import textwrap
 from astropy.io import fits
-from astropy.table import Table
+from astropy.table import Table, Row
 from contextlib import contextmanager
 from mpdaf.obj import Image
 
@@ -179,7 +179,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         Parameters
         ----------
-        res_or_cat: `ResultSet` or `Catalog`
+        res_or_cat: `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
         size: float
             Size of the images (in arcseconds) added in the sources.
@@ -197,7 +197,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
             else:
                 resultset = res_or_cat.select()
-        elif isinstance(res_or_cat, ResultSet):
+        elif isinstance(res_or_cat, (ResultSet, Table)):
             # TODO: filter active sources
             resultset = res_or_cat
         else:
@@ -235,6 +235,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
             self.logger.warning('refspec column not found, using %s', refspec)
 
         for row in resultset:
+            if isinstance(row, Row):
+                # convert Astropy Row to dict
+                row = dict(zip(row.colnames, row.as_void().tolist()))
+
             src = SourceX.from_data(row[idname], row[raname], row[decname],
                                     origin)
             src.SRC_V = (srcvers, 'Source Version')
@@ -328,7 +332,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
 
         Parameters
         ----------
-        res_or_cat: `ResultSet` or `Catalog`
+        res_or_cat: `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
         create_pdf: bool
             If True, create a pdf for each source.
@@ -343,6 +347,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
             cat = res_or_cat.as_table()
         elif isinstance(res_or_cat, Catalog):
             cat = res_or_cat.select().as_table()
+        elif isinstance(res_or_cat, Table):
+            cat = res_or_cat
         else:
             raise ValueError('invalid input for res_or_cat')
 

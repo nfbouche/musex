@@ -157,7 +157,7 @@ def show_info(ax, src, textfont=9):
         bcol = 'green'
         text = f"MUSE Class Type: {SPECTRA_TYPES.get(src.TYPE, 'Unknown')}"
 
-        if 'MUSE' in src.z['Z_DESC']:
+        if src.z and 'MUSE' in src.z['Z_DESC']:
             zmuse = src.z[src.z['Z_DESC'] == 'MUSE']['Z'][0]
             text += ' Redshift {:.3f}'.format(zmuse)
         else:
