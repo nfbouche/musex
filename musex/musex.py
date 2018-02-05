@@ -16,6 +16,8 @@ from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config
 from .version import __version__, __description__
 
+__all__ = ['MuseX']
+
 LOGO = r"""
   __  __               __  __
   |  \/  |_   _ ___  ___\ \/ /

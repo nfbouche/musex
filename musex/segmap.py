@@ -6,6 +6,8 @@ from scipy import ndimage as ndi
 
 from .utils import regrid_to_image, isiter
 
+__all__ = ['SegMap']
+
 
 class SegMap:
     """

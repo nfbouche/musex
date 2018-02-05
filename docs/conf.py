@@ -17,8 +17,10 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig'
+    'sphinx.ext.ifconfig',
     'numpydoc',
+    'sphinx_automodapi.automodapi',
+    'sphinx_automodapi.smart_resolver'
 ]
 
 intersphinx_mapping = {

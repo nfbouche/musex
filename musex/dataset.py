@@ -4,6 +4,8 @@ from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 from os.path import basename
 
+__all__ = ['DataSet', 'MuseDataSet', 'load_datasets']
+
 
 def load_datasets(settings):
     datasets = {}

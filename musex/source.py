@@ -3,6 +3,8 @@ from mpdaf.sdetect import Source
 
 from .pdf import create_pdf
 
+__all__ = ['SourceX']
+
 
 class SourceX(Source):
 

@@ -8,7 +8,7 @@
 .DS_Store
 .tox/
 _githash.py
-api/
 build/
-doc/_build
+docs/api
+docs/_build
 htmlcov/

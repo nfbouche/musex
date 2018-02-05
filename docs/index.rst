@@ -6,15 +6,25 @@
 Welcome to MuseX's documentation!
 =================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+MuseX is a Python package which allows to manage catalogs of sources, with all
+the steps required to extract spectra from MUSE datacubes:
+
+- Use input catalogs from priors (e.g. HST) or detection softwares.
+- Create extraction masks from segmentation maps.
+- Extract spectra.
+- Export to MarZ and import Marz results.
+- TODO: Export to Platefit and import Platefit results.
+- Export MPDAF sources with all the gathered information.
 
 
+.. .. toctree::
+..    :maxdepth: 2
+..    :caption: Contents:
 
-Indices and tables
-==================
+..    tutorial
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+
+.. .. automodsumm:: musex
+
+.. automodapi:: musex
+   :no-inheritance-diagram:
