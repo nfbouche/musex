@@ -16,15 +16,17 @@ the steps required to extract spectra from MUSE datacubes:
 - TODO: Export to Platefit and import Platefit results.
 - Export MPDAF sources with all the gathered information.
 
+Contents
+--------
 
-.. .. toctree::
-..    :maxdepth: 2
-..    :caption: Contents:
+.. toctree::
+   :maxdepth: 2
 
-..    tutorial
+   MuseX-Photutils
 
 
-.. .. automodsumm:: musex
+API
+---
 
 .. automodapi:: musex
    :no-inheritance-diagram:

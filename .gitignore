@@ -6,6 +6,7 @@
 .cache/
 .coverage
 .DS_Store
+.ipynb_checkpoints/
 .tox/
 _githash.py
 build/

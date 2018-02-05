@@ -462,6 +462,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             fits.BinTableHDU(name='DETAILS', data=t)
         ])
         self.logger.info('Writing %s', outfile)
+        os.makedirs(os.path.dirname(outfile), exist_ok=True)
         hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
 
     def import_marz(self, catfile, catalog, **kwargs):
