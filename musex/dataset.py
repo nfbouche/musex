@@ -4,10 +4,11 @@ from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 from os.path import basename
 
-__all__ = ['DataSet', 'MuseDataSet', 'load_datasets']
+__all__ = ['DataSet', 'MuseDataSet']
 
 
 def load_datasets(settings):
+    """Load all datasets defined in the settings."""
     datasets = {}
     for name, conf in settings['datasets'].items():
         datasets[name] = DataSet(name, settings=conf)
@@ -15,6 +16,7 @@ def load_datasets(settings):
 
 
 class DataSet:
+    """Manage a dataset defined in the settings file."""
 
     def __init__(self, name, settings):
         self.name = name
@@ -26,6 +28,7 @@ class DataSet:
 
     @lazyproperty
     def images(self):
+        """Return a dictionary with the images."""
         # with warnings.catch_warnings():
         #     warnings.simplefilter('ignore', AstropyWarning)
         # TODO ? strip header
@@ -33,6 +36,7 @@ class DataSet:
                 for k, v in self.settings['images'].items()}
 
     def add_to_source(self, src, size):
+        """Add stamp images to a source."""
         for name, img in self.images.items():
             name = name.upper()
             tagname = getattr(img, 'name', name)
@@ -42,13 +46,21 @@ class DataSet:
 
 
 class MuseDataSet(DataSet):
+    """Subclass from `DataSet` for MUSE datasets.
+
+    In addition to images, it can also manage a datacube, white-light image,
+    and exposure map image.
+
+    """
 
     @lazyproperty
     def cube(self):
+        """The datacube."""
         return Cube(self.settings['datacube'], copy=False)
 
     @lazyproperty
     def white(self):
+        """The white-light image."""
         return Image(self.settings['white'], copy=False)
 
     # @lazyproperty
@@ -57,9 +69,11 @@ class MuseDataSet(DataSet):
 
     @lazyproperty
     def expima(self):
+        """The exposure map image."""
         return Image(self.settings['expima'], copy=False)
 
     def add_to_source(self, src, size):
+        """Add subcube and images to a source."""
         # set PA: FIXME - useful ?
         # src.set_pa(self.cube)
 

@@ -23,13 +23,14 @@ from .utils import struct_from_moffat_fwhm, isiter, progressbar
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ('load_input_catalogs', 'table_to_odict', 'ResultSet', 'Catalog',
+__all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
            'InputCatalog', 'MarzCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
 
 def load_input_catalogs(settings, db):
+    """Load input catalogs defined in the settings."""
     catalogs = {}
     for name, conf in settings['catalogs'].items():
         if 'class' in conf:
@@ -43,13 +44,14 @@ def load_input_catalogs(settings, db):
 
 
 def table_to_odict(table):
-    """Convert a `astropy.table.Table` to a list of OrderedDict."""
+    """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
     colnames = table.colnames
     return [OrderedDict(zip(colnames, row))
             for row in zip(*[c.tolist() for c in table.columns.values()])]
 
 
 def get_cat_name(res_or_cat):
+    """Helper function to get the catalog name from different objects."""
     if isinstance(res_or_cat, str):
         return res_or_cat
     elif isinstance(res_or_cat, BaseCatalog):
@@ -100,6 +102,12 @@ class ResultSet(Sequence):
         return self.results[index]
 
     def as_table(self, mpdaf_catalog=True):
+        """Return a table with the query results.
+
+        By default, it returns a `mpdaf.sdetect.Catalog` object (if
+        ``mpdaf_catalog`` is True), otherwise a `astropy.table.Table` object.
+
+        """
         cls = _Catalog if mpdaf_catalog else Table
         tbl = cls(masked=True)
         tbl.whereclause = self.whereclause
@@ -127,7 +135,7 @@ class BaseCatalog:
     ----------
     name: str
         Name of the catalog.
-    db: dataset.Database
+    db: `dataset.Database`
         The database object.
     idname: str
         Name of the 'id' column.
@@ -137,6 +145,8 @@ class BaseCatalog:
         Name of the 'dec' column.
     segmap: str
         Path to the segmentation map file associated with the catalog.
+    primary_id: str
+        The primary id for the SQL table, must be a column name.
 
     """
 
@@ -183,6 +193,7 @@ class BaseCatalog:
         return self._history.find(catalog=self.name, id=id_)
 
     def max(self, colname):
+        """Return the maximum value of a column."""
         return self.db.executable.execute(
             sql.func.max(self.c[colname])).scalar()
 
@@ -223,6 +234,7 @@ class BaseCatalog:
         print(f"Columns:\n{columns}\n")
 
     def drop(self):
+        """Drop the SQL table and its metadata."""
         self.table.drop()
         self.db['catalogs'].delete(name=self.name)
 
@@ -452,6 +464,7 @@ class Catalog(BaseCatalog):
 
     @classmethod
     def from_parent_cat(cls, parent_cat, name, workdir, whereclause):
+        """Create a new `Catalog` from another one."""
         cat = cls(name, parent_cat.db, workdir=workdir,
                   idname=parent_cat.idname, raname=parent_cat.raname,
                   decname=parent_cat.decname, segmap=parent_cat.segmap)
@@ -478,6 +491,7 @@ class Catalog(BaseCatalog):
 
     @lazyproperty
     def maskobj_name(self):
+        """Return the path of the source mask files."""
         name = 'mask-source-{:05d}.fits'  # add setting ?
         dataset = self.meta['dataset']
         assert dataset is not None
@@ -485,11 +499,13 @@ class Catalog(BaseCatalog):
 
     @lazyproperty
     def masksky_name(self):
+        """Return the path of the sky mask file."""
         dataset = self.meta['dataset']
         assert dataset is not None
         return str(self.workdir / dataset / 'mask-sky.fits')
 
     def update_column(self, name, values):
+        """Update (or create) a column ``name`` with the given values."""
         if np.isscalar(values):
             values = [values] * len(self)
         if name not in self.table.columns:
@@ -602,6 +618,7 @@ class Catalog(BaseCatalog):
                              np.array(val, dtype=object))
 
     def add_segmap_to_source(self, src, conf, dataset):
+        """Add the segmap extension to the source object."""
         segm = self.get_segmap_aligned(dataset)
         tag = f'{conf["prefix"]}_SEGMAP'
         src.SEGMAP = tag

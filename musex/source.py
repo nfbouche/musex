@@ -7,6 +7,9 @@ __all__ = ['SourceX']
 
 
 class SourceX(Source):
+    """A Source class inherited from `mpdaf.sdetect.Source`, and customized
+    with a few additional methods.
+    """
 
     def get_zmuse(self):
         """Return the MUSE redshift if available."""
