@@ -377,7 +377,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 src.to_pdf(fname, white, ima2=ima2, mastercat=cat)
                 info('pdf written to %s', fname)
 
-    def export_marz(self, res_or_cat, outfile=None, **kwargs):
+    def export_marz(self, res_or_cat, outfile=None, export_sources=False,
+                    srcdir=None, srcname='marz-{src.ID:05d}', **kwargs):
         """Export a catalog or selection for MarZ.
 
         Parameters
@@ -387,22 +388,38 @@ catalogs       : {', '.join(self.catalogs.keys())}
         outfile: str
             Output file. If None the default is
             `'{workdir}/export/marz-{cat.name}-{muse_dataset.name}.fits'`.
+        export_sources: bool
+            If True, the source files are also exported.
+        srcdir: str
+            Output directory. If None the default is
+            `'{self.workdir}/export/{cname}/{self.muse_dataset.name}'`.
+        srcdir: str
+            Output directory. If None the default is `'source-{src.ID:05d}'`.
 
         """
+
+        cname = get_cat_name(res_or_cat)
+
         if outfile is None:
-            cname = get_cat_name(res_or_cat)
             outfile = (f'{self.workdir}/export/'
                        f'marz-{cname}-{self.muse_dataset.name}.fits')
-        wave = []
-        data = []
-        stat = []
-        sky = []
-        meta = []
+        os.makedirs(os.path.dirname(outfile), exist_ok=True)
 
-        # TODO: this should be optimized to extract only the needed data
-        # instead of a complete source
-        for s in self.to_sources(res_or_cat, datasets=[], content=tuple(),
-                                 **kwargs):
+        if export_sources:
+            if srcdir is None:
+                srcdir = (f'{self.workdir}/export/{cname}/' +
+                          self.muse_dataset.name)
+            os.makedirs(srcdir, exist_ok=True)
+
+        wave, data, stat, sky, meta = [], [], [], [], []
+
+        # If sources must be exported, we need to tell .to_sources what to put
+        # inside the sources (all datasets and the segmap)
+        datasets = None if export_sources else []
+        content = ('segmap', ) if export_sources else tuple()
+
+        for s in self.to_sources(res_or_cat, datasets=datasets,
+                                 content=content, **kwargs):
             # TODO: how to choose which spectrum to use ?
             # if args.selmode == 'udf':
             #     smag = s.mag[s.mag['BAND'] == 'F775W']
@@ -445,24 +462,24 @@ catalogs       : {', '.join(self.catalogs.keys())}
                         s.header.get('CONFID', 0),
                         s.header.get('TYPE', 0), mag1, mag2, s.REFSPEC))
 
-        wave = np.vstack(wave)
-        data = np.vstack(data)
-        stat = np.vstack(stat)
-        sky = np.vstack(sky)
+            if export_sources:
+                outn = srcname.format(src=s)
+                fname = f'{srcdir}/{outn}.fits'
+                s.write(fname)
+                self.logger.info('fits written to %s', fname)
 
         t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
                                     'F775W', 'F125W', 'REFSPEC'],
                   meta={'CUBE_V': s.CUBE_V, 'SRC_V': s.SRC_V})
         hdulist = fits.HDUList([
             fits.PrimaryHDU(),
-            fits.ImageHDU(name='WAVE', data=wave),
-            fits.ImageHDU(name='DATA', data=data),
-            fits.ImageHDU(name='STAT', data=stat),
-            fits.ImageHDU(name='SKY', data=sky),
+            fits.ImageHDU(name='WAVE', data=np.vstack(wave)),
+            fits.ImageHDU(name='DATA', data=np.vstack(data)),
+            fits.ImageHDU(name='STAT', data=np.vstack(stat)),
+            fits.ImageHDU(name='SKY', data=np.vstack(sky)),
             fits.BinTableHDU(name='DETAILS', data=t)
         ])
         self.logger.info('Writing %s', outfile)
-        os.makedirs(os.path.dirname(outfile), exist_ok=True)
         hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
 
     def import_marz(self, catfile, catalog, **kwargs):
