@@ -312,7 +312,7 @@ def test_export_sources(mx):
     mycat.merge_sources([9, 10])
     mycat.merge_sources([11, 12, 13])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         mask_size=(10, 10))
+                         convolve_fwhm=0.5, mask_size=(10, 10))
 
     outdir = f'{mycat.workdir}/export'
     os.makedirs(outdir, exist_ok=True)
@@ -359,11 +359,13 @@ FSFMODE = 'MOFFAT1 '
 FSF00BET=                  2.8
 FSF00FWA=                  0.8
 FSF00FWB=               -3E-05
-FSFMSK  =                    0 / Mask Conv Gauss FWHM in arcsec
-NSKYMSK =                  467 / Size of MASK_SKY in spaxels
-FSKYMSK =                74.72 / Relative Size of MASK_SKY in %
-NOBJMSK =                   25 / Size of MASK_OBJ in spaxels
-FOBJMSK =                  4.0 / Relative Size of MASK_OBJ in %
+SEGMAP  = 'PHU_SEGMAP'
+REFCAT  = 'PHU_CAT '
+FSFMSK  =                  0.5 / Mask Conv Gauss FWHM in arcsec
+NSKYMSK =                  434 / Size of MASK_SKY in spaxels
+FSKYMSK =                69.44 / Relative Size of MASK_SKY in %
+NOBJMSK =                   43 / Size of MASK_OBJ in spaxels
+FOBJMSK =                 6.88 / Relative Size of MASK_OBJ in %
 AUTHOR  = 'MPDAF   '           / Origin of the file
 FORMAT  = '0.5     '           / Version of the Source format
 """
