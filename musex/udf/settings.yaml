@@ -1,15 +1,22 @@
+# Paths for the working directory and database
 workdir: '/muse/UDF/private/analysis/musex/work'
 db: '{workdir}/../musex.db'
+
+# Parameters for the MuseX object
 show_banner: true
 author: 'John Doe'
-idmapping: null
+idmapping: muse_udf10
 
+# Top-level keys are substituted in the file so they can be used to avoid
+# repeating things like long file paths.
 hst_data_dir: '/muse/UDF/private/HST'
 muse_data_dir: '/muse/UDF/public/dataproducts'
 
+# Define datasets, each image will be added to the sources as an extension
+# with a name "[prefix]_[key]"
 datasets:
   hst:
-    # HST data (images)
+    # HST
     version: '1.0'
     prefix: HST
     # filters: '/muse/UDF/private/HST/Filters'
@@ -27,6 +34,8 @@ datasets:
       F125W: '{hst_data_dir}/XUDF/hlsp_xdf_hst_wfc3ir-60mas_hudf_f125w_v1_sci.fits'
       F160W: '{hst_data_dir}/XUDF/hlsp_xdf_hst_wfc3ir-60mas_hudf_f160w_v1_sci.fits'
 
+# Define MUSE datasets. One MuseX object can handle only one MUSE dataset,
+# chosen either with the default key or when instanciating the object.
 muse_datasets:
   default: muse-udf-10
 
@@ -47,39 +56,29 @@ muse_datasets:
     white: '{muse_data_dir}/1.0b1/IMAGE_UDF-MOSAIC.fits'
     fieldmap: '{muse_data_dir}/1.0b1/FIELDMAP_UDF-MOSAIC.fits'
 
+# Input catalogs. For each catalog, define the column name for the id, ra and
+# dec. The extract block is used when putting a subset of the catalog as
+# a source extension (named "[prefix]_CAT").
 catalogs:
+
   rafelski:
-    # class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{hst_data_dir}/Catalogs/uvudf_rafelski_2015.fits'
     idname: ID
     raname: RA
     decname: DEC
     segmap: '{hst_data_dir}/SegMap/segmentation_map_rafelski_2015.fits'
-    # masks:
-    #   # path, name and size (arcseconds) of the extracted masks
-    #   outname: 'mask-source-{{:05d}}.fits'
-    #   convolve_fsf: 0.6
-    #   size: [20, 20]
     extract:
       prefix: HST
       columns: [ID, RA, DEC, MAG_F775W]
-      select_in: HST_F775W
-      margin: 10
+
   photutils:
-    # class: musex.catalog.PriorCatalog
     version: '1.0'
     catalog: '{workdir}/../photutils-catalog.fits'
     idname: id
     raname: ra
     decname: dec
     segmap: '{workdir}/../photutils-segmap.fits'
-    # masks:
-    #   # path, name and size (arcseconds) of the extracted masks
-    #   outname: 'mask-source-{{:05d}}.fits'
-    #   size: [20, 20]
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
-      select_in: HST_F775W
-      margin: 10

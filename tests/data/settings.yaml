@@ -33,8 +33,6 @@ catalogs:
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
-      select_in: TEST_FAKE
-      margin: 0
 
 export:
   pdf:

@@ -411,9 +411,8 @@ class BaseCatalog:
         """
         # Add catalog as a BinTableHDU
         cat = self.select(columns=conf['columns']).as_table()
-        wcs = src.images[conf.get('select_in', 'WHITE')].wcs
-        scat = cat.select(wcs, ra=self.raname, dec=self.decname,
-                          margin=conf['margin'])
+        wcs = src.images['WHITE'].wcs
+        scat = cat.select(wcs, ra=self.raname, dec=self.decname, margin=0)
         dist = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
         scat.add_column(Column(name='DIST', data=dist))
         # FIXME: is it the same ?
