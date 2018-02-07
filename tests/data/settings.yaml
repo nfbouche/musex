@@ -36,5 +36,18 @@ catalogs:
       select_in: TEST_FAKE
 
 export:
+  redshifts:
+    # Define redshift columns.
+    MUSE: AutoZ
+    MUSE: FinZ
+  header_columns:
+    # Maps keader keywords to column names
+    CONFID: Qop
+    BLEND: Blend
+    DEFECT: Defect
+    REVISIT: Revisit
+    TYPE: Type
+    REFSPEC: refspec
+    COMMENT: Comment
   pdf:
     image: TEST_FAKE

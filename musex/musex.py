@@ -27,6 +27,15 @@ LOGO = r"""
 
 """
 
+HEADER_COMMENTS = dict(
+    CONFID='Z Confidence Flag',
+    BLEND='Blending flag',
+    DEFECT='Defect flag',
+    REVISIT='Reconciliation Revisit Flag',
+    TYPE='Object classification',
+    REFSPEC='Name of reference spectra',
+)
+
 
 class MuseX:
     """The main MuseX class.
@@ -59,6 +68,7 @@ class MuseX:
         self.logger.debug('Loading settings %s', settings_file)
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
+        self.conf.setdefault('export', {})
         self.workdir = self.conf['workdir']
         self.db = db = load_db(self.conf['db'])
 
@@ -213,6 +223,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
         assert cat.meta['dataset'] == self.muse_dataset.name
 
         # debug = self.logger.debug
+        debug = self.logger.debug
         info = self.logger.info
         info('Exporting %s sources with %s dataset, size=%.1f',
              len(resultset), self.muse_dataset.name, size)
@@ -233,8 +244,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
-        if 'refspec' not in resultset[0]:
-            self.logger.warning('refspec column not found, using %s', refspec)
+        header_columns = self.conf['export'].get('header_columns', {})
+        redshifts = self.conf['export'].get('redshifts', {})
 
         for row in resultset:
             if isinstance(row, Row):
@@ -249,27 +260,28 @@ catalogs       : {', '.join(self.catalogs.keys())}
             src.default_size = size
             src.SIZE = size
 
-            src.add_attr('REFSPEC', row.get('refspec', refspec),
-                         desc='Name of reference spectra')
+            # Add keywords from columns
+            for key, colname in header_columns.items():
+                if row.get(colname) is not None:
+                    if key == 'COMMENT':
+                        # truncate comment if too long
+                        com = re.sub('[^\s!-~]', '', row[colname])
+                        for txt in textwrap.wrap(com, 50):
+                            src.add_comment(txt, '')
+                    else:
+                        comment = HEADER_COMMENTS.get(key)
+                        src.header[key] = (row[colname], comment)
 
-            if row.get('Confid') is not None:
-                src.CONFID = (row.get('Confid'), 'Z Confidence Flag')
-            if row.get('Blend') is not None:
-                src.BLEND = (row.get('Blend'), 'Blending flag')
-            if row.get('Defect') is not None:
-                src.DEFECT = (row.get('Defect'), 'Defect flag')
-            if row.get('Revisit') is not None:
-                src.REVISIT = (row.get('Revisit'),
-                               'Reconciliation Revisit Flag')
-            if row.get('Z') is not None:
-                src.add_z('MUSE', row.get('Z'))
-            if row.get('Type') is not None:
-                src.TYPE = (row.get('Type'), 'Object classification')
-            if row.get('Comment') is not None:
-                com = re.sub('[^\s!-~]', '', row.get('Comment'))
-                # truncate comment if too long
-                for txt in textwrap.wrap(com, 50):
-                    src.add_comment(txt, '')
+            if src.header.get('REFSPEC') is None:
+                self.logger.warning(
+                    'REFSPEC column not found, using %s instead', refspec)
+                src.add_attr('REFSPEC', refspec,
+                             desc=HEADER_COMMENTS['REFSPEC'])
+
+            # Add reshifts
+            for key, colname in redshifts.items():
+                if row.get(colname) is not None:
+                    src.add_z(key, row[colname])
 
             if 'history' in content:
                 for o in cat.get_log(src.ID):
@@ -285,7 +297,7 @@ catalogs       : {', '.join(self.catalogs.keys())}
             if 'parentcat' in content:
                 parent_cat.add_to_source(src, row, **parent_cat.extract)
 
-            info('IMAGES: %s', ', '.join(src.images.keys()))
+            debug('IMAGES: %s', ', '.join(src.images.keys()))
 
             center = (src.DEC, src.RA)
             # If mask_sky is always the same, reuse it instead of reloading
@@ -322,10 +334,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
             # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
             # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
             # return nobj, nfracobj, nsky, nfracobj
-            info('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+            debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
 
             src.extract_all_spectra(apertures=apertures)
-            info('SPECTRA: %s', ', '.join(src.spectra.keys()))
+            debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
             yield src
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
@@ -361,13 +373,10 @@ catalogs       : {', '.join(self.catalogs.keys())}
             outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
         os.makedirs(outdir, exist_ok=True)
 
-        try:
-            conf = self.conf['export']['pdf']
-        except KeyError:
-            conf = {}
+        pdfconf = self.conf['export'].get('pdf', {})
         white = self.muse_dataset.white
         info = self.logger.info
-        ima2 = conf.get('image', 'HST_F775W')
+        ima2 = pdfconf.get('image')
 
         for src in self.to_sources(res_or_cat, **kwargs):
             outn = outname.format(src=src)

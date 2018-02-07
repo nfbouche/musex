@@ -104,3 +104,20 @@ catalogs:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
       select_in: HST_F775W
+
+export:
+  redshifts:
+    # Define redshift columns.
+    MUSE: AutoZ
+    MUSE: FinZ
+  header_columns:
+    # Maps keader keywords to column names
+    CONFID: Qop
+    BLEND: Blend
+    DEFECT: Defect
+    REVISIT: Revisit
+    TYPE: Type
+    REFSPEC: refspec
+    COMMENT: Comment
+  pdf:
+    image: HST_F775W
