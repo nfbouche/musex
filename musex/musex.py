@@ -246,6 +246,8 @@ catalogs       : {', '.join(self.catalogs.keys())}
             src.SRC_V = (srcvers, 'Source Version')
             info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
             src.CATALOG = os.path.basename(parent_cat.name)
+            src.default_size = size
+            src.SIZE = size
 
             src.add_attr('REFSPEC', row.get('refspec', refspec),
                          desc='Name of reference spectra')
@@ -275,13 +277,13 @@ catalogs       : {', '.join(self.catalogs.keys())}
                 src.add_history('source created', author=author)
 
             for ds in use_datasets:
-                ds.add_to_source(src, size)
+                ds.add_to_source(src)
 
             if 'segmap' in content:
                 cat.add_segmap_to_source(src, parent_cat.extract,
                                          dataset=self.muse_dataset)
             if 'parentcat' in content:
-                parent_cat.add_to_source(src, parent_cat.extract)
+                parent_cat.add_to_source(src, row, **parent_cat.extract)
 
             info('IMAGES: %s', ', '.join(src.images.keys()))
 

@@ -71,6 +71,27 @@ catalogs:
     extract:
       prefix: HST
       columns: [ID, RA, DEC, MAG_F775W]
+      select_in: HST_F775W
+      redshifts:
+        # Define redshift columns. The key is the name, and value can be just
+        # the column name, or column names for Z, ZMIN and ZMAX.
+        BPZ: [Z_BPZ, ZMIN_BPZ, ZMAX_BPZ]
+        EASY: [Z_EAZY, ZMIN_EAZY, ZMAX_EAZY]
+        SPECZ: SPECZ
+        GRISMZ: GRISMZ
+      mags:
+        # Define magnitude columns. The key is the name, and value can be just
+        # the column name, or column names for MAG and MAGERR.
+        F225W: [MAG_F225W, MAGERR_F225W]
+        F336W: [MAG_F336W, MAGERR_F336W]
+        F435W: [MAG_F435W, MAGERR_F435W]
+        F606W: [MAG_F606W, MAGERR_F606W]
+        F775W: [MAG_F775W, MAGERR_F775W]
+        F850LP: [MAG_F850LP, MAGERR_F850LP]
+        F105W: [MAG_F105W, MAGERR_F105W]
+        F125W: [MAG_F125W, MAGERR_F125W]
+        F140W: [MAG_F140W, MAGERR_F140W]
+        F160W: [MAG_F160W  MAGERR_F160W]
 
   photutils:
     version: '1.0'
@@ -82,3 +103,4 @@ catalogs:
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
+      select_in: HST_F775W

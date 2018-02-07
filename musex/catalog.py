@@ -403,21 +403,21 @@ class BaseCatalog:
         return ResultSet(res, whereclause=whereclause, catalog=self,
                          columns=query.columns)
 
-    def add_to_source(self, src, conf):
+    def add_to_source(self, src, row, **kwargs):
         """Add information to the Source object.
 
         FIXME: see how to improve conf here.
 
         """
+
         # Add catalog as a BinTableHDU
-        cat = self.select(columns=conf['columns']).as_table()
-        wcs = src.images['WHITE'].wcs
+        cat = self.select(columns=kwargs.get('columns')).as_table()
+        wcs = src.images[kwargs.get('select_in', 'WHITE')].wcs
         scat = cat.select(wcs, ra=self.raname, dec=self.decname, margin=0)
-        dist = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
-        scat.add_column(Column(name='DIST', data=dist))
+        scat['DIST'] = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
         # FIXME: is it the same ?
         # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-        catname = f"{conf['prefix']}_{conf.get('name', 'CAT')}"
+        catname = f"{kwargs['prefix']}_{kwargs.get('name', 'CAT')}"
         self.logger.debug('Adding catalog %s (%d rows)', catname, len(scat))
         src.add_table(scat, catname)
         src.REFCAT = catname
@@ -426,6 +426,32 @@ class BaseCatalog:
         cat.meta['idname'] = self.idname
         cat.meta['raname'] = self.raname
         cat.meta['decname'] = self.decname
+
+        # Add redshifts
+        for name, val in kwargs.get('redshifts', {}).items():
+            try:
+                if isinstance(val, str):
+                    z, errz = row[val], 0
+                else:
+                    z, errz = row[val[0]], (row[val[1]], row[val[2]])
+            except KeyError:
+                pass
+            else:
+                if 0 <= z < 50:
+                    src.add_z(name, z, errz=errz)
+
+        # Add magnitudes
+        for name, val in kwargs.get('mags', {}).items():
+            try:
+                if isinstance(val, str):
+                    mag, magerr = row[val], 0
+                else:
+                    mag, magerr = row[val[0]], row[val[1]]
+            except KeyError:
+                pass
+            else:
+                if 0 <= mag < 50:
+                    src.add_mag(name, mag, magerr)
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""

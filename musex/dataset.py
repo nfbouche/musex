@@ -35,7 +35,7 @@ class DataSet:
         return {k: Image(v, copy=False)
                 for k, v in self.settings['images'].items()}
 
-    def add_to_source(self, src, size):
+    def add_to_source(self, src, **kwargs):
         """Add stamp images to a source."""
         for name, img in self.images.items():
             name = name.upper()
@@ -72,15 +72,13 @@ class MuseDataSet(DataSet):
         """The exposure map image."""
         return Image(self.settings['expima'], copy=False)
 
-    def add_to_source(self, src, size):
+    def add_to_source(self, src, **kwargs):
         """Add subcube and images to a source."""
         # set PA: FIXME - useful ?
         # src.set_pa(self.cube)
 
-        src.default_size = size
-        src.SIZE = size
         src.add_cube(self.cube, f'{self.prefix}_CUBE',
-                     size=size, unit_wave=None, add_white=True)
+                     size=src.SIZE, unit_wave=None, add_white=True)
         src.CUBE = basename(self.settings['datacube'])
         src.CUBE_V = self.version
 
@@ -100,4 +98,4 @@ class MuseDataSet(DataSet):
                 # fieldmap arg not available in MPDAF 2.4
                 src.add_FSF(self.cube)
 
-        super().add_to_source(src, size)
+        super().add_to_source(src, **kwargs)
