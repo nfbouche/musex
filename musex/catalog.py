@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import os
 import textwrap
+import warnings
 from datetime import datetime
 
 import astropy.units as u
@@ -346,6 +347,10 @@ class BaseCatalog:
             idlist = [idlist]
         elif isinstance(idlist, np.ndarray):
             idlist = idlist.tolist()
+
+        if len(idlist) > 999:
+            warnings.warn('Selecting too many ids will fail with SQLite',
+                          UserWarning)
 
         whereclause = self.c[self.idname].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
