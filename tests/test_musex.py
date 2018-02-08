@@ -194,6 +194,7 @@ def test_merge_sources(mx):
     mycat.merge_sources([9, 10])
 
     assert mycat.table.find_one(id=100)['merged'] is True
+    assert mycat.get_ids_merged_in(100) == [9, 10]
 
     tbl = mycat.select(mycat.c.active.is_(False)).as_table()
     assert_array_equal(tbl['id'], [9, 10])

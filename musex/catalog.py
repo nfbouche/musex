@@ -7,7 +7,7 @@ import warnings
 from datetime import datetime
 
 import astropy.units as u
-from astropy.table import Table, Column
+from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict, defaultdict
@@ -414,7 +414,6 @@ class BaseCatalog:
         FIXME: see how to improve conf here.
 
         """
-
         # Add catalog as a BinTableHDU
         cat = self.select(columns=kwargs.get('columns')).as_table()
         wcs = src.images[kwargs.get('select_in', 'WHITE')].wcs
@@ -468,6 +467,7 @@ class BaseCatalog:
 
 
 class Catalog(BaseCatalog):
+    """Handle user catalogs."""
 
     catalog_type = 'user'
 
@@ -753,6 +753,10 @@ class Catalog(BaseCatalog):
                               [self.idname])
 
         return newid
+
+    def get_ids_merged_in(self, id_):
+        """Return the IDs that were merged in ``id_``."""
+        return [o[self.idname] for o in self.table.find(merged_in=id_)]
 
 
 class InputCatalog(BaseCatalog):
