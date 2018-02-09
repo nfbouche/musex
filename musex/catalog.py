@@ -161,7 +161,6 @@ class BaseCatalog:
         self.idname = idname
         self.raname = raname
         self.decname = decname
-        self.idmap = None
         self.logger = logging.getLogger(__name__)
         self._history = self.db.create_table('history', primary_id='_id')
 
@@ -281,8 +280,8 @@ class BaseCatalog:
                 count[op].append(res)
                 self.log(row[self.idname], f'{op} from input catalog')
 
-        if self.idmap:
-            self.idmap.add_ids(count['inserted'])
+        # if self.idmap:
+        #     self.idmap.add_ids(count['inserted'])
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
@@ -407,6 +406,19 @@ class BaseCatalog:
         res = self.db.query(query)
         return ResultSet(res, whereclause=whereclause, catalog=self,
                          columns=query.columns)
+
+    def update_column(self, name, values):
+        """Update (or create) a column ``name`` with the given values."""
+        if np.isscalar(values):
+            values = [values] * len(self)
+        if name not in self.table.columns:
+            self.logger.info("creating column '%s.%s'", self.name, name)
+            self.table.create_column_by_example(name, values[0])
+        with self.db as tx:
+            tbl = tx[self.name]
+            for i, row in enumerate(tbl.find()):
+                row[name] = values[i]
+                tbl.upsert(row, [self.idname])
 
     def add_to_source(self, src, row, **kwargs):
         """Add information to the Source object.
@@ -534,19 +546,6 @@ class Catalog(BaseCatalog):
         assert dataset is not None
         return str(self.workdir / dataset / 'mask-sky.fits')
 
-    def update_column(self, name, values):
-        """Update (or create) a column ``name`` with the given values."""
-        if np.isscalar(values):
-            values = [values] * len(self)
-        if name not in self.table.columns:
-            self.logger.info("creating column '%s.%s'", self.name, name)
-            self.table.create_column_by_example(name, values[0])
-        with self.db as tx:
-            tbl = tx[self.name]
-            for i, row in enumerate(tbl.find()):
-                row[name] = values[i]
-                tbl.upsert(row, [self.idname])
-
     def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
                        mask_size=(20, 20), psf_threshold=0.5, n_jobs=1,
                        verbose=0):
@@ -654,7 +653,7 @@ class Catalog(BaseCatalog):
         src.SEGMAP = tag
         src.add_image(segm.img, tag, rotate=True, order=0)
 
-    def merge_sources(self, idlist, dataset=None):
+    def merge_sources(self, idlist, id_=None, dataset=None):
         """Merge sources into one.
 
         A new source is created, with the "merged" column set to True. The new
@@ -664,6 +663,9 @@ class Catalog(BaseCatalog):
         ----------
         idlist: list
             List of ids to merge.
+        id_: int
+            The new ID for the merged source. If not given, it is automatically
+            determined from the maxid and autoincremented.
         dataset: `musex.Dataset`
             The associated dataset. To compute the masks this dataset must be
             given, and must be the same as the one used for `attach_dataset`.
@@ -694,13 +696,18 @@ class Catalog(BaseCatalog):
 
         row = {'merged': True, self.raname: ra, self.decname: dec,
                'version': version}
-        if maxid <= cat_maxid:
+
+        if id_ is not None:
+            row[self.idname] = id_
+        elif maxid <= cat_maxid:
             row[self.idname] = 10**(len(str(cat_maxid)))
 
         with self.db as tx:
             tbl = tx[self.name]
             # create new (merged) source
             newid = tbl.insert(row)
+            if id_ is not None:
+                assert newid == id_, 'this should never happen!'
             # deactivate the other sources
             idname = self.idname
             for s in sources:
@@ -709,14 +716,14 @@ class Catalog(BaseCatalog):
                 tbl.upsert({idname: s[idname], 'active': False,
                             'merged_in': newid}, [idname])
 
-        if self.idmap:
-            self.idmap.add_ids(newid)
+        # if self.idmap:
+        #     self.idmap.add_ids(newid)
 
         self.logger.info('sources %s have been merged in %s', idlist, newid)
 
         if dataset is None:
             # Just return in this case
-            self.logger.debug('cannot compute mask (missing dataset)')
+            # self.logger.debug('cannot compute mask (missing dataset)')
             return newid
 
         if dataset.name != self.meta['dataset']:
