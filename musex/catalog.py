@@ -171,6 +171,8 @@ class BaseCatalog:
         # Get the reference to the db table, which is created if needed
         primary_id = primary_id or self.idname
         self.table = self.db.create_table(self.name, primary_id=primary_id)
+        # Force the creation of the SQLATable
+        assert self.table.table is not None
 
         # Insert default meta about the table if it doesn't exist yet
         if self.meta is None:

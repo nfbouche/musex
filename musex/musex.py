@@ -35,6 +35,13 @@ HEADER_COMMENTS = dict(
     REFSPEC='Name of reference spectra',
 )
 
+CATALOGS_TABLE_COLS = {
+    'text': ('name', 'creation_date', 'type', 'parent_cat', 'raname',
+             'decname', 'idname', 'segmap', 'query', 'dataset'),
+    'int': ('maxid', 'mask_size_x', 'mask_size_y'),
+    'float': ('convolve_fwhm', 'psf_threshold'),
+}
+
 
 class MuseX:
     """The main MuseX class.
@@ -87,9 +94,18 @@ class MuseX:
         self.muse_dataset = MuseDataSet(muse_dataset,
                                         settings=settings[muse_dataset])
 
-        # Load catalogs
+        # Load catalogs table
         catalogs_table = db.create_table('catalogs')
-        catalogs_table.create_column('maxid', db.types.integer)
+        # Force the creation of the SQLATable
+        assert catalogs_table.table is not None
+        # and make sure that all columns exists
+        for colname in CATALOGS_TABLE_COLS['text']:
+            catalogs_table.create_column(colname, db.types.text)
+        for colname in CATALOGS_TABLE_COLS['float']:
+            catalogs_table.create_column(colname, db.types.float)
+        for colname in CATALOGS_TABLE_COLS['int']:
+            catalogs_table.create_column(colname, db.types.integer)
+
         self.input_catalogs = load_input_catalogs(self.conf, db)
         self.catalogs = {}
         for row in catalogs_table.find(type='user'):
