@@ -2,6 +2,7 @@ import importlib
 import logging
 import numpy as np
 import os
+import re
 import textwrap
 import warnings
 
@@ -164,6 +165,11 @@ class BaseCatalog:
         self.decname = decname
         self.logger = logging.getLogger(__name__)
         self._history = self.db.create_table('history', primary_id='_id')
+
+        if not re.match(r'[0-9a-zA-Z_]+$', self.name):
+            warnings.warn('catalog name should contain only ascii letters '
+                          '(a-zA-Z), digits (0-9) and underscore, otherwise '
+                          'using it in a column name will fail', UserWarning)
 
         # if self.name not in self.db:
         #     self.logger.debug('create table %s (primary key: %s)',

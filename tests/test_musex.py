@@ -4,7 +4,7 @@ import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from mpdaf.sdetect import Source
-from musex import MuseX
+from musex import MuseX, Catalog
 from numpy.testing import assert_allclose, assert_array_equal
 from sqlalchemy import desc
 
@@ -43,6 +43,13 @@ def test_ingest(mx):
 
     tbl = phot.select().as_table()
     assert tbl[phot.idname].max() == 13
+
+
+def test_catalog_name(settings_file):
+    mx = MuseX(settings_file=settings_file, show_banner=False, db=':memory:')
+    with pytest.warns(UserWarning,
+                      match='catalog name should contain only ascii letters '):
+        Catalog('dont-use-dash', mx.db, workdir=mx.workdir)
 
 
 def test_catalog(mx):
@@ -89,15 +96,15 @@ def test_catalog(mx):
 def test_user_catalog(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
     with pytest.raises(ValueError):
-        mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=False)
+        mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=False)
 
     tbl = res.as_table()
-    mx.new_catalog_from_resultset('my-cat', tbl, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', tbl, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     assert len(mycat) == 4
     assert mycat.meta['type'] == 'user'
     assert mycat.meta['query'] == 'photutils.id < 5'
@@ -105,19 +112,19 @@ def test_user_catalog(mx):
 
     # Test with a user cat created from a user cat
     res = mycat.select(mycat.c[phot.idname] > 2)
-    mx.new_catalog_from_resultset('my-cat_2', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat_2', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat_2']
+    mycat = mx.catalogs['my_cat_2']
     assert len(mycat) == 2
     assert mycat.meta['type'] == 'user'
-    assert mycat.meta['query'] == 'photutils.id < 5 AND "my-cat".id > 2'
+    assert mycat.meta['query'] == 'photutils.id < 5 AND my_cat.id > 2'
 
 
 def test_drop_user_catalog(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] < 5)
 
-    catname = 'my-cat-tmp'
+    catname = 'my_cat_tmp'
     mx.new_catalog_from_resultset(catname, res, drop_if_exists=True)
     assert catname in mx.db.tables
 
@@ -139,8 +146,8 @@ def test_update_column(mx):
     # Test addition of a new column
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
-    mycat = mx.catalogs['my-cat']
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    mycat = mx.catalogs['my_cat']
 
     assert 'foobar' not in mycat.table.columns
     mycat.update_column('foobar', 1)
@@ -156,9 +163,9 @@ def test_update_column(mx):
 def test_update_rows(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
 
     # insert rows
     for i, r in enumerate(res):
@@ -177,8 +184,8 @@ def test_update_rows(mx):
 
 
 def test_id_mapping(mx):
-    mx.create_id_mapping('mapping-name')
-    meta = mx.db['catalogs'].find_one(name='mapping-name')
+    mx.create_id_mapping('mapping_name')
+    meta = mx.db['catalogs'].find_one(name='mapping_name')
     assert meta['type'] == 'id'
     assert mx.id_mapping is not None
 
@@ -216,7 +223,7 @@ def test_id_mapping(mx):
 
 
 def test_segmap(mx):
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     segmap = mycat.get_segmap_aligned(mx.muse_dataset)
 
     assert segmap.img.shape == (90, 90)
@@ -228,9 +235,9 @@ def test_segmap(mx):
 def test_merge_sources(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select_ids([9, 10])
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10])
 
     assert mycat.table.find_one(id=100)['merged'] is True
@@ -251,9 +258,9 @@ def test_attach_dataset(mx):
     """
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] > 7)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
                          mask_size=(10, 10), n_jobs=2)
@@ -294,10 +301,10 @@ def test_export_marz(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] > 7,
                       columns=[phot.idname, phot.raname, phot.decname])
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
-    mx.new_catalog_from_resultset('my-cat2', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat2', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10])
     mycat.merge_sources([11, 12, 13])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
@@ -310,13 +317,13 @@ def test_export_marz(mx):
     os.makedirs(outdir, exist_ok=True)
     mx.export_marz(mycat, export_sources=True)
 
-    assert os.listdir(outdir) == ['marz-my-cat-hdfs.fits', 'my-cat']
+    assert os.listdir(outdir) == ['marz-my_cat-hdfs.fits', 'my_cat']
 
-    flist = os.listdir(f'{outdir}/my-cat/hdfs/')
+    flist = os.listdir(f'{outdir}/my_cat/hdfs/')
     assert sorted(flist) == ['marz-00008.fits', 'marz-00100.fits',
                              'marz-00101.fits']
 
-    with fits.open(f'{outdir}/marz-my-cat-hdfs.fits') as hdul:
+    with fits.open(f'{outdir}/marz-my_cat-hdfs.fits') as hdul:
         assert [hdu.name for hdu in hdul] == [
             'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
         for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
@@ -334,22 +341,22 @@ def test_export_marz(mx):
 
     mx.import_marz(marzfile, mycat)
     assert len(mx.marzcat) == 3
-    mx.import_marz(marzfile, 'my-cat2')
+    mx.import_marz(marzfile, 'my_cat2')
     assert len(mx.marzcat) == 6
 
     res = mx.marzcat.select_ids(8)
     assert res[0]['ID'] == 8
     assert res[0]['Type'] == 6
-    assert res[0]['catalog'] == 'my-cat'
-    assert res[1]['catalog'] == 'my-cat2'
+    assert res[0]['catalog'] == 'my_cat'
+    assert res[1]['catalog'] == 'my_cat2'
 
 
 def test_export_sources(mx):
     phot = mx.input_catalogs['photutils']
     res = phot.select(phot.c[phot.idname] > 7)
-    mx.new_catalog_from_resultset('my-cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10])
     mycat.merge_sources([11, 12, 13])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
@@ -419,7 +426,7 @@ FORMAT  = '0.5     '           / Version of the Source format
 
 
 def test_join(mx):
-    mycat = mx.catalogs['my-cat']
+    mycat = mx.catalogs['my_cat']
     photcat = mx.find_parent_cat(mycat)
     res = mycat.join([photcat, mx.marzcat],
                      whereclause=(mx.marzcat.c.catalog == mycat.name),
@@ -427,11 +434,11 @@ def test_join(mx):
     # This gives only one result because merged sources do not have
     # a corresponding id in photcat
     assert len(res) == 1
-    assert res[0]['my-cat_id'] == 8
+    assert res[0]['my_cat_id'] == 8
 
     res = mycat.join([photcat, mx.marzcat],
                      whereclause=(mx.marzcat.c.catalog == mycat.name),
                      isouter=True, debug=True)
     # Now with outer join we get all results
     assert len(res) == 3
-    assert_array_equal(res.as_table()['my-cat_id'], [8, 100, 101])
+    assert_array_equal(res.as_table()['my_cat_id'], [8, 100, 101])
