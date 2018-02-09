@@ -6,6 +6,7 @@ import sys
 import textwrap
 from astropy.io import fits
 from astropy.table import Table, Row
+from contextlib import contextmanager
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
@@ -193,6 +194,15 @@ catalogs       : {', '.join(self.catalogs.keys())}
     def create_id_mapping(self, name):
         """Create or get an IdMapping object."""
         self.id_mapping = IdMapping(name, self.db)
+
+    @contextmanager
+    def use_id_mapping(self, cat):
+        """Temporarily modifies ``cat`` to use the ``id_mapping``."""
+        if self.id_mapping is None:
+            raise ValueError('no id_mapping defined.')
+        cat.idmap = self.id_mapping
+        yield
+        cat.idmap = None
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',

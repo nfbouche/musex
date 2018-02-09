@@ -4,7 +4,6 @@ import numpy as np
 import os
 import textwrap
 import warnings
-from datetime import datetime
 
 import astropy.units as u
 from astropy.table import Table
@@ -12,6 +11,7 @@ from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
+from datetime import datetime
 from joblib import delayed, Parallel
 from mpdaf.sdetect import Catalog as _Catalog
 from numpy import ma
@@ -157,6 +157,7 @@ class BaseCatalog:
                  segmap=None, primary_id=None):
         self.name = name
         self.db = db
+        self.idmap = None
         self.segmap = segmap
         self.idname = idname
         self.raname = raname
@@ -280,10 +281,10 @@ class BaseCatalog:
                 res = func(row, keys)
                 op = 'updated' if res is True else 'inserted'
                 count[op].append(res)
-                self.log(row[self.idname], f'{op} from input catalog')
+                self.log(res, f'{op} from input catalog')
 
-        # if self.idmap:
-        #     self.idmap.add_ids(count['inserted'])
+        if self.idmap:
+            self.idmap.add_ids(count['inserted'], self.name)
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
@@ -333,6 +334,12 @@ class BaseCatalog:
 
     def select_id(self, id_):
         """Return a dict with all keys for a given ID."""
+        if self.idmap:
+            res = self.idmap.table.find_one(ID=id_)
+            if res and f'{self.name}_id' in res:
+                id_ = res[f'{self.name}_id']
+            else:
+                return None
         return self.table.find_one(**{self.idname: id_})
 
     def select_ids(self, idlist, columns=None, **params):
@@ -722,8 +729,8 @@ class Catalog(BaseCatalog):
                 tbl.upsert({idname: s[idname], 'active': False,
                             'merged_in': newid}, [idname])
 
-        # if self.idmap:
-        #     self.idmap.add_ids(newid)
+        if self.idmap:
+            self.idmap.add_ids(newid, self.name)
 
         self.logger.info('sources %s have been merged in %s', idlist, newid)
 

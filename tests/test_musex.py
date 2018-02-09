@@ -6,6 +6,7 @@ from astropy.io import fits
 from mpdaf.sdetect import Source
 from musex import MuseX
 from numpy.testing import assert_allclose, assert_array_equal
+from sqlalchemy import desc
 
 CURDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(CURDIR, 'data')
@@ -173,6 +174,45 @@ def test_update_rows(mx):
     mycat.insert(tbl, show_progress=False)
     assert len(mycat) == 4
     assert_allclose([o['dec'] for o in mycat.select(columns=['dec'])], 2.0)
+
+
+def test_id_mapping(mx):
+    mx.create_id_mapping('mapping-name')
+    meta = mx.db['catalogs'].find_one(name='mapping-name')
+    assert meta['type'] == 'id'
+    assert mx.id_mapping is not None
+
+    phot = mx.input_catalogs['photutils']
+    res = phot.select(phot.c[phot.idname] > 8)
+    mycat = mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+
+    mycat_ids = [x['id'] for x in mycat.select()]
+    mx.id_mapping.add_ids(mycat_ids, mycat)
+    assert mx.id_mapping.table.columns == ['ID', 'my_cat_id']
+    assert mycat.table.count() == 5
+    assert mx.id_mapping.table.count() == 5
+
+    # By default insert row does not change id_mapping
+    mycat.insert([{'ra': 1, 'dec': 2}], allow_upsert=False)
+    assert mycat.table.count() == 6
+    assert mx.id_mapping.table.count() == 5
+
+    # It does update with the context manager
+    with mx.use_id_mapping(mycat):
+        mycat.insert([{'id': 20, 'ra': 3, 'dec': 4}], allow_upsert=False)
+        assert mycat.table.count() == 7
+        assert mx.id_mapping.table.count() == 6
+        res = mx.id_mapping.select(limit=1, order_by=desc('ID')).results[0]
+        assert res['ID'] == 6
+        assert res['my_cat_id'] == 20
+
+    # And same for select
+    assert mycat.select_id(6) is None
+    assert mycat.select_id(20) is not None
+
+    with mx.use_id_mapping(mycat):
+        assert mycat.select_id(20) is None
+        assert mycat.select_id(6)['id'] == 20
 
 
 def test_segmap(mx):
