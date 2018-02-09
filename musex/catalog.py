@@ -329,6 +329,10 @@ class BaseCatalog:
 
         return res
 
+    def select_id(self, id_):
+        """Return a dict with all keys for a given ID."""
+        return self.table.find_one(**{self.idname: id_})
+
     def select_ids(self, idlist, columns=None, **params):
         """Select rows with a list of IDs.
 
