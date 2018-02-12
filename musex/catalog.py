@@ -366,7 +366,7 @@ class BaseCatalog:
         elif isinstance(idlist, np.ndarray):
             idlist = idlist.tolist()
 
-        if len(idlist) > 999:
+        if len(idlist) > 999 and self.db.engine.driver == 'pysqlite':
             warnings.warn('Selecting too many ids will fail with SQLite',
                           UserWarning)
 
