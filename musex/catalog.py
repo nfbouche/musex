@@ -164,7 +164,6 @@ class BaseCatalog:
         self.raname = raname
         self.decname = decname
         self.logger = logging.getLogger(__name__)
-        self._history = self.db.create_table('history', primary_id='_id')
 
         if not re.match(r'[0-9a-zA-Z_]+$', self.name):
             warnings.warn('catalog name should contain only ascii letters '
@@ -194,12 +193,21 @@ class BaseCatalog:
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
+    @property
+    def history(self):
+        # Create the history table and its columns
+        tbl = self.db.create_table('history', primary_id='_id')
+        assert tbl.table is not None
+        tbl._sync_columns(dict(catalog='', id=0, date='', msg=''), True)
+        return tbl
+
     def log(self, id_, msg):
-        self._history.insert(dict(catalog=self.name, id=id_,
-                                  date=datetime.utcnow().isoformat(), msg=msg))
+        self.history.insert(dict(catalog=self.name, id=id_,
+                                 date=datetime.utcnow().isoformat(), msg=msg),
+                            ensure=False)
 
     def get_log(self, id_):
-        return self._history.find(catalog=self.name, id=id_)
+        return self.history.find(catalog=self.name, id=id_)
 
     def max(self, colname):
         """Return the maximum value of a column."""
@@ -247,9 +255,58 @@ class BaseCatalog:
         self.table.drop()
         self.db['catalogs'].delete(name=self.name)
 
-    def insert(self, rows, version=None, show_progress=True, keys=None,
-               allow_upsert=True):
+    def _prepare_rows_for_insert(self, rows, version=None, show_progress=True):
+        # Convert Astropy Table to a list of dict
+        if isinstance(rows, Table):
+            rows = table_to_odict(rows)
+
+        if version is not None:
+            rows = [row.copy() for row in rows]
+            for row in rows:
+                row.setdefault('version', version)
+
+        # Create missing columns
+        self.table._sync_columns(rows[0], True)
+
+        if show_progress:
+            rows = progressbar(rows)
+
+        return rows
+
+    def insert(self, rows, version=None, show_progress=True):
         """Insert rows in the catalog.
+
+        Parameters
+        ----------
+        rows: list of dict or `astropy.table.Table`
+            List of rows or Astropy Table to insert. Each row must be a dict
+            with column names as keys.
+        version: str
+            Version added to each row (if not available in the row values).
+        show_progress: bool
+            Show a progress bar.
+
+        """
+        rows = self._prepare_rows_for_insert(rows, version=version,
+                                             show_progress=show_progress)
+        ids = []
+        assert self.history is not None  # create table to avoid schema warning
+        with self.db as tx:
+            tbl = tx[self.name]
+            for row in rows:
+                ids.append(tbl.insert(row, ensure=False))
+                self.log(ids[-1], f'inserted from input catalog')
+
+        if self.idmap:
+            self.idmap.add_ids(ids, self.name)
+
+        if not tbl.has_index(self.idname):
+            tbl.create_index(self.idname)
+        self.logger.info('%d rows inserted', len(ids))
+        return ids
+
+    def upsert(self, rows, version=None, show_progress=True, keys=None):
+        """Insert or update rows in the catalog.
 
         Parameters
         ----------
@@ -267,24 +324,19 @@ class BaseCatalog:
 
         """
         count = defaultdict(list)
+        rows = self._prepare_rows_for_insert(rows, version=version,
+                                             show_progress=show_progress)
+
         if keys is None:
             keys = [self.idname]
             if version is not None:
                 keys.append('version')
 
-        if isinstance(rows, Table):
-            rows = table_to_odict(rows)
-        if show_progress:
-            rows = progressbar(rows)
-
+        assert self.history is not None  # create table to avoid schema warning
         with self.db as tx:
             tbl = tx[self.name]
-            func = tbl.upsert if allow_upsert else tbl.insert
             for row in rows:
-                if version is not None:
-                    row.setdefault('version', version)
-
-                res = func(row, keys)
+                res = tbl.upsert(row, keys, ensure=False)
                 op = 'updated' if res is True else 'inserted'
                 count[op].append(res)
                 self.log(res, f'{op} from input catalog')
@@ -437,7 +489,7 @@ class BaseCatalog:
             tbl = tx[self.name]
             for i, row in enumerate(tbl.find()):
                 row[name] = values[i]
-                tbl.upsert(row, [self.idname])
+                tbl.upsert(row, [self.idname], ensure=False)
 
     def add_to_source(self, src, row, **kwargs):
         """Add information to the Source object.
@@ -721,6 +773,10 @@ class Catalog(BaseCatalog):
         elif maxid <= cat_maxid:
             row[self.idname] = 10**(len(str(cat_maxid)))
 
+        # Create missing columns
+        self.table._sync_columns({'active': False, 'merged_in': 0, **row},
+                                 True)
+
         with self.db as tx:
             tbl = tx[self.name]
             # create new (merged) source
@@ -733,7 +789,7 @@ class Catalog(BaseCatalog):
                 if s.get('merged_in') is not None:
                     raise ValueError(f'source {s[idname]} is already merged')
                 tbl.upsert({idname: s[idname], 'active': False,
-                            'merged_in': newid}, [idname])
+                            'merged_in': newid}, [idname], ensure=False)
 
         if self.idmap:
             self.idmap.add_ids(newid, self.name)
@@ -802,12 +858,13 @@ class InputCatalog(BaseCatalog):
             setattr(cat, key, kwargs[key])
         return cat
 
-    def ingest_input_catalog(self, catalog=None, limit=None, keys=None,
-                             show_progress=True):
+    def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
+                             keys=None, show_progress=True):
         """Ingest an input catalog.
 
         The catalog to ingest can be given with the ``catalog`` argument or
-        in the settings file.  Existing records are updated.
+        in the settings file.  Existing records can be updated using
+        ``upsert=True`` and ``keys``.
 
         Parameters
         ----------
@@ -815,6 +872,9 @@ class InputCatalog(BaseCatalog):
             Table to insert.
         limit: int
             To limit the number of rows.
+        upsert: bool
+            If True, existing rows with the same values for ``keys`` are
+            updated.
         keys: list of str
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
@@ -833,8 +893,14 @@ class InputCatalog(BaseCatalog):
         if limit:
             self.logger.info('keeping only %d rows', limit)
             catalog = catalog[:limit]
-        self.insert(catalog, version=self.version, keys=keys,
-                    show_progress=show_progress)
+
+        if upsert:
+            self.upsert(catalog, version=self.version, keys=keys,
+                        show_progress=show_progress)
+        else:
+            self.insert(catalog, version=self.version,
+                        show_progress=show_progress)
+
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname))
 
@@ -859,12 +925,14 @@ class IdMapping(BaseCatalog):
 
         keys = (self.idname, f'{catname}_id')
         rows = [dict(zip(keys, (int(x) for x in row))) for row in rows]
-        super().insert(rows, show_progress=False, keys=[self.idname],
-                       allow_upsert=allow_upsert)
+        if allow_upsert:
+            super().upsert(rows, show_progress=False, keys=[self.idname])
+        else:
+            super().insert(rows, show_progress=False)
 
     def add_ids(self, idlist, cat):
         """Insert new ids which references other ids from `cat`."""
         idlist = np.atleast_1d(idlist)
         key = '{}_id'.format(get_cat_name(cat))
         rows = [{key: int(id_)} for id_ in idlist]
-        super().insert(rows, show_progress=False, allow_upsert=False)
+        super().insert(rows, show_progress=False)

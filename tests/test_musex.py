@@ -37,7 +37,7 @@ def test_ingest(mx):
     phot.ingest_input_catalog(limit=3)
     assert len(phot.select()) == 3
 
-    phot.ingest_input_catalog()
+    phot.ingest_input_catalog(upsert=True)
     assert len(phot.select()) == 13
     assert phot.meta['maxid'] == 13
 
@@ -170,7 +170,7 @@ def test_update_rows(mx):
     # insert rows
     for i, r in enumerate(res):
         r['ra'] = i
-    mycat.insert(res, show_progress=False)
+    mycat.upsert(res, show_progress=False)
     assert len(mycat) == 4
     assert_allclose([o['ra'] for o in mycat.select(columns=['ra'])],
                     np.arange(4, dtype=float))
@@ -178,7 +178,7 @@ def test_update_rows(mx):
     # insert table
     tbl = res.as_table()
     tbl['dec'] = 2.0
-    mycat.insert(tbl, show_progress=False)
+    mycat.upsert(tbl, show_progress=False)
     assert len(mycat) == 4
     assert_allclose([o['dec'] for o in mycat.select(columns=['dec'])], 2.0)
 
@@ -200,13 +200,13 @@ def test_id_mapping(mx):
     assert mx.id_mapping.table.count() == 5
 
     # By default insert row does not change id_mapping
-    mycat.insert([{'ra': 1, 'dec': 2}], allow_upsert=False)
+    mycat.insert([{'ra': 1, 'dec': 2}])
     assert mycat.table.count() == 6
     assert mx.id_mapping.table.count() == 5
 
     # It does update with the context manager
     with mx.use_id_mapping(mycat):
-        mycat.insert([{'id': 20, 'ra': 3, 'dec': 4}], allow_upsert=False)
+        mycat.insert([{'id': 20, 'ra': 3, 'dec': 4}])
         assert mycat.table.count() == 7
         assert mx.id_mapping.table.count() == 6
         res = mx.id_mapping.select(limit=1, order_by=desc('ID')).results[0]
