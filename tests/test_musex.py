@@ -213,13 +213,19 @@ def test_id_mapping(mx):
         assert res['ID'] == 6
         assert res['my_cat_id'] == 20
 
-    # And same for select
+    # And same for select and update
     assert mycat.select_id(6) is None
     assert mycat.select_id(20) is not None
+
+    mycat.update_id(10, area=200)
+    assert mycat.select_id(10)['area'] == 200
 
     with mx.use_id_mapping(mycat):
         assert mycat.select_id(20) is None
         assert mycat.select_id(6)['id'] == 20
+
+        mycat.update_id(6, area=100)
+        assert mycat.select_id(6)['area'] == 100
 
 
 def test_segmap(mx):

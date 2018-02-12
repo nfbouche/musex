@@ -478,6 +478,16 @@ class BaseCatalog:
         return ResultSet(res, whereclause=whereclause, catalog=self,
                          columns=query.columns)
 
+    def update_id(self, id_, **kwargs):
+        """Update values for a given ID."""
+        if self.idmap:
+            res = self.idmap.table.find_one(ID=id_)
+            if res and f'{self.name}_id' in res:
+                id_ = res[f'{self.name}_id']
+            else:
+                return None
+        return self.table.update({self.idname: id_, **kwargs}, [self.idname])
+
     def update_column(self, name, values):
         """Update (or create) a column ``name`` with the given values."""
         if np.isscalar(values):
