@@ -312,6 +312,7 @@ class MuseX:
                         for txt in textwrap.wrap(com, 50):
                             src.add_comment(txt, '')
                     else:
+                        debug('Add %s=%r', key, row[colname])
                         comment = HEADER_COMMENTS.get(key)
                         src.header[key] = (row[colname], comment)
 
@@ -324,6 +325,7 @@ class MuseX:
             # Add reshifts
             for key, colname in redshifts.items():
                 if row.get(colname) is not None:
+                    debug('Add redshift %s=%.2f', key, row[colname])
                     src.add_z(key, row[colname])
 
             if 'history' in content:

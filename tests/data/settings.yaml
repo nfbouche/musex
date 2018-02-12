@@ -40,10 +40,10 @@ export:
   redshifts:
     # Define redshift columns.
     MUSE: AutoZ
-    MUSE: FinZ
+    # MUSE: FinZ
   header_columns:
     # Maps keader keywords to column names
-    CONFID: Qop
+    CONFID: QOP
     BLEND: Blend
     DEFECT: Defect
     REVISIT: Revisit
