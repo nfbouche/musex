@@ -1,6 +1,10 @@
+# Top-level keys are substitued in the file before loading it.
+# This one is not a real setting but used below to avoid repeating paths.
+basedir: '/muse/UDF/private/analysis/musex'
+
 # Paths for the working directory and database
-workdir: '/muse/UDF/private/analysis/musex/work'
-db: '{workdir}/../musex.db'
+workdir: '{basedir}/work'
+db: '{basedir}/musex.db'
 
 # Parameters for the MuseX object
 show_banner: true
@@ -95,17 +99,18 @@ catalogs:
 
   photutils:
     version: '1.0'
-    catalog: '{workdir}/../photutils-catalog.fits'
+    catalog: '{basedir}/photutils-catalog.fits'
     idname: id
     raname: ra
     decname: dec
-    segmap: '{workdir}/../photutils-segmap.fits'
+    segmap: '{basedir}/photutils-segmap.fits'
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
       select_in: HST_F775W
 
 export:
+  path: '{basedir}/export'
   redshifts:
     # Define redshift columns.
     MUSE: AutoZ

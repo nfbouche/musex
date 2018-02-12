@@ -36,6 +36,7 @@ catalogs:
       select_in: TEST_FAKE
 
 export:
+  path: '{tmpdir}/export'
   redshifts:
     # Define redshift columns.
     MUSE: AutoZ

@@ -103,8 +103,9 @@ class MuseX:
         self.settings_file = settings_file
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
-        self.conf.setdefault('export', {})
         self.workdir = self.conf['workdir']
+        self.conf.setdefault('export', {})
+        self.conf['export'].setdefault('path', f'{self.workdir}/export')
         self.db = db = load_db(self.conf['db'])
 
         # Creating the IdMapping object if required
@@ -396,7 +397,7 @@ class MuseX:
             If True, create a pdf for each source.
         outdir: str
             Output directory. If None the default is
-            `'{self.workdir}/export/{cname}/{self.muse_dataset.name}'`.
+            `'{conf[export][path]}/{cname}/{self.muse_dataset.name}'`.
         outdir: str
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
@@ -412,7 +413,8 @@ class MuseX:
 
         if outdir is None:
             cname = cat.catalog.name
-            outdir = f'{self.workdir}/export/{cname}/{self.muse_dataset.name}'
+            exportdir = self.conf['export']['path']
+            outdir = f'{exportdir}/{cname}/{self.muse_dataset.name}'
         os.makedirs(outdir, exist_ok=True)
 
         pdfconf = self.conf['export'].get('pdf', {})
@@ -440,28 +442,27 @@ class MuseX:
             Either a result from a query or a catalog to export.
         outfile: str
             Output file. If None the default is
-            `'{workdir}/export/marz-{cat.name}-{muse_dataset.name}.fits'`.
+            `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
         export_sources: bool
             If True, the source files are also exported.
         srcdir: str
             Output directory. If None the default is
-            `'{self.workdir}/export/{cname}/{self.muse_dataset.name}'`.
+            `'{conf[export][path]}/{cname}/{self.muse_dataset.name}'`.
         srcdir: str
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
         """
 
         cname = get_cat_name(res_or_cat)
+        exportdir = self.conf['export']['path']
 
         if outfile is None:
-            outfile = (f'{self.workdir}/export/'
-                       f'marz-{cname}-{self.muse_dataset.name}.fits')
+            outfile = f'{exportdir}/marz-{cname}-{self.muse_dataset.name}.fits'
         os.makedirs(os.path.dirname(outfile), exist_ok=True)
 
         if export_sources:
             if srcdir is None:
-                srcdir = (f'{self.workdir}/export/{cname}/' +
-                          self.muse_dataset.name)
+                srcdir = f'{exportdir}/{cname}/' + self.muse_dataset.name
             os.makedirs(srcdir, exist_ok=True)
 
         wave, data, stat, sky, meta = [], [], [], [], []
