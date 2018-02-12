@@ -72,7 +72,7 @@ class MuseX:
                 settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
 
         self.logger = logging.getLogger(__name__)
-        self.logger.debug('Loading settings %s', settings_file)
+        self.settings_file = settings_file
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
         self.conf.setdefault('export', {})
@@ -128,14 +128,17 @@ class MuseX:
         if outstream is None:
             outstream = sys.stdout
         outstream.write(LOGO)
-        outstream.write(f"""
-{__description__} - v{__version__}
+        outstream.write(textwrap.dedent(f"""
+            {__description__} - v{__version__}
 
-muse_dataset   : {self.muse_dataset.name}
-datasets       : {', '.join(self.datasets.keys())}
-input_catalogs : {', '.join(self.input_catalogs.keys())}
-catalogs       : {', '.join(self.catalogs.keys())}
-""")
+            settings file  : {self.settings_file}
+            muse_dataset   : {self.muse_dataset.name}
+            datasets       : {', '.join(self.datasets.keys())}
+            input_catalogs : {', '.join(self.input_catalogs.keys())}
+            catalogs       : {', '.join(self.catalogs.keys())}
+            """))
+        if self.id_mapping is not None:
+            outstream.write(f"id_mapping     : {self.id_mapping.name}")
 
     def find_parent_cat(self, cat):
         current_cat = cat
