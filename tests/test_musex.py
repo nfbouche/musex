@@ -244,7 +244,7 @@ def test_merge_sources(mx):
     mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
     mycat = mx.catalogs['my_cat']
-    mycat.merge_sources([9, 10])
+    mycat.merge_sources([9, 10], weights_colname='source_sum')
 
     assert mycat.table.find_one(id=100)['merged'] is True
     assert mycat.get_ids_merged_in(100) == [9, 10]

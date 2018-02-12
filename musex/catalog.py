@@ -736,7 +736,8 @@ class Catalog(BaseCatalog):
         src.SEGMAP = tag
         src.add_image(segm.img, tag, rotate=True, order=0)
 
-    def merge_sources(self, idlist, id_=None, dataset=None):
+    def merge_sources(self, idlist, id_=None, dataset=None,
+                      weights_colname=None):
         """Merge sources into one.
 
         A new source is created, with the "merged" column set to True. The new
@@ -752,6 +753,8 @@ class Catalog(BaseCatalog):
         dataset: `musex.Dataset`
             The associated dataset. To compute the masks this dataset must be
             given, and must be the same as the one used for `attach_dataset`.
+        weights_colname: str
+            Name of a column to be used as weights.
 
         """
         # compute minimum id for "custom" sources
@@ -763,11 +766,10 @@ class Catalog(BaseCatalog):
         if len(sources) == 0:
             raise ValueError('no sources found')
 
-        coords = np.array([(s[self.decname], s[self.raname]) for s in sources])
-        # TODO: use better weights (flux)
-        weights = np.ones(coords.shape[0])
-        dec, ra = (np.sum(coords * weights[:, np.newaxis], axis=0) /
-                   weights.sum())
+        tbl = sources.as_table()
+        coords = np.stack([tbl[self.decname].data, tbl[self.raname].data])
+        weights = tbl[weights_colname] if weights_colname else None
+        dec, ra = np.ma.average(coords, weights=weights, axis=1)
 
         # version
         versions = set(s.get('version') for s in sources)
