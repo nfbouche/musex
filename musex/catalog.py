@@ -509,7 +509,7 @@ class BaseCatalog:
         """
         # Add catalog as a BinTableHDU
         cat = self.select(columns=kwargs.get('columns')).as_table()
-        wcs = src.images[kwargs.get('select_in', 'WHITE')].wcs
+        wcs = src.images[kwargs.get('select_in', 'MUSE_WHITE')].wcs
         scat = cat.select(wcs, ra=self.raname, dec=self.decname, margin=0)
         scat['DIST'] = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
         # FIXME: is it the same ?
