@@ -248,14 +248,12 @@ def show_image(ax, src, key, cuts=(None, None), zscale=False, scale='arcsinh',
 
 @_check_source_input('image')
 def show_mask(ax, src, key, col='r', levels=[0], alpha=0.4, surface=False):
+    im = src.images[key]._data.astype(float)
     if surface:
-        im = src.images[key]
-        ax.contourf(im._data.astype(float), levels=levels, origin='lower',
-                    colors=col, alpha=alpha,
+        ax.contourf(im, levels=levels, origin='lower', colors=col, alpha=alpha,
                     extent=[-0.5, im.shape[0] - 0.5, -0.5, im.shape[1] - 0.5])
     else:
-        ax.contour(src.images[key]._data.astype(float), levels=levels,
-                   origin='lower', colors=col, alpha=alpha)
+        ax.contour(im, levels=levels, origin='lower', colors=col, alpha=alpha)
 
 
 def show_white(ax, src, cat=None, showmask=False, showid=True, showz=False,
@@ -388,9 +386,12 @@ def show_hstima(ax, src, key='HST_F775W', zscale=False, showcat=True,
 
     if showmask:
         cycol = cycle('bgrcmy')
+        segm = src.images[src.SEGMAP].align_with_image(src.images[key])
+        data = segm.data.filled().astype(float)
+        extent = [-0.5, data.shape[0] - 0.5, -0.5, data.shape[1] - 0.5]
         for iden in cat[idcol]:
-            show_mask(ax, src, src.SEGMAP, levels=[iden - 0.1, iden + 0.1],
-                      col=next(cycol), alpha=0.5, surface=True)
+            ax.contourf(data, levels=[iden - 0.1, iden + 0.1], origin='lower',
+                        colors=next(cycol), alpha=0.5, extent=extent)
 
 
 def show_scale(ax, wcs, right=0.95, y=0.96, linewidth=1, color='b'):
