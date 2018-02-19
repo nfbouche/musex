@@ -280,7 +280,7 @@ class MuseX:
 
         parent_cat = self.find_parent_cat(cat)
         # minsize = min(*size) // 2
-        minsize = size // 2
+        minsize = 0.#size // 2
         nskywarn = (50, 5)
         refskyf = resultset[0]['mask_sky']
         refskyim = Image(str(cat.workdir / refskyf), copy=False)
@@ -346,6 +346,7 @@ class MuseX:
 
             center = (src.DEC, src.RA)
             # If mask_sky is always the same, reuse it instead of reloading
+            import pdb; pdb.set_trace()
             skyim = (refskyim if row['mask_sky'] == refskyf else
                      str(cat.workdir / row['mask_sky']))
             src.images['MASK_SKY'] = extract_subimage(

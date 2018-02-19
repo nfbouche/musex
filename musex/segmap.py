@@ -48,6 +48,7 @@ class SegMap:
 
         im = Image.new_from_obj(self.img, data)
         if regrid_to:
+            import pdb; pdb.set_trace()
             im = regrid_to_image(im, regrid_to, inplace=True, order=0,
                                  antialias=False)
             np.around(im._data, out=im._data)

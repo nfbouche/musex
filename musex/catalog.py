@@ -611,7 +611,7 @@ class Catalog(BaseCatalog):
         name = dataset.name
         if name not in self._segmap_aligned:
             self._segmap_aligned[name] = self.segmap_img.align_with_image(
-                dataset.white, truncate=True)
+                dataset.white, truncate=False)
         return self._segmap_aligned[name]
 
     @lazyproperty
@@ -684,12 +684,13 @@ class Catalog(BaseCatalog):
 
         idname = self.idname
         ntot = len(tab)
-        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
+      #  tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
         self.logger.info('%d sources inside dataset (%d in catalog)',
                          len(tab), ntot)
 
         # extract source masks
-        minsize = min(*mask_size) // 2
+       # minsize = min(*mask_size) // 2
+        minsize = 0.
         to_compute = []
         stats = defaultdict(list)
         for row in tab:
