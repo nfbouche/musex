@@ -53,6 +53,16 @@ class MuseDataSet(DataSet):
 
     """
 
+    def __init__(self, name, settings):
+
+        super().__init__(name, settings)
+        
+        margin = self.settings.get('margin')
+        if margin is None:
+            self.margin = 0 #default
+        else:
+            self.margin = margin
+
     @lazyproperty
     def cube(self):
         """The datacube."""

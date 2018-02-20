@@ -99,7 +99,7 @@ class SegMap:
         else:
             return im
 
-    def align_with_image(self, other, inplace=False, truncate=False):
+    def align_with_image(self, other, inplace=False, truncate=None):
         """Rotate and truncate the segmap to match 'other'."""
         out = self if inplace else self.copy()
         rot = other.wcs.get_rot() - self.img.wcs.get_rot()
@@ -107,11 +107,15 @@ class SegMap:
             out.img = self.img.rotate(rot, reshape=True, regrid=True,
                                       flux=False, order=0, inplace=inplace)
 
-        if truncate:
-            pixsky = other.wcs.pix2sky([[-1, -1],
-                                        [other.shape[0], -1],
-                                        [-1, other.shape[1]],
-                                        [other.shape[0], other.shape[1]]],
+        if truncate is not None:
+            y0 = truncate - 1
+            y1 = other.shape[0] - truncate
+            x0 = truncate - 1
+            x1 = other.shape[1] - truncate
+            pixsky = other.wcs.pix2sky([[y0, x0],
+                                        [y1, x0],
+                                        [y0, x1],
+                                        [y1, x1]],
                                        unit=u.deg)
             pixcrd = out.img.wcs.sky2pix(pixsky)
             ymin, xmin = pixcrd.min(axis=0)
