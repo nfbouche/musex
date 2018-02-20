@@ -84,7 +84,7 @@ def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
 def regrid_to_image(im, other, order=1, inplace=False, antialias=True,
                     size=None, unit_size=u.arcsec, **kwargs):
     im.data = im.data.astype(float)
-    refpos = im.wcs.pix2sky([0, 0])[0]
+    refpos = other.wcs.pix2sky([0, 0])[0]
     if size is not None:
         newdim = size / other.wcs.get_step(unit=unit_size)
     else:

@@ -81,8 +81,10 @@ class SegMap:
             data = dilate_mask(data, niter=dilate, struct=struct)
 
         if regrid_to:
+            other = regrid_to.subimage(center, size, minsize=0.,
+                               unit_center=unit_center, unit_size=unit_size)
             im._data = data.astype(float)
-            im = regrid_to_image(im, regrid_to, size=size, order=0,
+            im = regrid_to_image(im, other, size=size, order=0,
                                  inplace=True, antialias=False)
             data = np.around(im._data, out=im._data)
 
