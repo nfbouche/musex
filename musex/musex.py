@@ -346,7 +346,6 @@ class MuseX:
 
             center = (src.DEC, src.RA)
             # If mask_sky is always the same, reuse it instead of reloading
-            import pdb; pdb.set_trace()
             skyim = (refskyim if row['mask_sky'] == refskyf else
                      str(cat.workdir / row['mask_sky']))
             src.images['MASK_SKY'] = extract_subimage(
