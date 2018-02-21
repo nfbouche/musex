@@ -280,7 +280,7 @@ class MuseX:
 
         parent_cat = self.find_parent_cat(cat)
         # minsize = min(*size) // 2
-        minsize = 0.#size // 2
+        minsize = 0.
         nskywarn = (50, 5)
         refskyf = resultset[0]['mask_sky']
         refskyim = Image(str(cat.workdir / refskyf), copy=False)

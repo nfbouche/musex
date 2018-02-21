@@ -691,7 +691,6 @@ class Catalog(BaseCatalog):
                          len(tab), ntot)
 
         # extract source masks
-       # minsize = min(*mask_size) // 2
         minsize = 0.
         to_compute = []
         stats = defaultdict(list)
