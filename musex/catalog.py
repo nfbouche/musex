@@ -612,7 +612,7 @@ class Catalog(BaseCatalog):
         margin = dataset.margin
         if name not in self._segmap_aligned:
             self._segmap_aligned[name] = self.segmap_img.align_with_image(
-                dataset.white, truncate=margin)
+                dataset.white, truncate=True, margin=margin)
         return self._segmap_aligned[name]
 
     @lazyproperty
