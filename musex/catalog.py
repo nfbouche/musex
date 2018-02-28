@@ -609,9 +609,10 @@ class Catalog(BaseCatalog):
     def get_segmap_aligned(self, dataset):
         """Get a segmap image rotated and aligned to a dataset."""
         name = dataset.name
+        margin = dataset.margin
         if name not in self._segmap_aligned:
             self._segmap_aligned[name] = self.segmap_img.align_with_image(
-                dataset.white, truncate=True)
+                dataset.white, truncate=True, margin=margin)
         return self._segmap_aligned[name]
 
     @lazyproperty
@@ -629,9 +630,9 @@ class Catalog(BaseCatalog):
         assert dataset is not None
         return str(self.workdir / dataset / 'mask-sky.fits')
 
-    def attach_dataset(self, dataset, skip_existing=True, convolve_fwhm=0,
-                       mask_size=(20, 20), psf_threshold=0.5, n_jobs=1,
-                       verbose=0):
+    def attach_dataset(self, dataset, skip_existing=True,
+                       convolve_fwhm=0, mask_size=(20, 20),
+                       psf_threshold=0.5, n_jobs=1, verbose=0):
         """Attach a dataset to the catalog and generate intermediate products.
 
         Create masks from the segmap, adapted to a given dataset.
@@ -684,12 +685,13 @@ class Catalog(BaseCatalog):
 
         idname = self.idname
         ntot = len(tab)
-        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname)
+        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname,
+                        margin=dataset.margin)
         self.logger.info('%d sources inside dataset (%d in catalog)',
                          len(tab), ntot)
 
         # extract source masks
-        minsize = min(*mask_size) // 2
+        minsize = 0.
         to_compute = []
         stats = defaultdict(list)
         for row in tab:

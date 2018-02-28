@@ -53,6 +53,16 @@ class MuseDataSet(DataSet):
 
     """
 
+    def __init__(self, name, settings):
+
+        super().__init__(name, settings)
+        
+        margin = self.settings.get('margin')
+        if margin is None:
+            self.margin = 0 #default
+        else:
+            self.margin = margin
+
     @lazyproperty
     def cube(self):
         """The datacube."""
@@ -83,7 +93,7 @@ class MuseDataSet(DataSet):
         src.CUBE_V = self.version
 
         # add expmap image + average and dispersion value of expmap
-        src.add_image(self.expima, f'{self.prefix}_EXPMAP')
+        src.add_image(self.expima, f'{self.prefix}_EXPMAP', minsize=0.)
         ima = src.images[f'{self.prefix}_EXPMAP']
         src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
         src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
