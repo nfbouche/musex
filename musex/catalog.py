@@ -615,20 +615,19 @@ class Catalog(BaseCatalog):
                 dataset.white, truncate=True, margin=margin)
         return self._segmap_aligned[name]
 
-    @lazyproperty
-    def maskobj_name(self):
+    def maskobj_name(self, id_):
         """Return the path of the source mask files."""
-        name = 'mask-source-{:05d}.fits'  # add setting ?
+        name = f'mask-source-{id_:05d}.fits'  # add setting ?
         dataset = self.meta['dataset']
         assert dataset is not None
         return str(self.workdir / dataset / name)
 
-    @lazyproperty
-    def masksky_name(self):
+    def masksky_name(self, id_=None):
         """Return the path of the sky mask file."""
         dataset = self.meta['dataset']
         assert dataset is not None
-        return str(self.workdir / dataset / 'mask-sky.fits')
+        name = 'mask-sky.fits' if id_ is None else f'mask-sky-{id_:05d}.fits'
+        return str(self.workdir / dataset / name)
 
     def attach_dataset(self, dataset, skip_existing=True,
                        convolve_fwhm=0, mask_size=(20, 20),
@@ -670,12 +669,12 @@ class Catalog(BaseCatalog):
                                                        psf_threshold)
 
         # create sky mask
-        if exists(self.masksky_name) and skip_existing:
+        if exists(self.masksky_name()) and skip_existing:
             self.logger.debug('sky mask exists, skipping')
         else:
             self.logger.debug('creating sky mask')
             segmap.get_mask(0, inverse=True, dilate=dilateit, struct=struct,
-                            regrid_to=white, outname=self.masksky_name)
+                            regrid_to=white, outname=self.masksky_name())
 
         # check sources inside dataset, excluding inactive sources
         if 'active' in self.c:
@@ -696,7 +695,7 @@ class Catalog(BaseCatalog):
         stats = defaultdict(list)
         for row in tab:
             id_ = int(row[idname])  # need int, not np.int64
-            source_path = self.maskobj_name.format(id_)
+            source_path = self.maskobj_name(id_)
             if exists(source_path) and skip_existing:
                 stats['skipped'].append(id_)
             else:
@@ -720,11 +719,11 @@ class Catalog(BaseCatalog):
         for row in tab:
             # update in db
             id_ = int(row[idname])  # need int, not np.int64
-            source_path = self.maskobj_name.format(id_)
+            source_path = self.maskobj_name(id_)
             self.table.upsert(
                 {idname: id_,
                  'mask_obj': relpath(source_path, self.workdir),
-                 'mask_sky': relpath(self.masksky_name, self.workdir)},
+                 'mask_sky': relpath(self.masksky_name(), self.workdir)},
                 [idname])
 
         for key, val in stats.items():
@@ -824,7 +823,7 @@ class Catalog(BaseCatalog):
 
         try:
             # maskobj
-            maskobj = self.maskobj_name.format(newid)
+            maskobj = self.maskobj_name(newid)
             segmap = self.get_segmap_aligned(dataset)
             dilateit, struct = _get_psf_convolution_params(
                 self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
@@ -837,7 +836,7 @@ class Catalog(BaseCatalog):
 
             # masksky
             # FIXME: currenlty we suppose that mask_sky is always the same
-            masksky = relpath(self.masksky_name, self.workdir)
+            masksky = relpath(self.masksky_name(), self.workdir)
             if any(s['mask_sky'] != masksky for s in sources):
                 self.logger.warning('cannot reuse mask_sky')
                 masksky = None
