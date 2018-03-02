@@ -145,8 +145,6 @@ class BaseCatalog:
         Name of the 'ra' column.
     decname: str
         Name of the 'dec' column.
-    segmap: str
-        Path to the segmentation map file associated with the catalog.
     primary_id: str
         The primary id for the SQL table, must be a column name.
 
@@ -155,11 +153,10 @@ class BaseCatalog:
     catalog_type = ''
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, primary_id=None):
+                 primary_id=None):
         self.name = name
         self.db = db
         self.idmap = None
-        self.segmap = segmap
         self.idname = idname
         self.raname = raname
         self.decname = decname
@@ -185,7 +182,7 @@ class BaseCatalog:
             self.update_meta(creation_date=datetime.utcnow().isoformat(),
                              type=self.catalog_type, parent_cat=None,
                              raname=self.raname, decname=self.decname,
-                             idname=self.idname, segmap=self.segmap)
+                             idname=self.idname)
 
     def __len__(self):
         return self.table.count()
@@ -235,7 +232,6 @@ class BaseCatalog:
         {self.__class__.__name__} '{self.name}' - {len(self)} rows.
 
         Workdir: {getattr(self, 'workdir', '')}
-        Segmap : {self.segmap}
         """))
 
         if self.meta:
@@ -569,7 +565,8 @@ class Catalog(BaseCatalog):
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  segmap=None, workdir=None):
         super().__init__(name, db, idname=idname, raname=raname,
-                         decname=decname, segmap=segmap)
+                         decname=decname)
+        self.segmap = segmap
         self._segmap_aligned = {}
         # Work dir for intermediate files
         if workdir is None:
@@ -864,10 +861,10 @@ class InputCatalog(BaseCatalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname', 'segmap')
+        init_keys = ('idname', 'raname', 'decname')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
-        for key in ('catalog', 'version', 'extract'):
+        for key in ('catalog', 'version', 'extract', 'segmap'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])
