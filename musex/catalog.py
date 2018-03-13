@@ -534,7 +534,7 @@ class BaseCatalog:
             except KeyError:
                 pass
             else:
-                if 0 <= z < 50:
+                if z is not None and 0 <= z < 50:
                     self.logger.debug('Add redshift %s=%.2f', name, z)
                     src.add_z(name, z, errz=errz)
 
@@ -548,7 +548,7 @@ class BaseCatalog:
             except KeyError:
                 pass
             else:
-                if 0 <= mag < 50:
+                if mag is not None and 0 <= mag < 50:
                     self.logger.debug('Add mag %s=%.2f', name, mag)
                     src.add_mag(name, mag, magerr)
 
