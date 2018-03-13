@@ -58,6 +58,8 @@ def get_cat_name(res_or_cat):
         return res_or_cat
     elif isinstance(res_or_cat, BaseCatalog):
         return res_or_cat.name
+    elif isinstance(res_or_cat, Table):
+        return res_or_cat.name
     elif isinstance(res_or_cat, ResultSet):
         return res_or_cat.catalog.name
     else:
