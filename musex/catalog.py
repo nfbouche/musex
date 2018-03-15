@@ -30,6 +30,8 @@ __all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
+RESERVED_COLNAMES = ['active', 'merged_in', 'merged']
+
 
 def load_input_catalogs(settings, db):
     """Load input catalogs defined in the settings."""
@@ -857,6 +859,25 @@ class Catalog(BaseCatalog):
     def get_ids_merged_in(self, id_):
         """Return the IDs that were merged in ``id_``."""
         return [o[self.idname] for o in self.table.find(merged_in=id_)]
+
+    def add_column_with_merged_ids(self, name):
+        """Add (or update) a str column with a comma-separated list of the
+        merged ids.
+        """
+        if name in RESERVED_COLNAMES:
+            raise ValueError(f"column name '{name}' cannot be used, it is "
+                             f"reserved for specific purpose")
+
+        merged = defaultdict(list)
+        for o in self.select(self.c.merged_in.isnot(None),
+                             columns=[self.idname, 'merged_in']):
+            merged[o['merged_in']].append(o[self.idname])
+
+        merged = {k: ",".join(str(x) for x in sorted(v))
+                  for k, v in merged.items()}
+        val = [merged.get(x[self.idname], str(x[self.idname]))
+               for x in self.select(columns=[self.idname])]
+        self.update_column(name, val)
 
 
 class InputCatalog(BaseCatalog):

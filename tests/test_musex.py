@@ -240,19 +240,33 @@ def test_segmap(mx):
 
 def test_merge_sources(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select_ids([9, 10])
+    res = phot.select_ids([9, 10, 11, 12, 13])
     mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
 
     mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10], weights_colname='source_sum')
+    mycat.add_column_with_merged_ids('MERGID')
 
-    assert mycat.table.find_one(id=100)['merged'] is True
+    s100 = mycat.table.find_one(id=100)
+    assert s100['merged'] is True
+    assert s100['MERGID'] == '9,10'
     assert mycat.get_ids_merged_in(100) == [9, 10]
+
+    s11 = mycat.table.find_one(id=11)
+    assert s11['merged'] is None
+    assert s11['MERGID'] == '11'
 
     tbl = mycat.select(mycat.c.active.is_(False)).as_table()
     assert_array_equal(tbl['id'], [9, 10])
     assert_array_equal(tbl['active'], False)
     assert_array_equal(tbl['merged_in'], 100)
+
+    # check that reserved colnames cannot be used
+    with pytest.raises(ValueError):
+        mycat.add_column_with_merged_ids('merged')
+
+    # check that it can be called twice (TODO: and updated, to be checked)
+    mycat.add_column_with_merged_ids('MERGID')
 
 
 def test_attach_dataset(mx):
