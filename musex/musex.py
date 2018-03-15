@@ -8,13 +8,14 @@ from astropy.io import fits
 from astropy.table import Table, Row
 from collections import OrderedDict
 from contextlib import contextmanager
+from mpdaf.log import setup_logging
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name)
 from .source import SourceX
-from .utils import extract_subimage, load_db, load_yaml_config
+from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
 
 __all__ = ['MuseX']
@@ -234,7 +235,7 @@ class MuseX:
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
-                   content=('parentcat', 'segmap', 'history')):
+                   content=('parentcat', 'segmap', 'history'), verbose=False):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -294,6 +295,10 @@ class MuseX:
 
         header_columns = self.conf['export'].get('header_columns', {})
         redshifts = self.conf['export'].get('redshifts', {})
+
+        if verbose is False:
+            resultset = progressbar(resultset)
+            setup_logging('musex', level=logging.WARNING, stream=sys.stdout)
 
         for row in resultset:
             if isinstance(row, Row):
@@ -389,6 +394,11 @@ class MuseX:
             src.extract_all_spectra(apertures=apertures)
             debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
             yield src
+
+        if verbose is False:
+            # Reset logger
+            # TODO: find a better way to do this!
+            setup_logging('musex', level=logging.DEBUG, stream=sys.stdout)
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
