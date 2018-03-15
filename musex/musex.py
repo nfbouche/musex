@@ -160,6 +160,11 @@ class MuseX:
         if self.id_mapping is not None:
             outstream.write(f"id_mapping     : {self.id_mapping.name}")
 
+    @property
+    def exportdir(self):
+        exportdir = self.conf['export']['path']
+        return f'{exportdir}/{self.muse_dataset.name}'
+
     def find_parent_cat(self, cat):
         current_cat = cat
         while True:
@@ -399,7 +404,7 @@ class MuseX:
             If True, create a pdf for each source.
         outdir: str
             Output directory. If None the default is
-            `'{conf[export][path]}/{cname}/{self.muse_dataset.name}'`.
+            `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/sources'`.
         outdir: str
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
@@ -415,8 +420,7 @@ class MuseX:
 
         if outdir is None:
             cname = cat.catalog.name
-            exportdir = self.conf['export']['path']
-            outdir = f'{exportdir}/{cname}/{self.muse_dataset.name}'
+            outdir = f'{self.exportdir}/{cname}/sources'
         os.makedirs(outdir, exist_ok=True)
 
         pdfconf = self.conf['export'].get('pdf', {})
@@ -435,7 +439,7 @@ class MuseX:
                 info('pdf written to %s', fname)
 
     def export_marz(self, res_or_cat, outfile=None, export_sources=False,
-                    srcdir=None, srcname='marz-{src.ID:05d}', **kwargs):
+                    outdir=None, srcname='source-{src.ID:05d}', **kwargs):
         """Export a catalog or selection for MarZ.
 
         Parameters
@@ -447,25 +451,20 @@ class MuseX:
             `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
         export_sources: bool
             If True, the source files are also exported.
-        srcdir: str
+        outdir: str
             Output directory. If None the default is
-            `'{conf[export][path]}/{cname}/{self.muse_dataset.name}'`.
-        srcdir: str
+            `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
+        srcname: str
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
         """
 
         cname = get_cat_name(res_or_cat)
-        exportdir = self.conf['export']['path']
-
+        if outdir is None:
+            outdir = f'{self.exportdir}/{cname}/marz'
+        os.makedirs(outdir, exist_ok=True)
         if outfile is None:
-            outfile = f'{exportdir}/marz-{cname}-{self.muse_dataset.name}.fits'
-        os.makedirs(os.path.dirname(outfile), exist_ok=True)
-
-        if export_sources:
-            if srcdir is None:
-                srcdir = f'{exportdir}/{cname}/' + self.muse_dataset.name
-            os.makedirs(srcdir, exist_ok=True)
+            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
         wave, data, stat, sky, meta = [], [], [], [], []
 
@@ -520,7 +519,7 @@ class MuseX:
 
             if export_sources:
                 outn = srcname.format(src=s)
-                fname = f'{srcdir}/{outn}.fits'
+                fname = f'{outdir}/{outn}.fits'
                 s.write(fname)
                 self.logger.info('fits written to %s', fname)
 

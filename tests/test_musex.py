@@ -323,11 +323,10 @@ def test_export_marz(mx):
     os.makedirs(outdir, exist_ok=True)
     mx.export_marz(mycat, export_sources=True)
 
-    assert os.listdir(outdir) == ['marz-my_cat-hdfs.fits', 'my_cat']
-
-    flist = os.listdir(f'{outdir}/my_cat/hdfs/')
-    assert sorted(flist) == ['marz-00008.fits', 'marz-00100.fits',
-                             'marz-00101.fits']
+    outdir = f'{mx.workdir}/export/hdfs/my_cat/marz'
+    assert sorted(os.listdir(f'{outdir}')) == [
+        'marz-my_cat-hdfs.fits', 'source-00008.fits', 'source-00100.fits',
+        'source-00101.fits']
 
     with fits.open(f'{outdir}/marz-my_cat-hdfs.fits') as hdul:
         assert [hdu.name for hdu in hdul] == [
