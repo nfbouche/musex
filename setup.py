@@ -33,7 +33,7 @@ if '.dev' in __version__:
             f.write("__dev_value__ = \"{}\"\n".format(commit_number))
 
         # We modify __version__ here too for commands such as egg_info
-        __version__ += commit_number
+        # __version__ += commit_number
 
 setup(
     name='musex',
