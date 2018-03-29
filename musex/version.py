@@ -1,17 +1,17 @@
+import os
+
 __version__ = '0.2.dev'
 __description__ = 'The MUse Source EXtractor :)'
 
+CURDIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def _update_git_version():
-    import subprocess
-    command_number = 'git rev-list --count HEAD'
-    try:
-        commit_number = subprocess.check_output(command_number, shell=True)\
-            .decode('ascii').strip()
-    except Exception:
-        pass
-    else:
-        return commit_number
+    from contextlib import suppress
+    from subprocess import check_output
+    command_number = 'git -C {} rev-list --count HEAD'.format(CURDIR).split()
+    with suppress(Exception):
+        return check_output(command_number).decode('ascii').strip()
 
 
 try:
