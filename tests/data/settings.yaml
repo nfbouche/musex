@@ -34,6 +34,19 @@ catalogs:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
       select_in: TEST_FAKE
+  origin:
+    class: musex.catalog.InputCatalog
+    version: '1.0'
+    catalog: '{datadir}/cat_origin.fits'
+    idname: ID
+    raname: ra
+    decname: dec
+    mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
+    skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
+    extract:
+      prefix: ORIG
+      columns: [ID, ra, dec, n_lines, sed_label, comp, line_cleaned_flag]
+      select_in: TEST_FAKE
 
 export:
   path: '{tmpdir}/export'

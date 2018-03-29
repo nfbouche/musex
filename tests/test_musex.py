@@ -20,14 +20,16 @@ def test_settings(capsys, settings_file):
     expected = """\
 muse_dataset   : hdfs
 datasets       : test
-input_catalogs : photutils
+input_catalogs : photutils, origin
 """
     captured = capsys.readouterr()
     assert expected in captured.out
 
 
 def test_ingest(mx):
-    assert list(mx.input_catalogs.keys()) == ['photutils']
+    assert list(mx.input_catalogs.keys()) == ['photutils', 'origin']
+
+    # Photutils catalog
     phot = mx.input_catalogs['photutils']
     assert phot.idname == 'id'
     assert phot.raname == 'ra'
@@ -43,6 +45,25 @@ def test_ingest(mx):
 
     tbl = phot.select().as_table()
     assert tbl[phot.idname].max() == 13
+
+    # Catalogue origin
+    orig = mx.input_catalogs['origin']
+    assert orig.idname == 'ID'
+    assert orig.raname == 'ra'
+    assert orig.decname == 'dec'
+    assert orig.segmap is None
+    assert orig.mask_tpl.endswith('source-mask-%05d.fits')
+    assert orig.skymask_tpl.endswith('sky-mask-%05d.fits')
+
+    orig.ingest_input_catalog(limit=1)
+    assert len(orig.select()) == 1
+
+    orig.ingest_input_catalog(upsert=True)
+    assert len(orig.select()) == 2
+    assert orig.meta['maxid'] == 2
+
+    tbl = orig.select().as_table()
+    assert tbl[orig.idname].max() == 2
 
 
 def test_catalog_name(settings_file):
@@ -315,6 +336,25 @@ def test_attach_dataset(mx):
     mask = fits.getdata(outdir / 'mask-source-00101.fits')
     assert mask.shape == (50, 50)
     assert np.count_nonzero(mask) == totmask
+
+
+def test_attach_origin_dataset(mx):
+    """Test attaching an origin dataset."""
+    orig = mx.input_catalogs['origin']
+
+    assert orig.mask_tpl is not None
+    assert orig.skymask_tpl is not None
+
+    res = orig.select()
+    mx.new_catalog_from_resultset('my_oricat', res, drop_if_exists=True)
+
+    mycat = mx.catalogs['my_oricat']
+    mycat.attach_dataset(mx.muse_dataset, skip_existing=False)
+
+    outdir = mycat.workdir / mx.muse_dataset.name
+    flist = sorted(os.listdir(str(outdir)))
+    assert flist == ['mask-sky-00001.fits', 'mask-sky-00002.fits',
+                     'mask-source-00001.fits', 'mask-source-00002.fits']
 
 
 def test_export_marz(mx):
