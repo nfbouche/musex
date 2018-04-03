@@ -89,25 +89,31 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         The offset is to go from array 1 to array 2.
 
            +-+-+-+-+-+-+
-        A1 | | | | | | |
+        A1 |0|1|2|3|4|5|
            +-+-+-+-+-+-+-+-+
-        A2   offset | | | | |
-                    +-+-+-+-+
+        A2  offset |0|1|2|3|
+              =4   +-+-+-+-+
 
         """
-        if (offset > size1) or (offset < -size2):
+        if (offset >= size1) or (offset <= -size2):
             raise ValueError("The arrays do not overlap.")
 
-        if offset >= 0:
-            min1 = offset
-            max1 = min(size1, size2 + offset)
-            min2 = 0
-            max2 = min(size2, size1 - offset)
-        else:
-            min1 = 0
-            max1 = min(size1, size2 + offset)
-            min2 = -offset
-            max2 = min(size2, size1 - offset)
+        # Longer version easier to understand:
+        # if offset >= 0:
+        #     min1 = offset
+        #     max1 = min(size1, size2 + offset)
+        #     min2 = 0
+        #     max2 = min(size2, size1 - offset)
+        # else:
+        #     min1 = 0
+        #     max1 = min(size1, size2 + offset)
+        #     min2 = -offset
+        #     max2 = min(size2, size1 - offset)
+
+        min1 = max(offset, 0)
+        max1 = min(size1, size2 + offset)
+        min2 = max(-offset, 0)
+        max2 = min(size2, size1 - offset)
 
         return min1, max1, min2, max2
 
