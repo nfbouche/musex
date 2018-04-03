@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import os
 import re
+import shutil
 import textwrap
 import warnings
 
@@ -562,16 +563,48 @@ class BaseCatalog:
 
 
 class Catalog(BaseCatalog):
-    """Handle user catalogs."""
+    """Handle user catalogs.
+
+    TODO: Should a segmap or (exclusive or) templates for maks and sky maks be
+    mandatory?
+
+    Parameters
+    ----------
+    name: str
+        Name of the catalog.
+    db: `dataset.Database`
+        The database object.
+    idname: str
+        Name of the 'id' column.
+    raname: str
+        Name of the 'ra' column.
+    decname: str
+        Name of the 'dec' column.
+    primary_id: str
+        The primary id for the SQL table, must be a column name.
+    segmap: str
+        Path to the segmentation map file associated to the catalog.
+    workdir: str
+        Directory used for intermediate files.
+    mask_tpl: str
+        Template to find the mask associated to the ID of a source.  The
+        template is formated with `mask_tpl % id` to get the path to the mask
+        of a source.
+    skymask_tpl: str
+        Same as mask_tpl but for the sky mask.
+
+    """
 
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, workdir=None):
+                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None):
         super().__init__(name, db, idname=idname, raname=raname,
                          decname=decname)
         self.segmap = segmap
         self._segmap_aligned = {}
+        self.mask_tpl = mask_tpl
+        self.skymask_tpl = skymask_tpl
         # Work dir for intermediate files
         if workdir is None:
             raise Exception('FIXME: find a better way to handle this')
@@ -593,7 +626,9 @@ class Catalog(BaseCatalog):
         """Create a new `Catalog` from another one."""
         cat = cls(name, parent_cat.db, workdir=workdir,
                   idname=parent_cat.idname, raname=parent_cat.raname,
-                  decname=parent_cat.decname, segmap=parent_cat.segmap)
+                  decname=parent_cat.decname, segmap=parent_cat.segmap,
+                  mask_tpl=parent_cat.mask_tpl,
+                  skymask_tpl=parent_cat.skymask_tpl)
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one
             whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
@@ -635,7 +670,14 @@ class Catalog(BaseCatalog):
                        psf_threshold=0.5, n_jobs=1, verbose=0):
         """Attach a dataset to the catalog and generate intermediate products.
 
-        Create masks from the segmap, adapted to a given dataset.
+        If the catalog is associated to a segmap, create the masks adapted to
+        the given dataset for each source. If the catalog is associated to
+        pre-computed masks just copy them (so that the user can modify them
+        without touching the original ones).
+
+        TODO: For now, the masks are supposed to be adapted to the attached
+        dataset (they come from the same MUSE cube). Implement the
+        re-projection to attach arbitrary masks.
 
         TODO: store preprocessing status?
 
@@ -645,10 +687,6 @@ class Catalog(BaseCatalog):
             The dataset.
 
         """
-        if self.segmap is None:
-            self.logger.info('no segmap available, skipping masks creation')
-            return
-
         # create output path if needed
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
@@ -658,24 +696,13 @@ class Catalog(BaseCatalog):
             raise ValueError('cannot compute masks with a different '
                              'dataset as the one used previously')
 
+        # FIXME: If pre-computed masks are provided, take the size of the masks
+        # from them (that means that all the masks must have the same size).
         self.update_meta(dataset=dataset.name, convolve_fwhm=convolve_fwhm,
                          mask_size_x=mask_size[0], mask_size_y=mask_size[1],
                          psf_threshold=psf_threshold)
 
-        # Get a segmap image rotated and aligned with our dataset
-        segmap = self.get_segmap_aligned(dataset)
-
         white = dataset.white
-        dilateit, struct = _get_psf_convolution_params(convolve_fwhm, segmap,
-                                                       psf_threshold)
-
-        # create sky mask
-        if exists(self.masksky_name()) and skip_existing:
-            self.logger.debug('sky mask exists, skipping')
-        else:
-            self.logger.debug('creating sky mask')
-            segmap.get_mask(0, inverse=True, dilate=dilateit, struct=struct,
-                            regrid_to=white, outname=self.masksky_name())
 
         # check sources inside dataset, excluding inactive sources
         if 'active' in self.c:
@@ -686,36 +713,74 @@ class Catalog(BaseCatalog):
         idname = self.idname
         ntot = len(tab)
         tab = tab.select(white.wcs, ra=self.raname, dec=self.decname,
-                        margin=dataset.margin)
+                         margin=dataset.margin)
         self.logger.info('%d sources inside dataset (%d in catalog)',
                          len(tab), ntot)
 
-        # extract source masks
-        minsize = 0.
-        to_compute = []
         stats = defaultdict(list)
-        for row in tab:
-            id_ = int(row[idname])  # need int, not np.int64
-            source_path = self.maskobj_name(id_)
-            if exists(source_path) and skip_existing:
-                stats['skipped'].append(id_)
+
+        if self.segmap is not None:
+            # Get a segmap image rotated and aligned with our dataset
+            segmap = self.get_segmap_aligned(dataset)
+
+            dilateit, struct = _get_psf_convolution_params(
+                convolve_fwhm, segmap, psf_threshold)
+
+            # create sky mask
+            if exists(self.masksky_name()) and skip_existing:
+                self.logger.debug('sky mask exists, skipping')
             else:
-                center = (row[self.decname], row[self.raname])
-                if 'merged' in row.colnames and row['merged']:
-                    ids = [o[idname] for o in self.select(
-                        self.c.merged_in == id_, columns=[idname])]
-                    # debug('merged sources, using ids %s for the mask', ids)
+                self.logger.debug('creating sky mask')
+                segmap.get_mask(0, inverse=True, dilate=dilateit,
+                                struct=struct, regrid_to=white,
+                                outname=self.masksky_name())
+
+            # extract source masks
+            minsize = 0.
+            to_compute = []
+            for row in tab:
+                id_ = int(row[idname])  # need int, not np.int64
+                source_path = self.maskobj_name(id_)
+                if exists(source_path) and skip_existing:
+                    stats['skipped'].append(id_)
                 else:
-                    ids = id_
+                    center = (row[self.decname], row[self.raname])
+                    if 'merged' in row.colnames and row['merged']:
+                        ids = [o[idname] for o in self.select(
+                            self.c.merged_in == id_, columns=[idname])]
+                        # debug('merged sources, using ids %s for the mask',
+                        # ids)
+                    else:
+                        ids = id_
 
-                stats['computed'].append(ids)
-                to_compute.append(delayed(segmap.get_source_mask)(
-                    ids, center, mask_size, minsize=minsize, struct=struct,
-                    dilate=dilateit, outname=source_path, regrid_to=white))
+                    stats['computed'].append(ids)
+                    to_compute.append(delayed(segmap.get_source_mask)(
+                        ids, center, mask_size, minsize=minsize, struct=struct,
+                        dilate=dilateit, outname=source_path, regrid_to=white))
 
-        # FIXME: check which value to use for max_nbytes
-        if to_compute:
-            Parallel(n_jobs=n_jobs, verbose=verbose)(progressbar(to_compute))
+            # FIXME: check which value to use for max_nbytes
+            if to_compute:
+                Parallel(n_jobs=n_jobs,
+                         verbose=verbose)(progressbar(to_compute))
+        else:
+            # If there is no segmap, we use individual mask files
+            # TODO: If we don't set segmap or masks mandatory, consider here
+            # the case with none of them.
+            for row in tab:
+                id_ = int(row[idname])  # need int, not np.int64
+
+                src_mask = Path(self.mask_tpl % id_)
+                src_sky = Path(self.skymask_tpl % id_)
+
+                mask_path = self.maskobj_name(id_)
+                skymask_path = self.masksky_name(id_)
+
+                if exists(mask_path) and skip_existing:
+                    stats['skipped'].append(id_)
+                else:
+                    shutil.copy(src_mask, mask_path)
+                    shutil.copy(src_sky, skymask_path)
+                    stats['copied'].append(id_)
 
         for row in tab:
             # update in db
@@ -744,6 +809,8 @@ class Catalog(BaseCatalog):
 
         A new source is created, with the "merged" column set to True. The new
         id is stored in the "merged_in" column for the input sources.
+
+        # TODO: implement merging sources with masks
 
         Parameters
         ----------
@@ -887,10 +954,23 @@ class InputCatalog(BaseCatalog):
         init_keys = ('idname', 'raname', 'decname')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
-        for key in ('catalog', 'version', 'extract', 'segmap'):
+        for key in ('catalog', 'version', 'extract'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])
+
+        segmap = kwargs.get('segmap')
+        mask_tpl = kwargs.get('mask_tpl')
+        skymask_tpl = kwargs.get('skymask_tpl')
+
+        if (segmap is None) and (mask_tpl is None or skymask_tpl is None):
+            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
+                             'are required')
+
+        setattr(cat, 'segmap', segmap)
+        setattr(cat, 'mask_tpl', mask_tpl)
+        setattr(cat, 'skymask_tpl', skymask_tpl)
+
         return cat
 
     def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
