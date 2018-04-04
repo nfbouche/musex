@@ -129,14 +129,14 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     # combine with OR. If we are processing sky masks, we set the initial mask
     # to 1 as we combine with AND.
     if is_sky:
-        result_mask = ImageHDU(header=result_mask_wcs.to_header(),
-                               data=np.ones((size[1], size[0]), dtype=int))
+        result_data = np.ones((size[1], size[0]), dtype=bool)
+        combine = np.logical_and
     else:
-        result_mask = ImageHDU(header=result_mask_wcs.to_header(),
-                               data=np.zeros((size[1], size[0]), dtype=int))
+        result_data = np.zeros((size[1], size[0]), dtype=bool)
+        combine = np.logical_or
 
     for mask in mask_list:
-        if not _same_origin(mask, result_mask):
+        if not _same_origin(mask, result_mask_wcs.to_header()):
             raise ValueError("Not all the masks used in merge_masks_on_area "
                              "were extracted on the same image.")
 
@@ -152,11 +152,9 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
             logger.warning("The mask does not overlap with the target mask.")
             continue
 
-        if is_sky:
-            result_mask.data[y2_min:y2_max, x2_min:x2_max] &= \
-                mask.data[y1_min:y1_max, x1_min:x1_max]
-        else:
-            result_mask.data[y2_min:y2_max, x2_min:x2_max] |= \
-                mask.data[y1_min:y1_max, x1_min:x1_max]
+        result_data[y2_min:y2_max, x2_min:x2_max] = combine(
+            result_data[y2_min:y2_max, x2_min:x2_max],
+            mask.data[y1_min:y1_max, x1_min:x1_max].astype(bool))
 
-    return result_mask
+    return ImageHDU(header=result_mask_wcs.to_header(),
+                    data=result_data.astype(np.uint8))
