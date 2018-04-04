@@ -114,8 +114,8 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         wcs = WCS(mask)
 
         target_center_x, target_center_y = wcs.all_world2pix(ra, dec, 0)
-        offset_x = int(target_center_x - size[0] / 2)
-        offset_y = int(target_center_y - size[1] / 2)
+        offset_x = int(target_center_x) - int(size[0] / 2)
+        offset_y = int(target_center_y) - int(size[1] / 2)
 
         return offset_x, offset_y
 

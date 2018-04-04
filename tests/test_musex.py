@@ -527,7 +527,7 @@ def test_merge_masks_on_area():
     skymask = fits.open(f"{DATADIR}/origin_masks/combined_skymasks.fits")[1]
 
     ra, dec = 53.16559, -27.78124
-    size = (40, 40)
+    size = (50, 60)
 
     assert (masks.merge_masks_on_area(ra, dec, size, mask_list).data ==
             mask.data).all()
