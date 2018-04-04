@@ -6,6 +6,64 @@ from astropy.wcs import WCS
 import numpy as np
 
 
+def _same_origin(m1, m2):
+    """Find if two masks where extracted from the same image.
+
+    We compare WCS information in the two masks:
+    - the projection type (CTYPE)
+    - the position of the reference pixel (CRVAL)
+    - the transformation matrix
+    All must be the same.
+    """
+    w1, w2 = WCS(m1), WCS(m2)
+
+    return (
+        w1.wcs.ctype[0] == w2.wcs.ctype[0] and
+        w1.wcs.ctype[1] == w2.wcs.ctype[1] and
+        np.all(w1.wcs.crval == w2.wcs.crval) and
+        np.all(w1.pixel_scale_matrix == w2.pixel_scale_matrix)
+    )
+
+
+def _overlap_limits(size1, size2, offset):
+    """Compute overlap limits of two 1D array with an offset.
+
+    Given two array switched with an offset, this function compute the
+    limit indexes en each array for the overlapping region. If there is no
+    overlap, ValueError is raised.
+
+    The offset is to go from array 1 to array 2.
+
+    +-+-+-+-+-+-+
+    A1 |0|1|2|3|4|5|
+    +-+-+-+-+-+-+-+-+
+    A2  offset |0|1|2|3|
+        =4   +-+-+-+-+
+
+    """
+    if (offset >= size1) or (offset <= -size2):
+        raise ValueError("The arrays do not overlap.")
+
+    # Longer version easier to understand:
+    # if offset >= 0:
+    #     min1 = offset
+    #     max1 = min(size1, size2 + offset)
+    #     min2 = 0
+    #     max2 = min(size2, size1 - offset)
+    # else:
+    #     min1 = 0
+    #     max1 = min(size1, size2 + offset)
+    #     min2 = -offset
+    #     max2 = min(size2, size1 - offset)
+
+    min1 = max(offset, 0)
+    max1 = min(size1, size2 + offset)
+    min2 = max(-offset, 0)
+    max2 = min(size2, size1 - offset)
+
+    return min1, max1, min2, max2
+
+
 def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     """Merge sky masks on a given area.
 
@@ -42,24 +100,6 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     """
     logger = logging.getLogger(__name__)
 
-    def _same_origin(m1, m2):
-        """Find if two masks where extracted from the same image.
-
-        We compare WCS information in the two masks:
-        - the projection type (CTYPE)
-        - the position of the reference pixel (CRVAL)
-        - the transformation matrix
-        All must be the same.
-        """
-        w1, w2 = WCS(m1), WCS(m2)
-
-        return (
-            w1.wcs.ctype[0] == w2.wcs.ctype[0] and
-            w1.wcs.ctype[1] == w2.wcs.ctype[1] and
-            np.all(w1.wcs.crval == w2.wcs.crval) and
-            np.all(w1.pixel_scale_matrix == w2.pixel_scale_matrix)
-        )
-
     def _offset(mask):
         """Compute the pixel offsets for a mask.
 
@@ -78,44 +118,6 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         offset_y = int(target_center_y - size[1] / 2)
 
         return offset_x, offset_y
-
-    def _overlap_limit(size1, size2, offset):
-        """Compute overlap limits of two 1D array with an offset.
-
-        Given two array switched with an offset, this function compute the
-        limit indexes en each array for the overlapping region. If there is no
-        overlap, ValueError is raised.
-
-        The offset is to go from array 1 to array 2.
-
-           +-+-+-+-+-+-+
-        A1 |0|1|2|3|4|5|
-           +-+-+-+-+-+-+-+-+
-        A2  offset |0|1|2|3|
-              =4   +-+-+-+-+
-
-        """
-        if (offset >= size1) or (offset <= -size2):
-            raise ValueError("The arrays do not overlap.")
-
-        # Longer version easier to understand:
-        # if offset >= 0:
-        #     min1 = offset
-        #     max1 = min(size1, size2 + offset)
-        #     min2 = 0
-        #     max2 = min(size2, size1 - offset)
-        # else:
-        #     min1 = 0
-        #     max1 = min(size1, size2 + offset)
-        #     min2 = -offset
-        #     max2 = min(size2, size1 - offset)
-
-        min1 = max(offset, 0)
-        max1 = min(size1, size2 + offset)
-        min2 = max(-offset, 0)
-        max2 = min(size2, size1 - offset)
-
-        return min1, max1, min2, max2
 
     # WCS of the result mask. We take the WCS of the first mask and change the
     # the pixel position of the reference pixel (CRPIX).
@@ -141,9 +143,9 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         mask_size = mask.data.shape
         offset = _offset(mask)
         try:
-            x1_min, x1_max, x2_min, x2_max = _overlap_limit(
+            x1_min, x1_max, x2_min, x2_max = _overlap_limits(
                 mask_size[0], size[0], offset[0])
-            y1_min, y1_max, y2_min, y2_max = _overlap_limit(
+            y1_min, y1_max, y2_min, y2_max = _overlap_limits(
                 mask_size[1], size[1], offset[1])
         except ValueError:
             # TODO: Add better warning.

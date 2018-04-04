@@ -4,7 +4,7 @@ import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from mpdaf.sdetect import Source
-from musex import MuseX, Catalog
+from musex import Catalog, MuseX, masks
 from numpy.testing import assert_allclose, assert_array_equal
 from sqlalchemy import desc
 
@@ -501,3 +501,18 @@ def test_join(mx):
     # Now with outer join we get all results
     assert len(res) == 3
     assert_array_equal(res.as_table()['my_cat_id'], [8, 100, 101])
+
+
+def test__overlap_limits():
+    """Test overlap limits computation for mask merging.
+
+    """
+    assert masks._overlap_limits(1000, 1500, 300) == (300, 1000, 0, 700)
+
+    # Swapping the arrays and inversing the offset gives the same limits.
+    assert masks._overlap_limits(1500, 1000, -300) == (0, 700, 300, 1000)
+
+    assert masks._overlap_limits(1000, 500, 20) == (20, 520, 0, 500)
+
+    with pytest.raises(ValueError):
+        masks._overlap_limits(100, 200, 1000)
