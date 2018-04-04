@@ -516,3 +516,21 @@ def test__overlap_limits():
 
     with pytest.raises(ValueError):
         masks._overlap_limits(100, 200, 1000)
+
+
+def test_merge_masks_on_area():
+    mask_list = [fits.open(f"{DATADIR}/origin_masks/mask_1.fits")[1],
+                 fits.open(f"{DATADIR}/origin_masks/mask_2.fits")[1],
+                 fits.open(f"{DATADIR}/origin_masks/mask_3.fits")[1]]
+    mask = fits.open(f"{DATADIR}/origin_masks/combined_masks.fits")[1]
+    skymask = fits.open(f"{DATADIR}/origin_masks/combined_skymasks.fits")[1]
+
+    ra, dec = 53.16559, -27.78124
+    size = (40, 40)
+
+    assert (masks.merge_masks_on_area(ra, dec, size, mask_list).data ==
+            mask.data).all()
+    assert (
+        masks.merge_masks_on_area(ra, dec, size, mask_list, is_sky=True).data
+        == skymask.data).all()
+
