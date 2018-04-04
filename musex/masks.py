@@ -130,10 +130,10 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     # to 1 as we combine with AND.
     if is_sky:
         result_mask = ImageHDU(header=result_mask_wcs.to_header(),
-                               data=np.ones(size, dtype=int))
+                               data=np.ones((size[1], size[0]), dtype=int))
     else:
         result_mask = ImageHDU(header=result_mask_wcs.to_header(),
-                               data=np.zeros(size, dtype=int))
+                               data=np.zeros((size[1], size[0]), dtype=int))
 
     for mask in mask_list:
         if not _same_origin(mask, result_mask):
@@ -153,10 +153,10 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
             continue
 
         if is_sky:
-            result_mask.data[x2_min:x2_max, y2_min:y2_max] &= \
-                mask.data[x1_min:x1_max, y1_min:y1_max]
+            result_mask.data[y2_min:y2_max, x2_min:x2_max] &= \
+                mask.data[y1_min:y1_max, x1_min:x1_max]
         else:
-            result_mask.data[x2_min:x2_max, y2_min:y2_max] |= \
-                mask.data[x1_min:x1_max, y1_min:y1_max]
+            result_mask.data[y2_min:y2_max, x2_min:x2_max] |= \
+                mask.data[y1_min:y1_max, x1_min:x1_max]
 
     return result_mask
