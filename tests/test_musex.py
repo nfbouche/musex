@@ -3,6 +3,7 @@ import os
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
+from astropy.wcs import WCS
 from mpdaf.sdetect import Source
 from musex import Catalog, MuseX, masks
 from numpy.testing import assert_allclose, assert_array_equal
@@ -534,3 +535,8 @@ def test_merge_masks_on_area():
         masks.merge_masks_on_area(ra, dec, size, mask_list, is_sky=True).data
         == skymask.data).all()
 
+    # Check that the mask is at the correct position.
+    wcs = WCS(masks.merge_masks_on_area(ra, dec, size, mask_list))
+    center = wcs.all_world2pix(ra,  dec, 0)
+    assert int(center[0]) == int(size[0] / 2)
+    assert int(center[1]) == int(size[1] / 2)
