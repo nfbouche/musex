@@ -125,12 +125,20 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     result_mask_wcs = WCS(m0).copy()
     result_mask_wcs.wcs.crpix -= _offset(m0)
 
-    # If we are processing source masks, we set the initial mask to 0 as we
-    # combine with OR. If we are processing sky masks, we set the initial mask
-    # to 1 as we combine with AND.
+    # If we are combining source masks, we start with an initial Boolean mask
+    # to 0 and combine all the individual mask to this one with a logical OR
+    # operation: we want want all the points in any of the original masks.
+    # If we are combining sky masks, we want the pixels that are marked as sky
+    # in all the original masks (because ORIGIN will given different sky masks
+    # for nearby sources). We could start with a Boolean mask set to 1 and
+    # combine with AND, but if we ask for a too big mask, the pixels not
+    # covered by any of the original masks would stay to 0. To avoid that, we
+    # start with and integer 0 mask and add all the individual masks. The final
+    # sky mask it all the pixels with a value equal to the number of mask
+    # combined.
     if is_sky:
-        result_data = np.ones((size[1], size[0]), dtype=bool)
-        combine = np.logical_and
+        result_data = np.zeros((size[1], size[0]), dtype=np.uint8)
+        combine = np.add
     else:
         result_data = np.zeros((size[1], size[0]), dtype=bool)
         combine = np.logical_or
@@ -155,6 +163,9 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         result_data[y2_min:y2_max, x2_min:x2_max] = combine(
             result_data[y2_min:y2_max, x2_min:x2_max],
             mask.data[y1_min:y1_max, x1_min:x1_max].astype(bool))
+
+    if is_sky:
+        result_data = (result_data == len(mask_list)).astype(np.uint8)
 
     return ImageHDU(header=result_mask_wcs.to_header(),
                     data=result_data.astype(np.uint8))
