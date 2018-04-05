@@ -41,6 +41,11 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     different sky masks on the same area and we want the pixels that are sky in
     all the sources.
 
+    Beware that when merging masks on a bigger area, some pixels of the new
+    mask may not be present in the initial masks and will be set to 0. For the
+    source masks, it is not a problem but for the sky masks that means that
+    some pixels marked as non-sky may actually be sky pixels.
+
     Parameters
     ----------
     ra: float
