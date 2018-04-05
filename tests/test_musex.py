@@ -522,7 +522,13 @@ def test_merge_masks_on_area():
 
     # Check that the mask is at the correct position.
     # Use rounding method from astropy.nddata.utils
-    from astropy.nddata.utils import _round
+    def _round(a):
+        '''Always round up.
+
+        ``np.round`` cannot be used here, because it rounds .5 to the nearest
+        even number.
+        '''
+        return int(np.floor(a + 0.5))
 
     wcs = WCS(masks.merge_masks_on_area(ra, dec, size, mask_list))
     center = wcs.all_world2pix(ra,  dec, 0)
