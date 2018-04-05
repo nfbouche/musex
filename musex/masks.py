@@ -48,7 +48,7 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     dec: float
         Declination of the center of the result mask in decimal degrees.
     size: (int, int)
-        Size of the mask (x size, y, size) in pixels. The size of a pixel is
+        Size of the mask (y size, x size) in pixels. The size of a pixel is
         the same as in the passed masks.
      mask_list: List[astropy.io.fits.hdu.image.ImageHDU]
         List of the masks to combine.
@@ -80,10 +80,10 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     # sky mask it all the pixels with a value equal to the number of mask
     # combined.
     if is_sky:
-        result_data = np.zeros((size[1], size[0]), dtype=np.uint8)
+        result_data = np.zeros(size, dtype=np.uint8)
         combine = np.add
     else:
-        result_data = np.zeros((size[1], size[0]), dtype=bool)
+        result_data = np.zeros(size, dtype=bool)
         combine = np.logical_or
 
     for mask in mask_list:
@@ -93,7 +93,7 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
                              "were extracted on the same image.")
 
         mask_size = mask.data.shape
-        result_center = WCS(mask).all_world2pix(ra, dec, 0)
+        result_center = WCS(mask).all_world2pix(ra, dec, 0)[::-1]  # (y, x)
         try:
             mask_slice, result_slice = overlap_slices(
                 mask_size, size, result_center)
@@ -101,13 +101,13 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
             if result_wcs is None:
                 result_wcs = WCS(mask).copy()
                 offset = (
-                    mask_slice[0].start - result_slice[0].start,
-                    mask_slice[1].start - result_slice[1].start)
+                    mask_slice[1].start - result_slice[1].start,
+                    mask_slice[0].start - result_slice[0].start)
                 result_wcs.wcs.crpix -= offset
 
-            result_data[result_slice[::-1]] = combine(
-                result_data[result_slice[::-1]],
-                mask.data[mask_slice[::-1]].astype(bool))
+            result_data[result_slice] = combine(
+                result_data[result_slice],
+                mask.data[mask_slice].astype(bool))
 
         except NoOverlapError:
             # TODO: Add better warning.

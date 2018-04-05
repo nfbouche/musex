@@ -527,7 +527,7 @@ def test_merge_masks_on_area():
     skymask = fits.open(f"{DATADIR}/origin_masks/combined_skymasks.fits")[1]
 
     ra, dec = 53.16559, -27.78124
-    size = (50, 60)
+    size = (60, 50)
 
     assert (masks.merge_masks_on_area(ra, dec, size, mask_list).data ==
             mask.data).all()
@@ -536,7 +536,10 @@ def test_merge_masks_on_area():
         == skymask.data).all()
 
     # Check that the mask is at the correct position.
+    # Use rounding method from astropy.nddata.utils
+    from astropy.nddata.utils import _round
+
     wcs = WCS(masks.merge_masks_on_area(ra, dec, size, mask_list))
     center = wcs.all_world2pix(ra,  dec, 0)
-    assert int(center[0]) == int(size[0] / 2)
-    assert int(center[1]) == int(size[1] / 2)
+    assert _round(center[0]) == _round(size[1] / 2)
+    assert _round(center[1]) == _round(size[0] / 2)
