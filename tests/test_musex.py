@@ -504,21 +504,6 @@ def test_join(mx):
     assert_array_equal(res.as_table()['my_cat_id'], [8, 100, 101])
 
 
-def test__overlap_limits():
-    """Test overlap limits computation for mask merging.
-
-    """
-    assert masks._overlap_limits(1000, 1500, 300) == (300, 1000, 0, 700)
-
-    # Swapping the arrays and inversing the offset gives the same limits.
-    assert masks._overlap_limits(1500, 1000, -300) == (0, 700, 300, 1000)
-
-    assert masks._overlap_limits(1000, 500, 20) == (20, 520, 0, 500)
-
-    with pytest.raises(ValueError):
-        masks._overlap_limits(100, 200, 1000)
-
-
 def test_merge_masks_on_area():
     mask_list = [fits.open(f"{DATADIR}/origin_masks/mask_1.fits")[1],
                  fits.open(f"{DATADIR}/origin_masks/mask_2.fits")[1],
