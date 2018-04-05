@@ -2,6 +2,7 @@
 import logging
 
 from astropy.io.fits import ImageHDU
+from astropy.nddata.utils import NoOverlapError, overlap_slices
 from astropy.wcs import WCS
 import numpy as np
 
@@ -23,45 +24,6 @@ def _same_origin(m1, m2):
         np.all(w1.wcs.crval == w2.wcs.crval) and
         np.all(w1.pixel_scale_matrix == w2.pixel_scale_matrix)
     )
-
-
-def _overlap_limits(size1, size2, offset):
-    """Compute overlap limits of two 1D array with an offset.
-
-    Given two array switched with an offset, this function compute the
-    limit indexes en each array for the overlapping region. If there is no
-    overlap, ValueError is raised.
-
-    The offset is to go from array 1 to array 2.
-
-    +-+-+-+-+-+-+
-    A1 |0|1|2|3|4|5|
-    +-+-+-+-+-+-+-+-+
-    A2  offset |0|1|2|3|
-        =4   +-+-+-+-+
-
-    """
-    if (offset >= size1) or (offset <= -size2):
-        raise ValueError("The arrays do not overlap.")
-
-    # Longer version easier to understand:
-    # if offset >= 0:
-    #     min1 = offset
-    #     max1 = min(size1, size2 + offset)
-    #     min2 = 0
-    #     max2 = min(size2, size1 - offset)
-    # else:
-    #     min1 = 0
-    #     max1 = min(size1, size2 + offset)
-    #     min2 = -offset
-    #     max2 = min(size2, size1 - offset)
-
-    min1 = max(offset, 0)
-    max1 = min(size1, size2 + offset)
-    min2 = max(-offset, 0)
-    max2 = min(size2, size1 - offset)
-
-    return min1, max1, min2, max2
 
 
 def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
@@ -100,30 +62,11 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     """
     logger = logging.getLogger(__name__)
 
-    def _offset(mask):
-        """Compute the pixel offsets for a mask.
-
-        Given a mask header, this function computes the pixel offsets to go
-        from the mask to the new mask the merge_masks_on_area if creating.
-
-        We compute the position of the center of the new mask. The offset is
-        then the position of the (0, 0) pixel in the target mask, computed
-        using its size.
-
-        """
-        wcs = WCS(mask)
-
-        target_center_x, target_center_y = wcs.all_world2pix(ra, dec, 0)
-        offset_x = int(target_center_x) - int(size[0] / 2)
-        offset_y = int(target_center_y) - int(size[1] / 2)
-
-        return offset_x, offset_y
-
-    # WCS of the result mask. We take the WCS of the first mask and change the
-    # the pixel position of the reference pixel (CRPIX).
-    m0 = mask_list[0]
-    result_mask_wcs = WCS(m0).copy()
-    result_mask_wcs.wcs.crpix -= _offset(m0)
+    # Astropy overlap_slices has a specific way to compute offsets and image
+    # centers to have consistent cutouts between arrays of odd and even
+    # dimensions. Instead of re-implementing the offset computation, we just
+    # take it from the first mask we use.
+    result_wcs = None
 
     # If we are combining source masks, we start with an initial Boolean mask
     # to 0 and combine all the individual mask to this one with a logical OR
@@ -144,28 +87,40 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         combine = np.logical_or
 
     for mask in mask_list:
-        if not _same_origin(mask, result_mask_wcs.to_header()):
+        if (result_wcs is not None and
+                not _same_origin(mask, result_wcs.to_header())):
             raise ValueError("Not all the masks used in merge_masks_on_area "
                              "were extracted on the same image.")
 
         mask_size = mask.data.shape
-        offset = _offset(mask)
+        result_center = WCS(mask).all_world2pix(ra, dec, 0)
         try:
-            x1_min, x1_max, x2_min, x2_max = _overlap_limits(
-                mask_size[0], size[0], offset[0])
-            y1_min, y1_max, y2_min, y2_max = _overlap_limits(
-                mask_size[1], size[1], offset[1])
-        except ValueError:
+            mask_slice, result_slice = overlap_slices(
+                mask_size, size, result_center)
+
+            if result_wcs is None:
+                result_wcs = WCS(mask).copy()
+                offset = (
+                    mask_slice[0].start - result_slice[0].start,
+                    mask_slice[1].start - result_slice[1].start)
+                result_wcs.wcs.crpix -= offset
+
+            result_data[result_slice[::-1]] = combine(
+                result_data[result_slice[::-1]],
+                mask.data[mask_slice[::-1]].astype(bool))
+
+        except NoOverlapError:
             # TODO: Add better warning.
             logger.warning("The mask does not overlap with the target mask.")
-            continue
 
-        result_data[y2_min:y2_max, x2_min:x2_max] = combine(
-            result_data[y2_min:y2_max, x2_min:x2_max],
-            mask.data[y1_min:y1_max, x1_min:x1_max].astype(bool))
+    # If result_wcs is still None, that means that none of the merged masks
+    # were overlapping the region.
+    if result_wcs is None:
+        raise ValueError("None of the provided mask was overlapping the "
+                         "given position.")
 
     if is_sky:
         result_data = (result_data == len(mask_list)).astype(np.uint8)
 
-    return ImageHDU(header=result_mask_wcs.to_header(),
+    return ImageHDU(header=result_wcs.to_header(),
                     data=result_data.astype(np.uint8))
