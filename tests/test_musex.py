@@ -3,8 +3,9 @@ import os
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
+from astropy.wcs import WCS
 from mpdaf.sdetect import Source
-from musex import MuseX, Catalog
+from musex import Catalog, MuseX, masks
 from numpy.testing import assert_allclose, assert_array_equal
 from sqlalchemy import desc
 
@@ -501,3 +502,35 @@ def test_join(mx):
     # Now with outer join we get all results
     assert len(res) == 3
     assert_array_equal(res.as_table()['my_cat_id'], [8, 100, 101])
+
+
+def test_merge_masks_on_area():
+    mask_list = [fits.open(f"{DATADIR}/origin_masks/mask_1.fits")[1],
+                 fits.open(f"{DATADIR}/origin_masks/mask_2.fits")[1],
+                 fits.open(f"{DATADIR}/origin_masks/mask_3.fits")[1]]
+    mask = fits.open(f"{DATADIR}/origin_masks/combined_masks.fits")[1]
+    skymask = fits.open(f"{DATADIR}/origin_masks/combined_skymasks.fits")[1]
+
+    ra, dec = 53.16559, -27.78124
+    size = (60, 50)
+
+    assert (masks.merge_masks_on_area(ra, dec, size, mask_list).data ==
+            mask.data).all()
+    assert (
+        masks.merge_masks_on_area(ra, dec, size, mask_list, is_sky=True).data
+        == skymask.data).all()
+
+    # Check that the mask is at the correct position.
+    # Use rounding method from astropy.nddata.utils
+    def _round(a):
+        '''Always round up.
+
+        ``np.round`` cannot be used here, because it rounds .5 to the nearest
+        even number.
+        '''
+        return int(np.floor(a + 0.5))
+
+    wcs = WCS(masks.merge_masks_on_area(ra, dec, size, mask_list))
+    center = wcs.all_world2pix(ra,  dec, 0)
+    assert _round(center[0]) == _round(size[1] / 2)
+    assert _round(center[1]) == _round(size[0] / 2)
