@@ -1017,7 +1017,8 @@ class InputCatalog(BaseCatalog):
                         show_progress=show_progress)
 
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type=self.catalog_type, maxid=self.max(self.idname))
+                         type=self.catalog_type, maxid=self.max(self.idname),
+                         segmap=getattr(self, 'segmap', None))
 
 
 class MarzCatalog(InputCatalog):
