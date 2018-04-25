@@ -283,12 +283,14 @@ class MuseX:
         elif isinstance(size, Iterable) and isinstance(size, Sized):
             if len(resultset) != len(size):
                 msg = ("Length of res_or_cat (%d) does not match length of "
-                      "sizes (%d)")
+                      "size (%d)")
                 raise Exception(msg % (len(resultset), len(size)))
 
             info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
                  len(resultset), self.muse_dataset.name, np.min(size),
                  np.max(size))
+        else:
+            raise Exception("'size' should be either a float or list of floats")
 
         use_datasets = [self.muse_dataset]
         if datasets is not None:
