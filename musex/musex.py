@@ -328,7 +328,6 @@ class MuseX:
             src.SIZE = src_size
 
             # Add keywords from columns
-            import pdb; pdb.set_trace()
             for key, colname in header_columns.items():
                 if row.get(colname) is not None:
                     if key == 'COMMENT':
