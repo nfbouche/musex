@@ -481,7 +481,7 @@ class MuseX:
         # If sources must be exported, we need to tell .to_sources what to put
         # inside the sources (all datasets and the segmap)
         datasets = None if export_sources else []
-        content = ('segmap', ) if export_sources else tuple()
+        content = ('segmap', 'parentcat') if export_sources else tuple()
 
         for s in self.to_sources(res_or_cat, datasets=datasets,
                                  content=content, **kwargs):
