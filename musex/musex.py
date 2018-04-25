@@ -6,7 +6,7 @@ import sys
 import textwrap
 from astropy.io import fits
 from astropy.table import Table, Row
-from collections import OrderedDict
+from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from mpdaf.log import setup_logging
 from mpdaf.obj import Image
@@ -242,7 +242,7 @@ class MuseX:
         ----------
         res_or_cat: `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        size: float
+        size: float or list of float
             Size of the images (in arcseconds) added in the sources.
         srcvers: str
             Version of the sources (SRC_V).
@@ -274,8 +274,24 @@ class MuseX:
         # debug = self.logger.debug
         debug = self.logger.debug
         info = self.logger.info
-        info('Exporting %s sources with %s dataset, size=%.1f',
-             len(resultset), self.muse_dataset.name, size)
+
+        if isinstance(size, (float, int)):
+            info('Exporting %s sources with %s dataset, size=%.1f',
+                 len(resultset), self.muse_dataset.name, size)
+            size = [size] * len(resultset)
+
+        elif isinstance(size, Iterable) and isinstance(size, Sized):
+            if len(resultset) != len(size):
+                msg = ("Length of res_or_cat (%d) does not match length of "
+                      "size (%d)")
+                raise Exception(msg % (len(resultset), len(size)))
+
+            info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
+                 len(resultset), self.muse_dataset.name, np.min(size),
+                 np.max(size))
+        else:
+            raise Exception("'size' should be either a float or list of floats")
+
         use_datasets = [self.muse_dataset]
         if datasets is not None:
             if not isinstance(datasets, (list, tuple)):
@@ -300,7 +316,7 @@ class MuseX:
             resultset = progressbar(resultset)
             setup_logging('musex', level=logging.WARNING, stream=sys.stdout)
 
-        for row in resultset:
+        for row, src_size in zip(resultset, size):
             if isinstance(row, Row):
                 # convert Astropy Row to dict
                 row = dict(zip(row.colnames, row.as_void().tolist()))
@@ -310,8 +326,8 @@ class MuseX:
             src.SRC_V = (srcvers, 'Source Version')
             info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
             src.CATALOG = os.path.basename(parent_cat.name)
-            src.default_size = size
-            src.SIZE = size
+            src.default_size = src_size
+            src.SIZE = src_size
 
             # Add keywords from columns
             for key, colname in header_columns.items():
@@ -359,7 +375,7 @@ class MuseX:
             skyim = (refskyim if row['mask_sky'] == refskyf else
                      str(cat.workdir / row['mask_sky']))
             src.images['MASK_SKY'] = extract_subimage(
-                skyim, center, (size, size), minsize=minsize)
+                skyim, center, (src_size, src_size), minsize=minsize)
 
             maskim = Image(str(cat.workdir / row['mask_obj']), copy=False)
             # centerpix = maskim.wcs.sky2pix(center)[0]
@@ -367,7 +383,7 @@ class MuseX:
             #       *centerpix.tolist())
             # FIXME: check that center is inside mask
             src.images['MASK_OBJ'] = extract_subimage(
-                maskim, center, (size, size), minsize=minsize)
+                maskim, center, (src_size, src_size), minsize=minsize)
 
             # compute surface of each masks and compare to field of view, save
             # values in header
@@ -481,7 +497,7 @@ class MuseX:
         # If sources must be exported, we need to tell .to_sources what to put
         # inside the sources (all datasets and the segmap)
         datasets = None if export_sources else []
-        content = ('segmap', ) if export_sources else tuple()
+        content = ('segmap', 'parentcat') if export_sources else tuple()
 
         for s in self.to_sources(res_or_cat, datasets=datasets,
                                  content=content, **kwargs):
