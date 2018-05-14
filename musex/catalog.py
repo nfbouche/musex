@@ -146,10 +146,6 @@ class BaseCatalog:
         The database object.
     idname: str
         Name of the 'id' column.
-    raname: str
-        Name of the 'ra' column.
-    decname: str
-        Name of the 'dec' column.
     primary_id: str
         The primary id for the SQL table, must be a column name.
 
@@ -157,14 +153,11 @@ class BaseCatalog:
 
     catalog_type = ''
 
-    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 primary_id=None):
+    def __init__(self, name, db, idname='ID', primary_id=None):
         self.name = name
         self.db = db
         self.idmap = None
         self.idname = idname
-        self.raname = raname
-        self.decname = decname
         self.logger = logging.getLogger(__name__)
 
         if not re.match(r'[0-9a-zA-Z_]+$', self.name):
@@ -186,7 +179,6 @@ class BaseCatalog:
         if self.meta is None:
             self.update_meta(creation_date=datetime.utcnow().isoformat(),
                              type=self.catalog_type, parent_cat=None,
-                             raname=self.raname, decname=self.decname,
                              idname=self.idname)
 
     def __len__(self):
@@ -350,8 +342,7 @@ class BaseCatalog:
         self.logger.info('%d rows inserted, %s updated',
                          len(count['inserted']), len(count['updated']))
 
-    def select(self, whereclause=None, columns=None, wcs=None, margin=0,
-               **params):
+    def select(self, whereclause=None, columns=None, **params):
         """Select rows in the catalog.
 
         Parameters
@@ -360,20 +351,11 @@ class BaseCatalog:
             The SQLAlchemy selection clause.
         columns: list of str
             List of columns to retrieve (all columns if None).
-        wcs: `mpdaf.obj.WCS`
-            If present sources are selected inside the given WCS.
-        margin: float
-            Margin from the edges (pixels) for the WCS selection.
         params: dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
         if columns is not None:
-            if wcs is not None:
-                if self.raname not in columns:
-                    columns.append(self.raname)
-                if self.decname not in columns:
-                    columns.append(self.decname)
             columns = [self.c[col] for col in columns]
         else:
             columns = [self.table.table]
@@ -382,12 +364,6 @@ class BaseCatalog:
         res = self.db.query(query)
         res = ResultSet(res, whereclause=whereclause, catalog=self,
                         columns=query.columns)
-
-        if wcs is not None:
-            t = res.as_table()
-            t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin)
-            res = ResultSet(table_to_odict(t), whereclause=whereclause,
-                            catalog=self, columns=query.columns)
 
         return res
 
@@ -502,6 +478,78 @@ class BaseCatalog:
                 row[name] = values[i]
                 tbl.upsert(row, [self.idname], ensure=False)
 
+
+class SpatialCatalog(BaseCatalog):
+    """Catalog with spatial information.
+
+    This class handles catalogs with spacial information associated (RA, Dec).
+
+    Parameters
+    ----------
+    name: str
+        Name of the catalog.
+    db: `dataset.Database`
+        The database object.
+    idname: str
+        Name of the 'id' column.
+    raname: str
+        Name of the 'ra' column.
+    decname: str
+        Name of the 'dec' column.
+    primary_id: str
+        The primary id for the SQL table, must be a column name.
+
+    """
+
+    catalog_type = ''
+
+    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
+                 primary_id=None):
+        super().__init__(name, db, idname, primary_id)
+        self.raname = raname
+        self.decname = decname
+        self.update_meta(raname=self.raname, decname=self.decname)
+
+    def select(self, whereclause=None, columns=None, wcs=None, margin=0,
+               **params):
+        """Select rows in the catalog.
+
+        For spatial catalogs, this method allows to pass as WCS to select only
+        the sources that fall inside.
+
+        Parameters
+        ----------
+        whereclause:
+            The SQLAlchemy selection clause.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+        wcs: `mpdaf.obj.WCS`
+            If present sources are selected inside the given WCS.
+        margin: float
+            Margin from the edges (pixels) for the WCS selection.
+        params: dict
+            Additional parameters are passed to `sqlalchemy.sql.select`.
+
+        """
+        # We need the position to select inside a WCS.
+        if wcs is not None and columns is not None:
+            if self.raname not in columns:
+                columns.append(self.raname)
+            if self.decname not in columns:
+                columns.append(self.decname)
+
+        res = super().select(whereclause=whereclause, columns=columns,
+                             **params)
+
+        if wcs is not None:
+            t = res.as_table()
+            t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin)
+            # FIXME Simon, is it OK to take the ResultSet columns here?
+            res = ResultSet(table_to_odict(t), whereclause=whereclause,
+                            catalog=self, columns=res.columns)
+
+        return res
+
     def add_to_source(self, src, row, **kwargs):
         """Add information to the Source object.
 
@@ -562,7 +610,7 @@ class BaseCatalog:
                         unit=(u.deg, u.deg), frame='fk5')
 
 
-class Catalog(BaseCatalog):
+class Catalog(SpatialCatalog):
     """Handle user catalogs.
 
     TODO: Should a segmap or (exclusive or) templates for maks and sky maks be
@@ -943,7 +991,7 @@ class Catalog(BaseCatalog):
         self.update_column(name, val)
 
 
-class InputCatalog(BaseCatalog):
+class InputCatalog(SpatialCatalog):
     """Handles catalogs imported from an exiting file."""
 
     catalog_type = 'input'
