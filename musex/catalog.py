@@ -130,8 +130,12 @@ class ResultSet(Sequence):
 
         tbl.meta['name'] = self.catalog.name
         tbl.meta['idname'] = self.catalog.idname
-        tbl.meta['raname'] = self.catalog.raname
-        tbl.meta['decname'] = self.catalog.decname
+        try:
+            tbl.meta['raname'] = self.catalog.raname
+            tbl.meta['decname'] = self.catalog.decname
+        except AttributeError:
+            pass
+
         return tbl
 
 
