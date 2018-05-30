@@ -749,6 +749,13 @@ class Catalog(SpatialCatalog):
             The dataset.
 
         """
+        # A segmap or the mask templates are mandatory to be able to extract
+        # spectra.
+        if (self.segmap is None) and \
+                (self.mask_tpl is None or self.skymask_tpl is None):
+            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
+                             'are required')
+
         # create output path if needed
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
@@ -1024,10 +1031,6 @@ class InputCatalog(SpatialCatalog):
         segmap = kwargs.get('segmap')
         mask_tpl = kwargs.get('mask_tpl')
         skymask_tpl = kwargs.get('skymask_tpl')
-
-        if (segmap is None) and (mask_tpl is None or skymask_tpl is None):
-            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
-                             'are required')
 
         setattr(cat, 'segmap', segmap)
         setattr(cat, 'mask_tpl', mask_tpl)
