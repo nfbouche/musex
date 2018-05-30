@@ -255,6 +255,16 @@ class BaseCatalog:
     def _prepare_rows_for_insert(self, rows, version=None, show_progress=True):
         # Convert Astropy Table to a list of dict
         if isinstance(rows, Table):
+            # Change minus to underscore in column names because we can't have
+            # a minus in a database column name. We do it only on the table
+            # because passing a dictionary to the function will generally
+            # happen when the dictionary comes from Musex.
+            for colname in rows.colnames:
+                if '-' in colname:
+                    new_colname = colname.replace('-', '_')
+                    rows[colname].rename_column(colname, new_colname)
+                    self.logger.warning("The column %s was renamed to %s.",
+                                        colname, new_colname)
             rows = table_to_odict(rows)
 
         if version is not None:
@@ -739,6 +749,13 @@ class Catalog(SpatialCatalog):
             The dataset.
 
         """
+        # A segmap or the mask templates are mandatory to be able to extract
+        # spectra.
+        if (self.segmap is None) and \
+                (self.mask_tpl is None or self.skymask_tpl is None):
+            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
+                             'are required')
+
         # create output path if needed
         outpath = self.workdir / dataset.name
         outpath.mkdir(exist_ok=True)
@@ -1014,10 +1031,6 @@ class InputCatalog(SpatialCatalog):
         segmap = kwargs.get('segmap')
         mask_tpl = kwargs.get('mask_tpl')
         skymask_tpl = kwargs.get('skymask_tpl')
-
-        if (segmap is None) and (mask_tpl is None or skymask_tpl is None):
-            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
-                             'are required')
 
         setattr(cat, 'segmap', segmap)
         setattr(cat, 'mask_tpl', mask_tpl)
