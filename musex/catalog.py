@@ -262,7 +262,7 @@ class BaseCatalog:
             for colname in rows.colnames:
                 if '-' in colname:
                     new_colname = colname.replace('-', '_')
-                    rows[colname].rename_column(colname, new_colname)
+                    rows.rename_column(colname, new_colname)
                     self.logger.warning("The column %s was renamed to %s.",
                                         colname, new_colname)
             rows = table_to_odict(rows)
