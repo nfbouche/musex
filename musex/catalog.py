@@ -255,6 +255,16 @@ class BaseCatalog:
     def _prepare_rows_for_insert(self, rows, version=None, show_progress=True):
         # Convert Astropy Table to a list of dict
         if isinstance(rows, Table):
+            # Change minus to underscore in column names because we can't have
+            # a minus in a database column name. We do it only on the table
+            # because passing a dictionary to the function will generally
+            # happen when the dictionary comes from Musex.
+            for colname in rows.colnames:
+                if '-' in colname:
+                    new_colname = colname.replace('-', '_')
+                    rows[colname].rename_column(colname, new_colname)
+                    self.logger.warning("The column %s was renamed to %s.",
+                                        colname, new_colname)
             rows = table_to_odict(rows)
 
         if version is not None:
