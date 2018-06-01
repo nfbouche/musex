@@ -391,8 +391,12 @@ class BaseCatalog:
                 return None
         return self.table.find_one(**{self.idname: id_})
 
-    def select_ids(self, idlist, columns=None, **params):
+    def select_ids(self, idlist, columns=None, idcolumn=None, **params):
         """Select rows with a list of IDs.
+
+        If a column name is provided in `idcolumn`, this column will be used
+        to select the IDs in; else the catalog main ID column (`idname`) will
+        be used.
 
         Parameters
         ----------
@@ -400,6 +404,9 @@ class BaseCatalog:
             List of IDs.
         columns: list of str
             List of columns to retrieve (all columns if None).
+        idcolumn: str
+            Name of the column containing the IDs when not using the default
+            column.
         params: dict
             Additional parameters are passed to `dataset.Database.query`.
 
@@ -409,11 +416,14 @@ class BaseCatalog:
         elif isinstance(idlist, np.ndarray):
             idlist = idlist.tolist()
 
+        if idcolumn is None:
+            idcolumn = self.idname
+
         if len(idlist) > 999 and self.db.engine.driver == 'pysqlite':
             warnings.warn('Selecting too many ids will fail with SQLite',
                           UserWarning)
 
-        whereclause = self.c[self.idname].in_(idlist)
+        whereclause = self.c[idcolumn].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
 
     def join(self, othercats, whereclause=None, columns=None, keys=None,
@@ -1216,6 +1226,26 @@ class LineCatalog(BaseCatalog):
         super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.src_idname = src_idname
         self.update_meta(src_idname=self.src_idname)
+
+    def select_srcids(self, src_ids, columns=None, **params):
+        """Select lines for given source identifiers.
+
+        Parameters
+        ----------
+        src_ids : scaler or list
+            List of source identifiers to get the lines corresponding to.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+        params: dict
+            Additional parameters are passed to `dataset.Database.query`.
+
+        Returns
+        -------
+        ``musex.catalog.ResultSet``
+
+        """
+        return super().select_ids(src_ids, columns=columns,
+                                  idcolumn=self.src_idname, **params)
 
 
 class MarzCatalog(InputCatalog):
