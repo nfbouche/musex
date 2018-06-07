@@ -14,6 +14,7 @@ from mpdaf.obj import Image
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name, LineCatalog)
+from .crossmatching import CrossMatch
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
@@ -144,6 +145,10 @@ class MuseX:
                     line_idname=line_meta['idname'],
                     line_src_idname=line_meta['src_idname']
                 )
+
+        for row in self.catalogs_table.find(type='cross-match'):
+            name = row['name']
+            self.catalogs[name] = CrossMatch(name, db)
 
         # Marz
         self.marzcat = MarzCatalog('marz', db, primary_id='_id')
