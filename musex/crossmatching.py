@@ -2,9 +2,13 @@
 
 import logging
 
+from IPython.core.display import HTML, display
 from astropy import units as u
 from astropy.coordinates import search_around_sky
 from astropy.table import Table, vstack
+from astropy.visualization import hist
+from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 
 from .catalog import BaseCatalog
@@ -179,3 +183,55 @@ class CrossMatch(BaseCatalog):
         """
         super().__init__(name=name, db=db, idname='ID')
         self.update_meta(type='cross-match')
+
+    def nb_diagnostic(self):
+        """Output some diagnostics in a notebook."""
+
+        # Temporarily disable interactive plotting not to display plots twice.
+        plt.ioff()
+
+        table = self.select().as_table()
+        with_matches = table[~np.isnan(table['distance'])]
+
+        # Histogram of distances
+        fig, ax = plt.subplots()
+        hist(with_matches['distance'], ax=ax)
+        ax.set_xlabel("Distance in arc-seconds")
+        display(HTML("<h3>Histogram of separation for matching sources</h3>"),
+                fig)
+
+        def _catalog_diag(nb):
+            """Diagnostic of a catalog"""
+            rows_in_cat = table[table[f'nb_match_for_idx{nb}'] >= 0]
+            cat_name = rows_in_cat[f'cat{nb}_name'][0]
+            nb_sources_in_cat = len(np.unique(rows_in_cat[f'idx{nb}']))
+
+            rows_with_match = rows_in_cat[
+                rows_in_cat[f'nb_match_for_idx{nb}'] > 0]
+            sources_with_match, nb_match = np.unique(
+                rows_with_match[f'idx{nb}'], return_counts=True)
+            nb_sources_with_match = len(sources_with_match)
+            percentage_with_match = (100 * nb_sources_with_match /
+                                     nb_sources_in_cat)
+
+            # Bar plot of the number of sources with a given number of matches.
+            fig, ax = plt.subplots()
+            ax.bar(*np.unique(nb_match, return_counts=True))
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            ax.set_xlabel("Number of matches")
+            ax.set_ylabel("Number of sources")
+
+            display(
+                HTML(f"""<h3>Catalog {cat_name}</h3>
+                    <ul>
+                        <li>{nb_sources_in_cat} sources</li>
+                        <li>{nb_sources_with_match} sources with at least
+                        one match ({percentage_with_match:.2f}%)</li>
+                    </ul>"""),
+                fig)
+
+        _catalog_diag(1)
+        _catalog_diag(2)
+
+        # Back to interactive.
+        plt.ion()
