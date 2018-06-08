@@ -4,7 +4,7 @@ import logging
 
 from astropy import units as u
 from astropy.coordinates import search_around_sky
-from astropy.table import Table, vstack
+from astropy.table import Table, join, vstack
 from astropy.visualization import hist
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -170,6 +170,55 @@ class CrossMatch(BaseCatalog):
         """
         super().__init__(name=name, db=db, idname='ID')
         self.update_meta(type='cross-match')
+
+    def matched_table_with_more_than(self, min_matches, *, min_in_cat=None):
+        """Return the full table of matches.
+
+        This function returns a table with columns from both catalogs with all
+        the matches and limited to sources having more than a minimum number of
+        matches. If `min_in_cat` (1 or 2) is provided, the minimum match
+        selection will be done only in this catalog.
+
+        Parameters
+        ----------
+        min_matches: int
+            Only sources having this number of matches or more will be
+            returned.
+        min_in_cat: int
+            If not None, should be 1 or 2 and the minimum number of matches
+            will be looked for only in the given catalog.
+        """
+        if min_in_cat == 1:
+            selection = self.select(
+                self.c[f'{self.cat1.name}_nbmatch'] > min_matches)
+        elif min_in_cat == 2:
+            selection = self.select(
+                self.c[f'{self.cat2.name}_nbmatch'] > min_matches)
+        else:
+            selection = self.select(
+                (self.c[f'{self.cat1.name}_nbmatch'] > min_matches) |
+                (self.c[f'{self.cat2.name}_nbmatch'] > min_matches))
+
+        if len(selection) == 0:
+            self.logger.info("There are no sources with this number of "
+                             "matches.")
+            return None
+
+        selection = selection.as_table()
+
+        cat1 = self.cat1.select_ids(
+            np.unique(selection[f'{self.cat1.name}_id'])).as_table()
+        cat1.rename_column(self.cat1.idname, f'{self.cat1.name}_id')
+        cat2 = self.cat2.select_ids(
+            np.unique(selection[f'{self.cat2.name}_id'])).as_table()
+        cat2.rename_column(self.cat2.idname, f'{self.cat2.name}_id')
+
+        result = join(cat1, selection, keys=f'{self.cat1.name}_id',
+                      join_type='outer')
+        result = join(result, cat2, keys=f'{self.cat2.name}_id',
+                      join_type='outer')
+
+        return result
 
     def nb_diagnostic(self):
         """Output some diagnostics in a notebook."""
