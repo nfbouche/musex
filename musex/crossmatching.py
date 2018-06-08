@@ -19,15 +19,11 @@ def _null_value(value):
     return NULL_VALUE[type(value)]
 
 
-def cross_match(name, db, cat1, cat2, radius=1.):
+def _cross_match(name, db, cat1, cat2, radius=1.):
     """Cross-match two catalogs.
 
     This function cross-match two catalogs and creates a CrossMatch catalog
-    in MuseX database.
-
-    FIXME: Using a name that already exist in the database will lead to trying
-    to update the table content and will fail with integrity error. Try to find
-    a way to check for existing tables.
+    in MuseX database. Use the MuseX.cross_match function.
 
     Parameters
     ----------

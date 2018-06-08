@@ -14,7 +14,7 @@ from mpdaf.obj import Image
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name, LineCatalog)
-from .crossmatching import CrossMatch
+from .crossmatching import CrossMatch, _cross_match
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
@@ -618,3 +618,26 @@ class MuseX:
             raise ValueError('not a valid catalog name')
         self.catalogs[name].drop()
         del self.catalogs[name]
+
+    def cross_match(self, name, cat1, cat2, radius=1.):
+        """Cross-match two catalogs.
+
+        This function cross-match two catalogs and creates a CrossMatch catalog
+        in the database.
+
+        Parameters
+        ----------
+        name: str
+            Name of the CrossMatch catalog in the database.
+        cat1: `musex.catalog.SpatialCatalog`
+            The first catalog to cross-match.
+        cat2. `musex.catalog.SpatialCatalog`
+            The second catalog.
+        radius: float
+            The cross-match radius in  arc-seconds.
+
+        """
+        if name in self.catalogs:
+            raise ValueError("A catalog with this name already exists.")
+
+        return _cross_match(name, self.db, cat1, cat2, radius)
