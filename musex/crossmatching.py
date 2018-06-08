@@ -142,6 +142,8 @@ def cross_match(name, db, cat1, cat2, radius=1.):
 
     result = CrossMatch(name, db)
     result.insert(crossmatch_table)
+    result.cat1, result.cat2 = cat1, cat2
+    result.update_meta(cat1_name=cat1.name, cat2_name=cat2.name)
 
     return result
 

@@ -149,6 +149,18 @@ class MuseX:
         for row in self.catalogs_table.find(type='cross-match'):
             name = row['name']
             self.catalogs[name] = CrossMatch(name, db)
+            cat1_name = self.catalogs[name].meta.get('cat1_name')
+            cat2_name = self.catalogs[name].meta.get('cat2_name')
+            if cat1_name is not None:
+                try:
+                    self.catalogs[name].cat1 = self.catalogs[cat1_name]
+                except KeyError:
+                    self.catalogs[name].cat1 = self.input_catalogs[cat1_name]
+            if cat2_name is not None:
+                try:
+                    self.catalogs[name].cat2 = self.catalogs[cat2_name]
+                except KeyError:
+                    self.catalogs[name].cat2 = self.input_catalogs[cat2_name]
 
         # Marz
         self.marzcat = MarzCatalog('marz', db, primary_id='_id')
