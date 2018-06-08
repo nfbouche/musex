@@ -2,7 +2,6 @@
 
 import logging
 
-from IPython.core.display import HTML, display
 from astropy import units as u
 from astropy.coordinates import search_around_sky
 from astropy.table import Table, vstack
@@ -192,6 +191,7 @@ class CrossMatch(BaseCatalog):
 
     def nb_diagnostic(self):
         """Output some diagnostics in a notebook."""
+        from IPython.core.display import HTML, display
 
         # Temporarily disable interactive plotting not to display plots twice.
         plt.ioff()
