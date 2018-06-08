@@ -79,61 +79,49 @@ def cross_match(name, db, cat1, cat2, radius=1.):
         [
             Table(  # Source matching
                 data=[
-                    np.full(nb_match, cat1.name),
                     match_ids_1,
                     nb_idx1,
-                    np.full(nb_match, cat2.name),
                     match_ids_2,
                     nb_idx2,
                     d2d.arcsec,
                 ],
                 names=[
-                    'cat1_name',
-                    'idx1',
-                    'nb_match_for_idx1',
-                    'cat2_name',
-                    'idx2',
-                    'nb_match_for_idx2',
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
                     'distance',
                 ],
             ),
             Table(  # Only in catalog 1
                 data=[
-                    np.full(nb_only1, cat1.name),
                     nomatch_ids_1,
                     np.full(nb_only1, 0),
-                    np.full(nb_only1, ''),
                     np.full(nb_only1, _null_value(all_ids_2[0])),
                     np.full(nb_only1, -9999),
                     np.full(nb_only1, np.nan),
                 ],
                 names=[
-                    'cat1_name',
-                    'idx1',
-                    'nb_match_for_idx1',
-                    'cat2_name',
-                    'idx2',
-                    'nb_match_for_idx2',
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
                     'distance',
                 ],
             ),
             Table(  # Only in catalog 2
                 data=[
-                    np.full(nb_only2, ''),
                     np.full(nb_only2, _null_value(all_ids_1[0])),
                     np.full(nb_only2, -9999),
-                    np.full(nb_only2, cat2.name),
                     nomatch_ids_2,
                     np.full(nb_only2, 0),
                     np.full(nb_only2, np.nan),
                 ],
                 names=[
-                    'cat1_name',
-                    'idx1',
-                    'nb_match_for_idx1',
-                    'cat2_name',
-                    'idx2',
-                    'nb_match_for_idx2',
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
                     'distance',
                 ],
             ),
@@ -159,13 +147,11 @@ class CrossMatch(BaseCatalog):
 
     The table is made of these columns:
 
-    - cat1_name: the name of the first catalog
-    - idx1: the identifier of the source from the first catalog
-    - nb_match_for_idx1: the number of matches associated to the catalog 1
+    - <cat1.name>_id: the identifier of the source from the first catalog
+    - <cat1.name>_nbmatch: the number of matches associated to the catalog 1
       source.
-    - cat2_name: the name of the second catalog
-    - idx2: the identifier of the source from the second catalog
-    - nb_match_for_idx2: the number of matches associated to the catalog 2
+    - <cat2.name>_id: the identifier of the source from the second catalog
+    - <cat2.name>_nbmatch: the number of matches associated to the catalog 2
       source.
     - d2d: the separation between the two sources in arc-second
 
@@ -206,16 +192,15 @@ class CrossMatch(BaseCatalog):
         display(HTML("<h3>Histogram of separation for matching sources</h3>"),
                 fig)
 
-        def _catalog_diag(nb):
+        def _catalog_diag(cat):
             """Diagnostic of a catalog"""
-            rows_in_cat = table[table[f'nb_match_for_idx{nb}'] >= 0]
-            cat_name = rows_in_cat[f'cat{nb}_name'][0]
-            nb_sources_in_cat = len(np.unique(rows_in_cat[f'idx{nb}']))
+            rows_in_cat = table[table[f'{cat.name}_nbmatch'] >= 0]
+            nb_sources_in_cat = len(np.unique(rows_in_cat[f'{cat.name}_id']))
 
             rows_with_match = rows_in_cat[
-                rows_in_cat[f'nb_match_for_idx{nb}'] > 0]
+                rows_in_cat[f'{cat.name}_nbmatch'] > 0]
             sources_with_match, nb_match = np.unique(
-                rows_with_match[f'idx{nb}'], return_counts=True)
+                rows_with_match[f'{cat.name}_id'], return_counts=True)
             nb_sources_with_match = len(sources_with_match)
             percentage_with_match = (100 * nb_sources_with_match /
                                      nb_sources_in_cat)
@@ -228,7 +213,7 @@ class CrossMatch(BaseCatalog):
             ax.set_ylabel("Number of sources")
 
             display(
-                HTML(f"""<h3>Catalog {cat_name}</h3>
+                HTML(f"""<h3>Catalog {cat.name}</h3>
                     <ul>
                         <li>{nb_sources_in_cat} sources</li>
                         <li>{nb_sources_with_match} sources with at least
@@ -236,8 +221,8 @@ class CrossMatch(BaseCatalog):
                     </ul>"""),
                 fig)
 
-        _catalog_diag(1)
-        _catalog_diag(2)
+        _catalog_diag(self.cat1)
+        _catalog_diag(self.cat2)
 
         # Back to interactive.
         plt.ion()
