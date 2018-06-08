@@ -54,6 +54,10 @@ def cross_match(name, db, cat1, cat2, radius=1.):
     nb_match = len(match_idx1)
     logger.info('%d matches.', nb_match)
 
+    # Identifiers of matching sources
+    match_ids_1 = cat1.select().as_table()[cat1.idname][match_idx1]
+    match_ids_2 = cat2.select().as_table()[cat2.idname][match_idx2]
+
     # Number of occurrences of each unique index in their respective
     # columns as a dictionary.
     count_idx1 = dict(zip(*np.unique(match_idx1, return_counts=True)))
@@ -63,13 +67,13 @@ def cross_match(name, db, cat1, cat2, radius=1.):
     nb_idx2 = [count_idx2[item] for item in match_idx2]
 
     # Sources without counterparts
-    all_idx1 = np.array([row[cat1.idname] for row in cat1.select()])
-    all_idx2 = np.array([row[cat2.idname] for row in cat2.select()])
-    nomatch_idx1 = all_idx1[np.isin(all_idx1, match_idx1, invert=True)]
-    nomatch_idx2 = all_idx2[np.isin(all_idx2, match_idx2, invert=True)]
-    nb_only1 = len(nomatch_idx1)
+    all_ids_1 = np.array([row[cat1.idname] for row in cat1.select()])
+    all_ids_2 = np.array([row[cat2.idname] for row in cat2.select()])
+    nomatch_ids_1 = all_ids_1[np.isin(all_ids_1, match_ids_1, invert=True)]
+    nomatch_ids_2 = all_ids_2[np.isin(all_ids_2, match_ids_2, invert=True)]
+    nb_only1 = len(nomatch_ids_1)
     logger.info('%d sources only in %s.', nb_only1, cat1.name)
-    nb_only2 = len(nomatch_idx2)
+    nb_only2 = len(nomatch_ids_2)
     logger.info('%d sources only in %s.', nb_only2, cat2.name)
 
     crossmatch_table = vstack(
@@ -77,10 +81,10 @@ def cross_match(name, db, cat1, cat2, radius=1.):
             Table(  # Source matching
                 data=[
                     np.full(nb_match, cat1.name),
-                    match_idx1,
+                    match_ids_1,
                     nb_idx1,
                     np.full(nb_match, cat2.name),
-                    match_idx2,
+                    match_ids_2,
                     nb_idx2,
                     d2d.arcsec,
                 ],
@@ -97,10 +101,10 @@ def cross_match(name, db, cat1, cat2, radius=1.):
             Table(  # Only in catalog 1
                 data=[
                     np.full(nb_only1, cat1.name),
-                    nomatch_idx1,
+                    nomatch_ids_1,
                     np.full(nb_only1, 0),
                     np.full(nb_only1, ''),
-                    np.full(nb_only1, _null_value(all_idx2[0])),
+                    np.full(nb_only1, _null_value(all_ids_2[0])),
                     np.full(nb_only1, -9999),
                     np.full(nb_only1, np.nan),
                 ],
@@ -117,10 +121,10 @@ def cross_match(name, db, cat1, cat2, radius=1.):
             Table(  # Only in catalog 2
                 data=[
                     np.full(nb_only2, ''),
-                    np.full(nb_only2, _null_value(all_idx1[0])),
+                    np.full(nb_only2, _null_value(all_ids_1[0])),
                     np.full(nb_only2, -9999),
                     np.full(nb_only2, cat2.name),
-                    nomatch_idx2,
+                    nomatch_ids_2,
                     np.full(nb_only2, 0),
                     np.full(nb_only2, np.nan),
                 ],
