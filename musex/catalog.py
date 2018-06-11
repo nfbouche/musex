@@ -1071,9 +1071,9 @@ class InputCatalog(SpatialCatalog):
         mask_tpl = kwargs.get('mask_tpl')
         skymask_tpl = kwargs.get('skymask_tpl')
 
-        setattr(cat, 'segmap', segmap)
-        setattr(cat, 'mask_tpl', mask_tpl)
-        setattr(cat, 'skymask_tpl', skymask_tpl)
+        cat.segmap = segmap
+        cat.mask_tpl = mask_tpl
+        cat.skymask_tpl = skymask_tpl
 
         return cat
 
