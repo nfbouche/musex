@@ -524,6 +524,20 @@ class SpatialCatalog(BaseCatalog):
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
 
+    def info(self):
+        """Print information about catalog and line table if any."""
+        super().info()
+        if getattr(self, 'lines', None) is not None:
+            print('\nThe catalog has a line table associated:\n')
+            self.lines.info()
+
+    def drop(self):
+        """Drop the catalog and it's associated line table if any."""
+        if getattr(self, 'lines', None) is not None:
+            self.lines.drop()
+            self.update_meta(line_tablename=None)
+        super().drop()
+
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                **params):
         """Select rows in the catalog.
@@ -622,6 +636,31 @@ class SpatialCatalog(BaseCatalog):
         tab = self.select(columns=columns).as_table()
         return SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
                         unit=(u.deg, u.deg), frame='fk5')
+
+    def create_lines(self, line_idname="ID", line_srcidname="src_ID"):
+        """Create an associated line catalog.
+
+        This function creates a line catalog in the database and associates it
+        to the SpatialCatalog. The line catalog is attached to the `lines`
+        attribute and a `line_table` information (which is the name of the
+        catalog suffixed with `_lines`) is added in the meta-data of the
+        catalog so that we can re-associate the lines of user defined catalogs.
+
+        Parameters
+        ----------
+        line_idname: str
+            Name of the line identifier column in the line catalog.
+        line_srcidname: str
+            Name of the source identifier column in the line catalog.
+
+        """
+        line_tablename = f'{self.name}_lines'
+        self.lines = LineCatalog(
+            name=line_tablename,
+            db=self.db,
+            idname=line_idname,
+            src_idname=line_srcidname)
+        self.update_meta(line_tablename=line_tablename)
 
 
 class Catalog(SpatialCatalog):
