@@ -1086,6 +1086,36 @@ class InputCatalog(SpatialCatalog):
                          segmap=getattr(self, 'segmap', None))
 
 
+class LineCatalog(BaseCatalog):
+    """Handles list of lines associated to sources.
+
+    This class handles a “line table” that is a list of lines associated to
+    sources from a catalog.
+
+    Parameters
+    ----------
+    name: str
+        Name of the table.
+    db: `dataset.Database`
+        The database object.
+    idname: str
+        Name of the 'id' column.
+    src_idname: str
+        Name of the column containing the IDs from the source catalog.
+    primary_id: str
+        The primary id for the SQL table, must be a column name.
+
+    """
+
+    catalog_type = 'lines'
+
+    def __init__(self, name, db, idname, src_idname, primary_id=None):
+        # TODO Check for existence of the source catalog name and ID column.
+        super().__init__(name, db, idname=idname, primary_id=primary_id)
+        self.src_idname = src_idname
+        self.update_meta(src_idname=self.src_idname)
+
+
 class MarzCatalog(InputCatalog):
     """Handles catalogs imported from MarZ."""
 
