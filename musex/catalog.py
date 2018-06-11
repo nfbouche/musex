@@ -1075,22 +1075,46 @@ class InputCatalog(SpatialCatalog):
         cat.mask_tpl = mask_tpl
         cat.skymask_tpl = skymask_tpl
 
+        # The `line_catalog` setting contains the link to the FITS file
+        # containing the line table associated to the input catalog, if any. We
+        # put it in the `line_catalog` attribute to use it at ingestion.
+        cat.line_catalog = kwargs.get('line_catalog')
+        if cat.line_catalog is not None:
+            line_idname = kwargs.get('line_idname')
+            line_srcidname = kwargs.get('line_srcidname')
+            if line_idname is None or line_srcidname is None:
+                raise ValueError("The YAML setting file contains a "
+                                 "line_catalog but no line_idname or no"
+                                 "line_srcidname for the catalog %s." % name)
+            cat.create_lines(line_idname=line_idname,
+                             line_srcidname=line_srcidname)
+
         return cat
 
-    def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
-                             keys=None, show_progress=True):
-        """Ingest an input catalog.
+    def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
+                             upsert=False, keys=None, line_keys=None,
+                             show_progress=True):
+        """Ingest an input catalog and the associated line table if any.
 
-        The catalog to ingest can be given with the ``catalog`` argument or
-        in the settings file.  Existing records can be updated using
-        ``upsert=True`` and ``keys``.
+        The catalog and the line table to ingest can be given with the
+        ``catalog`` and ``line_catalog`` parameters or in the setting file.
+        Existing records can be updated using ``upsert=True``, and ``keys`` and
+        ``line_keys`` parameters.
+
+        Only the lines corresponding to sources from the catalog are ingested.
+
+        The ``limit`` parameter is used to limit the number of rows from the
+        catalog to ingest; the ingested lines will then be limited to the
+        ingested sources.
 
         Parameters
         ----------
         catalog: str or `astropy.table.Table`
             Table to insert.
+        line_catalog: str or `astropy.table.Table`
+            Line table to insert.
         limit: int
-            To limit the number of rows.
+            To limit the number of rows from the catalog.
         upsert: bool
             If True, existing rows with the same values for ``keys`` are
             updated.
@@ -1098,11 +1122,26 @@ class InputCatalog(SpatialCatalog):
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
+        line_keys: list of str
+            Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
-
         """
         catalog = catalog or self.catalog
+        # We use getattr because the input catalog may not have a line_catalog
+        # attribute.
+        line_catalog = line_catalog or getattr(self, 'line_catalog', None)
+
+        # Check that we provide the line table when needed and only when
+        # needed.
+        if getattr(self, 'lines', None) is not None and line_catalog is None:
+            raise AttributeError('This input catalog is associated to a line '
+                                 'table but none was provided.')
+        elif getattr(self, 'lines', None) is None and line_catalog is not None:
+            raise AttributeError('This input catalog is not associated to a '
+                                 'line table but one was provided.')
+
+        # Catalog
         if isinstance(catalog, str):
             self.logger.info('ingesting catalog %s', catalog)
             catalog = Table.read(catalog)
@@ -1123,6 +1162,30 @@ class InputCatalog(SpatialCatalog):
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname),
                          segmap=getattr(self, 'segmap', None))
+
+        # Lines
+        if line_catalog is not None:
+            if isinstance(line_catalog, str):
+                self.logger.info('ingesting line table %s', line_catalog)
+                line_catalog = Table.read(line_catalog)
+            elif line_catalog is not None:
+                self.logger.info('ingesting line table')
+
+            # Indices of the line table rows corresponding to sources in the
+            # catalog.
+            line_idx = np.in1d(
+                line_catalog[self.lines.src_idname], catalog[self.idname])
+
+            if upsert:
+                self.lines.upsert(line_catalog[line_idx], version=self.version,
+                                  keys=line_keys, show_progress=show_progress)
+            else:
+                self.lines.insert(line_catalog[line_idx], version=self.version,
+                                  show_progress=show_progress)
+
+            self.lines.update_meta(creation_date=datetime.utcnow().isoformat(),
+                                   type='lines',
+                                   maxid=self.lines.max(self.lines.idname))
 
 
 class LineCatalog(BaseCatalog):
