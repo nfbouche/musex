@@ -529,6 +529,12 @@ class SpatialCatalog(BaseCatalog):
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  primary_id=None):
+        if name.endswith('_lines'):
+            raise ValueError(
+                'Catalog names must not end with "_lines" as it is reserved '
+                'for line tables. If you want to create a line table for '
+                'a catalog, use it\'s create_lines method.')
+
         super().__init__(name, db, idname, primary_id)
         self.raname = raname
         self.decname = decname
@@ -546,7 +552,6 @@ class SpatialCatalog(BaseCatalog):
         """Drop the catalog and it's associated line table if any."""
         if self.lines is not None:
             self.lines.drop()
-            self.update_meta(line_tablename=None)
         super().drop()
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
@@ -652,10 +657,8 @@ class SpatialCatalog(BaseCatalog):
         """Create an associated line catalog.
 
         This function creates a line catalog in the database and associates it
-        to the SpatialCatalog. The line catalog is attached to the `lines`
-        attribute and a `line_table` information (which is the name of the
-        catalog suffixed with `_lines`) is added in the meta-data of the
-        catalog so that we can re-associate the lines of user defined catalogs.
+        to the SpatialCatalog. The line catalog is named by suffixing the name
+        of the catalog with `_lines`.
 
         Parameters
         ----------
@@ -665,13 +668,15 @@ class SpatialCatalog(BaseCatalog):
             Name of the source identifier column in the line catalog.
 
         """
-        line_tablename = f'{self.name}_lines'
+        if self.lines is not None:
+            raise ValueError("The catalogue has a line table associated "
+                             "already.")
+
         self.lines = LineCatalog(
-            name=line_tablename,
+            name=f'{self.name}_lines',
             db=self.db,
             idname=line_idname,
             src_idname=line_src_idname)
-        self.update_meta(line_tablename=line_tablename)
 
 
 class Catalog(SpatialCatalog):

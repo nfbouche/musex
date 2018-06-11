@@ -137,12 +137,13 @@ class MuseX:
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
             # Restore the associated line catalog.
-            if row['line_tablename']:
-                line_tablename = row['line_tablename']
-                line_meta = self.catalogs_table.find_one(name=line_tablename)
-                self.catalogs[name].lines = LineCatalog(
-                    name=line_tablename, db=db, idname=line_meta['idname'],
-                    src_idname=line_meta['src_idname'])
+            line_tablename = f'{name}_lines'
+            line_meta = self.catalogs_table.find_one(name=line_tablename)
+            if line_meta:
+                self.catalogs[name].create_lines(
+                    line_idname=line_meta['idname'],
+                    line_src_idname=line_meta['src_idname']
+                )
 
         # Marz
         self.marzcat = MarzCatalog('marz', db, primary_id='_id')
