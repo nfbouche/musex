@@ -1095,7 +1095,7 @@ class InputCatalog(SpatialCatalog):
             line_src_idname = kwargs.get('line_src_idname')
             if line_idname is None or line_src_idname is None:
                 raise ValueError("The YAML setting file contains a "
-                                 "line_catalog but no line_idname or no"
+                                 "line_catalog but no line_idname or no "
                                  "line_src_idname for the catalog %s." % name)
             cat.create_lines(line_idname=line_idname,
                              line_src_idname=line_src_idname)
