@@ -533,17 +533,18 @@ class SpatialCatalog(BaseCatalog):
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
+        self.lines = None
 
     def info(self):
         """Print information about catalog and line table if any."""
         super().info()
-        if getattr(self, 'lines', None) is not None:
+        if self.lines is not None:
             print('\nThe catalog has a line table associated:\n')
             self.lines.info()
 
     def drop(self):
         """Drop the catalog and it's associated line table if any."""
-        if getattr(self, 'lines', None) is not None:
+        if self.lines is not None:
             self.lines.drop()
             self.update_meta(line_tablename=None)
         super().drop()
@@ -1144,10 +1145,10 @@ class InputCatalog(SpatialCatalog):
 
         # Check that we provide the line table when needed and only when
         # needed.
-        if getattr(self, 'lines', None) is not None and line_catalog is None:
+        if self.lines is not None and line_catalog is None:
             raise AttributeError('This input catalog is associated to a line '
                                  'table but none was provided.')
-        elif getattr(self, 'lines', None) is None and line_catalog is not None:
+        elif self.lines is None and line_catalog is not None:
             raise AttributeError('This input catalog is not associated to a '
                                  'line table but one was provided.')
 
