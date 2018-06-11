@@ -64,7 +64,7 @@ def test_ingest(mx):
     assert len(orig.select()) == 2
     assert orig.meta['maxid'] == 2
     assert len(orig.lines.select()) == 3
-    assert len(orig.lines.select_srcids(2)) == 2
+    assert len(orig.lines.select_src_ids(2)) == 2
 
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 2

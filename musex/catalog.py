@@ -647,7 +647,7 @@ class SpatialCatalog(BaseCatalog):
         return SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
                         unit=(u.deg, u.deg), frame='fk5')
 
-    def create_lines(self, line_idname="ID", line_srcidname="src_ID"):
+    def create_lines(self, line_idname="ID", line_src_idname="src_ID"):
         """Create an associated line catalog.
 
         This function creates a line catalog in the database and associates it
@@ -660,7 +660,7 @@ class SpatialCatalog(BaseCatalog):
         ----------
         line_idname: str
             Name of the line identifier column in the line catalog.
-        line_srcidname: str
+        line_src_idname: str
             Name of the source identifier column in the line catalog.
 
         """
@@ -669,7 +669,7 @@ class SpatialCatalog(BaseCatalog):
             name=line_tablename,
             db=self.db,
             idname=line_idname,
-            src_idname=line_srcidname)
+            src_idname=line_src_idname)
         self.update_meta(line_tablename=line_tablename)
 
 
@@ -1091,13 +1091,13 @@ class InputCatalog(SpatialCatalog):
         cat.line_catalog = kwargs.get('line_catalog')
         if cat.line_catalog is not None:
             line_idname = kwargs.get('line_idname')
-            line_srcidname = kwargs.get('line_srcidname')
-            if line_idname is None or line_srcidname is None:
+            line_src_idname = kwargs.get('line_src_idname')
+            if line_idname is None or line_src_idname is None:
                 raise ValueError("The YAML setting file contains a "
                                  "line_catalog but no line_idname or no"
-                                 "line_srcidname for the catalog %s." % name)
+                                 "line_src_idname for the catalog %s." % name)
             cat.create_lines(line_idname=line_idname,
-                             line_srcidname=line_srcidname)
+                             line_src_idname=line_src_idname)
 
         return cat
 
@@ -1227,7 +1227,7 @@ class LineCatalog(BaseCatalog):
         self.src_idname = src_idname
         self.update_meta(src_idname=self.src_idname)
 
-    def select_srcids(self, src_ids, columns=None, **params):
+    def select_src_ids(self, src_ids, columns=None, **params):
         """Select lines for given source identifiers.
 
         Parameters
