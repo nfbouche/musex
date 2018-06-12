@@ -49,9 +49,13 @@ def _cross_match(name, db, cat1, cat2, radius=1.):
     nb_match = len(match_idx1)
     logger.info('%d matches.', nb_match)
 
+    # Catalogues identifiers
+    all_ids_1 = np.array([row[cat1.idname] for row in cat1.select()])
+    all_ids_2 = np.array([row[cat2.idname] for row in cat2.select()])
+
     # Identifiers of matching sources
-    match_ids_1 = cat1.select().as_table()[cat1.idname][match_idx1]
-    match_ids_2 = cat2.select().as_table()[cat2.idname][match_idx2]
+    match_ids_1 = all_ids_1[match_idx1]
+    match_ids_2 = all_ids_2[match_idx2]
 
     # Number of occurrences of each unique index in their respective
     # columns as a dictionary.
@@ -62,8 +66,6 @@ def _cross_match(name, db, cat1, cat2, radius=1.):
     nb_idx2 = [count_idx2[item] for item in match_idx2]
 
     # Sources without counterparts
-    all_ids_1 = np.array([row[cat1.idname] for row in cat1.select()])
-    all_ids_2 = np.array([row[cat2.idname] for row in cat2.select()])
     nomatch_ids_1 = all_ids_1[np.isin(all_ids_1, match_ids_1, invert=True)]
     nomatch_ids_2 = all_ids_2[np.isin(all_ids_2, match_ids_2, invert=True)]
     nb_only1 = len(nomatch_ids_1)
