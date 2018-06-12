@@ -391,8 +391,12 @@ class BaseCatalog:
                 return None
         return self.table.find_one(**{self.idname: id_})
 
-    def select_ids(self, idlist, columns=None, **params):
+    def select_ids(self, idlist, columns=None, idcolumn=None, **params):
         """Select rows with a list of IDs.
+
+        If a column name is provided in `idcolumn`, this column will be used
+        to select the IDs in; else the catalog main ID column (`idname`) will
+        be used.
 
         Parameters
         ----------
@@ -400,6 +404,9 @@ class BaseCatalog:
             List of IDs.
         columns: list of str
             List of columns to retrieve (all columns if None).
+        idcolumn: str
+            Name of the column containing the IDs when not using the default
+            column.
         params: dict
             Additional parameters are passed to `dataset.Database.query`.
 
@@ -409,11 +416,14 @@ class BaseCatalog:
         elif isinstance(idlist, np.ndarray):
             idlist = idlist.tolist()
 
+        if idcolumn is None:
+            idcolumn = self.idname
+
         if len(idlist) > 999 and self.db.engine.driver == 'pysqlite':
             warnings.warn('Selecting too many ids will fail with SQLite',
                           UserWarning)
 
-        whereclause = self.c[self.idname].in_(idlist)
+        whereclause = self.c[idcolumn].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
 
     def join(self, othercats, whereclause=None, columns=None, keys=None,
@@ -519,10 +529,30 @@ class SpatialCatalog(BaseCatalog):
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  primary_id=None):
+        if name.endswith('_lines'):
+            raise ValueError(
+                'Catalog names must not end with "_lines" as it is reserved '
+                'for line tables. If you want to create a line table for '
+                'a catalog, use it\'s create_lines method.')
+
         super().__init__(name, db, idname, primary_id)
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
+        self.lines = None
+
+    def info(self):
+        """Print information about catalog and line table if any."""
+        super().info()
+        if self.lines is not None:
+            print('\nThe catalog has a line table associated:\n')
+            self.lines.info()
+
+    def drop(self):
+        """Drop the catalog and it's associated line table if any."""
+        if self.lines is not None:
+            self.lines.drop()
+        super().drop()
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                **params):
@@ -622,6 +652,31 @@ class SpatialCatalog(BaseCatalog):
         tab = self.select(columns=columns).as_table()
         return SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
                         unit=(u.deg, u.deg), frame='fk5')
+
+    def create_lines(self, line_idname="ID", line_src_idname="src_ID"):
+        """Create an associated line catalog.
+
+        This function creates a line catalog in the database and associates it
+        to the SpatialCatalog. The line catalog is named by suffixing the name
+        of the catalog with `_lines`.
+
+        Parameters
+        ----------
+        line_idname: str
+            Name of the line identifier column in the line catalog.
+        line_src_idname: str
+            Name of the source identifier column in the line catalog.
+
+        """
+        if self.lines is not None:
+            raise ValueError("The catalogue has a line table associated "
+                             "already.")
+
+        self.lines = LineCatalog(
+            name=f'{self.name}_lines',
+            db=self.db,
+            idname=line_idname,
+            src_idname=line_src_idname)
 
 
 class Catalog(SpatialCatalog):
@@ -1032,26 +1087,50 @@ class InputCatalog(SpatialCatalog):
         mask_tpl = kwargs.get('mask_tpl')
         skymask_tpl = kwargs.get('skymask_tpl')
 
-        setattr(cat, 'segmap', segmap)
-        setattr(cat, 'mask_tpl', mask_tpl)
-        setattr(cat, 'skymask_tpl', skymask_tpl)
+        cat.segmap = segmap
+        cat.mask_tpl = mask_tpl
+        cat.skymask_tpl = skymask_tpl
+
+        # The `line_catalog` setting contains the link to the FITS file
+        # containing the line table associated to the input catalog, if any. We
+        # put it in the `line_catalog` attribute to use it at ingestion.
+        cat.line_catalog = kwargs.get('line_catalog')
+        if cat.line_catalog is not None:
+            line_idname = kwargs.get('line_idname')
+            line_src_idname = kwargs.get('line_src_idname')
+            if line_idname is None or line_src_idname is None:
+                raise ValueError("The YAML setting file contains a "
+                                 "line_catalog but no line_idname or no "
+                                 "line_src_idname for the catalog %s." % name)
+            cat.create_lines(line_idname=line_idname,
+                             line_src_idname=line_src_idname)
 
         return cat
 
-    def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
-                             keys=None, show_progress=True):
-        """Ingest an input catalog.
+    def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
+                             upsert=False, keys=None, line_keys=None,
+                             show_progress=True):
+        """Ingest an input catalog and the associated line table if any.
 
-        The catalog to ingest can be given with the ``catalog`` argument or
-        in the settings file.  Existing records can be updated using
-        ``upsert=True`` and ``keys``.
+        The catalog and the line table to ingest can be given with the
+        ``catalog`` and ``line_catalog`` parameters or in the setting file.
+        Existing records can be updated using ``upsert=True``, and ``keys`` and
+        ``line_keys`` parameters.
+
+        Only the lines corresponding to sources from the catalog are ingested.
+
+        The ``limit`` parameter is used to limit the number of rows from the
+        catalog to ingest; the ingested lines will then be limited to the
+        ingested sources.
 
         Parameters
         ----------
         catalog: str or `astropy.table.Table`
             Table to insert.
+        line_catalog: str or `astropy.table.Table`
+            Line table to insert.
         limit: int
-            To limit the number of rows.
+            To limit the number of rows from the catalog.
         upsert: bool
             If True, existing rows with the same values for ``keys`` are
             updated.
@@ -1059,11 +1138,26 @@ class InputCatalog(SpatialCatalog):
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
+        line_keys: list of str
+            Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
-
         """
         catalog = catalog or self.catalog
+        # We use getattr because the input catalog may not have a line_catalog
+        # attribute.
+        line_catalog = line_catalog or getattr(self, 'line_catalog', None)
+
+        # Check that we provide the line table when needed and only when
+        # needed.
+        if self.lines is not None and line_catalog is None:
+            raise AttributeError('This input catalog is associated to a line '
+                                 'table but none was provided.')
+        elif self.lines is None and line_catalog is not None:
+            raise AttributeError('This input catalog is not associated to a '
+                                 'line table but one was provided.')
+
+        # Catalog
         if isinstance(catalog, str):
             self.logger.info('ingesting catalog %s', catalog)
             catalog = Table.read(catalog)
@@ -1084,6 +1178,80 @@ class InputCatalog(SpatialCatalog):
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname),
                          segmap=getattr(self, 'segmap', None))
+
+        # Lines
+        if line_catalog is not None:
+            if isinstance(line_catalog, str):
+                self.logger.info('ingesting line table %s', line_catalog)
+                line_catalog = Table.read(line_catalog)
+            elif line_catalog is not None:
+                self.logger.info('ingesting line table')
+
+            # Indices of the line table rows corresponding to sources in the
+            # catalog.
+            line_idx = np.in1d(
+                line_catalog[self.lines.src_idname], catalog[self.idname])
+
+            if upsert:
+                self.lines.upsert(line_catalog[line_idx], version=self.version,
+                                  keys=line_keys, show_progress=show_progress)
+            else:
+                self.lines.insert(line_catalog[line_idx], version=self.version,
+                                  show_progress=show_progress)
+
+            self.lines.update_meta(creation_date=datetime.utcnow().isoformat(),
+                                   type='lines',
+                                   maxid=self.lines.max(self.lines.idname))
+
+
+class LineCatalog(BaseCatalog):
+    """Handles list of lines associated to sources.
+
+    This class handles a “line table” that is a list of lines associated to
+    sources from a catalog.
+
+    Parameters
+    ----------
+    name: str
+        Name of the table.
+    db: `dataset.Database`
+        The database object.
+    idname: str
+        Name of the 'id' column.
+    src_idname: str
+        Name of the column containing the IDs from the source catalog.
+    primary_id: str
+        The primary id for the SQL table, must be a column name.
+
+    """
+
+    catalog_type = 'lines'
+
+    def __init__(self, name, db, idname, src_idname, primary_id=None):
+        # TODO Check for existence of the source catalog name and ID column.
+        super().__init__(name, db, idname=idname, primary_id=primary_id)
+        self.src_idname = src_idname
+        self.update_meta(src_idname=self.src_idname)
+
+    def select_src_ids(self, src_ids, columns=None, **params):
+        """Select lines for given source identifiers.
+
+        Parameters
+        ----------
+        src_ids : scaler or list
+            List of source identifiers to get the lines corresponding to.
+        columns: list of str
+            List of columns to retrieve (all columns if None).
+        params: dict
+            Additional parameters are passed to `dataset.Database.query`.
+
+        Returns
+        -------
+        ``musex.catalog.ResultSet``
+
+        """
+        return super().select_ids(src_ids, columns=columns,
+                                  idcolumn=self.src_idname, **params)
 
 
 class MarzCatalog(InputCatalog):

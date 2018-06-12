@@ -13,7 +13,7 @@ from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
-                      MarzCatalog, IdMapping, get_cat_name)
+                      MarzCatalog, IdMapping, get_cat_name, LineCatalog)
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
@@ -136,6 +136,14 @@ class MuseX:
                 name, db, workdir=self.workdir, idname=row['idname'],
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
+            # Restore the associated line catalog.
+            line_tablename = f'{name}_lines'
+            line_meta = self.catalogs_table.find_one(name=line_tablename)
+            if line_meta:
+                self.catalogs[name].create_lines(
+                    line_idname=line_meta['idname'],
+                    line_src_idname=line_meta['src_idname']
+                )
 
         # Marz
         self.marzcat = MarzCatalog('marz', db, primary_id='_id')

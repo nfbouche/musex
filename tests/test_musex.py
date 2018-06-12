@@ -58,10 +58,13 @@ def test_ingest(mx):
 
     orig.ingest_input_catalog(limit=1)
     assert len(orig.select()) == 1
+    assert len(orig.lines.select()) == 1
 
     orig.ingest_input_catalog(upsert=True)
     assert len(orig.select()) == 2
     assert orig.meta['maxid'] == 2
+    assert len(orig.lines.select()) == 3
+    assert len(orig.lines.select_src_ids(2)) == 2
 
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 2
