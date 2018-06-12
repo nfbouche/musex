@@ -14,7 +14,7 @@ from mpdaf.obj import Image
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name, LineCatalog)
-from .crossmatching import CrossMatch, _cross_match
+from .crossmatching import CrossMatch, gen_crossmatch
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
@@ -640,4 +640,5 @@ class MuseX:
         if name in self.catalogs:
             raise ValueError("A catalog with this name already exists.")
 
-        return _cross_match(name, self.db, cat1, cat2, radius)
+        return gen_crossmatch(name, self.db, cat1, cat2, radius)
+

@@ -19,7 +19,7 @@ def _null_value(value):
     return NULL_VALUE[type(value)]
 
 
-def _cross_match(name, db, cat1, cat2, radius=1.):
+def gen_crossmatch(name, db, cat1, cat2, radius=1.):
     """Cross-match two catalogs.
 
     This function cross-match two catalogs and creates a CrossMatch catalog
@@ -37,6 +37,10 @@ def _cross_match(name, db, cat1, cat2, radius=1.):
         The second catalog.
     radius: float
         The cross-match radius in  arc-seconds.
+
+    Returns
+    -------
+    `musex.crossmatching.CrossMatch`
 
     """
     logger = logging.getLogger(__name__)
