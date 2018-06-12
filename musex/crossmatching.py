@@ -220,54 +220,63 @@ class CrossMatch(BaseCatalog):
 
         return result
 
-    def nb_diagnostic(self):
-        """Output some diagnostics in a notebook."""
-        from IPython.core.display import HTML, display
-
-        # Temporarily disable interactive plotting not to display plots twice.
-        plt.ioff()
+    def fig_diagnostic(self):
+        """Diagnostic figure for the cross-match."""
+        fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 4))
 
         table = self.select().as_table()
         with_matches = table[~np.isnan(table['distance'])]
 
         # Histogram of distances
-        fig, ax = plt.subplots()
-        hist(with_matches['distance'], ax=ax)
-        ax.set_xlabel("Distance in arc-seconds")
-        display(HTML("<h3>Histogram of separation for matching sources</h3>"),
-                fig)
+        hist(with_matches['distance'], ax=ax1)
+        ax1.set_xlabel("Distance in arc-seconds")
+        ax1.set_ylabel("Counts")
 
         def _catalog_diag(cat):
-            """Diagnostic of a catalog"""
+            """Return information on a catalog.
+
+            - total number of sources in the catalog
+            - number of sources with at least one match
+            - two arrays: number of matches, number of sources with this number
+              of matches
+            """
             rows_in_cat = table[table[f'{cat.name}_nbmatch'] >= 0]
-            nb_sources_in_cat = len(np.unique(rows_in_cat[f'{cat.name}_id']))
+            tot_sources = len(np.unique(rows_in_cat[f'{cat.name}_id']))
 
             rows_with_match = rows_in_cat[
                 rows_in_cat[f'{cat.name}_nbmatch'] > 0]
             sources_with_match, nb_match = np.unique(
                 rows_with_match[f'{cat.name}_id'], return_counts=True)
-            nb_sources_with_match = len(sources_with_match)
-            percentage_with_match = (100 * nb_sources_with_match /
-                                     nb_sources_in_cat)
+            with_match = len(sources_with_match)
 
-            # Bar plot of the number of sources with a given number of matches.
-            fig, ax = plt.subplots()
-            ax.bar(*np.unique(nb_match, return_counts=True))
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            ax.set_xlabel("Number of matches")
-            ax.set_ylabel("Number of sources")
+            matches, nb_sources = np.unique(nb_match, return_counts=True)
 
-            display(
-                HTML(f"""<h3>Catalog {cat.name}</h3>
-                    <ul>
-                        <li>{nb_sources_in_cat} sources</li>
-                        <li>{nb_sources_with_match} sources with at least
-                        one match ({percentage_with_match:.2f}%)</li>
-                    </ul>"""),
-                fig)
+            return tot_sources, with_match, matches, nb_sources
 
-        _catalog_diag(self.cat1)
-        _catalog_diag(self.cat2)
+        tot_sources_1, with_match_1, matches_1, nb_sources_1 = _catalog_diag(
+            self.cat1)
+        tot_sources_2, with_match_2, matches_2, nb_sources_2 = _catalog_diag(
+            self.cat2)
 
-        # Back to interactive.
-        plt.ion()
+        self.logger.info(
+            "Catalog %s has %d sources, %d with at least one match (%.1f%%).",
+            self.cat1.name, tot_sources_1, with_match_1,
+            100 * with_match_1 / tot_sources_1)
+
+        self.logger.info(
+            "Catalog %s has %d sources, %d with at least one match (%.1f%%).",
+            self.cat2.name, tot_sources_2, with_match_2,
+            200 * with_match_2 / tot_sources_2)
+
+        # Bar charts of number of matches
+        width = 0.3  # Width of the bars
+        ax2.bar(matches_1-width/2, nb_sources_1, width=width, color='r',
+                label=self.cat1.name)
+        ax2.bar(matches_2+width/2, nb_sources_2, width=width, color='b',
+                label=self.cat2.name)
+        ax2.set_xlabel("Number of matches")
+        ax2.set_ylabel("Number of sources")
+        ax2.legend(loc=0)
+
+        return fig
+
