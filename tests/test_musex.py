@@ -541,9 +541,7 @@ def test_merge_masks_on_area():
 
 def test_matching(mx):
     orig = mx.input_catalogs['origin']
-    orig.ingest_input_catalog()
     phot = mx.input_catalogs['photutils']
-    phot.ingest_input_catalog()
     cross = mx.cross_match("cross_matching", orig, phot)
     assert len(cross) == 14
     assert cross.cat1 is orig
