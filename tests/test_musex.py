@@ -537,3 +537,13 @@ def test_merge_masks_on_area():
     center = wcs.all_world2pix(ra,  dec, 0)
     assert _round(center[0]) == _round(size[1] / 2)
     assert _round(center[1]) == _round(size[0] / 2)
+
+
+def test_matching(mx):
+    orig = mx.input_catalogs['origin']
+    phot = mx.input_catalogs['photutils']
+    cross = mx.cross_match("cross_matching", orig, phot)
+    assert len(cross) == 14
+    assert cross.cat1 is orig
+    assert cross.cat2 is phot
+    assert len(cross.matched_table_with_more_than(0)) == 1
