@@ -1,3 +1,4 @@
+import importlib
 import logging
 import numpy as np
 import os
@@ -12,7 +13,7 @@ from mpdaf.log import setup_logging
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
+from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name, LineCatalog)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import SourceX
@@ -74,49 +75,6 @@ def _create_catalogs_table(db):
     return table
 
 
-def _load_user_catalogs(mx):
-    """Generate the dictionary of user catalogs.
-
-    Given a MuseX object, this function generate the dictionary of user and
-    cross-match catalogs.
-    """
-    catalogs = {}
-
-    # User catalogs
-    for row in mx.catalogs_table.find(type='user'):
-        name = row['name']
-        catalogs[name] = Catalog(
-            name, mx.db, workdir=mx.workdir, idname=row['idname'],
-            raname=row['raname'], decname=row['decname'],
-            segmap=row['segmap'])
-        # Restore the associated line catalog.
-        line_tablename = f'{name}_lines'
-        line_meta = mx.catalogs_table.find_one(name=line_tablename)
-        if line_meta:
-            catalogs[name].create_lines(
-                line_idname=line_meta['idname'],
-                line_src_idname=line_meta['src_idname']
-            )
-
-    # Cross-match catalogs
-    for row in mx.catalogs_table.find(type='cross-match'):
-        name = row['name']
-        catalogs[name] = CrossMatch(name, mx.db)
-        cat1_name = catalogs[name].meta.get('cat1_name')
-        cat2_name = catalogs[name].meta.get('cat2_name')
-        if cat1_name is not None:
-            try:
-                catalogs[name].cat1 = catalogs[cat1_name]
-            except KeyError:
-                catalogs[name].cat1 = mx.input_catalogs[cat1_name]
-        if cat2_name is not None:
-            try:
-                catalogs[name].cat2 = catalogs[cat2_name]
-            except KeyError:
-                catalogs[name].cat2 = mx.input_catalogs[cat2_name]
-
-    return catalogs
-
 
 class MuseX:
     """The main MuseX class.
@@ -172,8 +130,8 @@ class MuseX:
 
         # Load catalogs table
         self.catalogs_table = _create_catalogs_table(db)
-        self.input_catalogs = load_input_catalogs(self.conf, db)
-        self.catalogs = _load_user_catalogs(self)
+        self._load_input_catalogs()
+        self._load_user_catalogs()
 
         # Marz
         self.marzcat = MarzCatalog('marz', db, primary_id='_id')
@@ -182,6 +140,59 @@ class MuseX:
 
         if self.conf['show_banner']:
             self.info()
+
+    def _load_input_catalogs(self):
+        """Load input catalogs defined in the settings."""
+        self.input_catalogs = {}
+        for name, conf in self.conf['catalogs'].items():
+            if 'class' in conf:
+                mod, class_ = conf['class'].rsplit('.', 1)
+                mod = importlib.import_module(mod)
+                cls = getattr(mod, class_)
+            else:
+                cls = InputCatalog
+            self.input_catalogs[name] = cls.from_settings(name, self.db,
+                                                          **conf)
+        self.logger.info("Input catalogs loaded.")
+
+    def _load_user_catalogs(self):
+        """Load user generated catalogs."""
+        self.catalogs = {}
+
+        # User catalogs
+        for row in self.catalogs_table.find(type='user'):
+            name = row['name']
+            self.catalogs[name] = Catalog(
+                name, self.db, workdir=self.workdir, idname=row['idname'],
+                raname=row['raname'], decname=row['decname'],
+                segmap=row['segmap'])
+            # Restore the associated line catalog.
+            line_tablename = f'{name}_lines'
+            line_meta = self.catalogs_table.find_one(name=line_tablename)
+            if line_meta:
+                self.catalogs[name].create_lines(
+                    line_idname=line_meta['idname'],
+                    line_src_idname=line_meta['src_idname']
+                )
+
+        # Cross-match catalogs
+        for row in self.catalogs_table.find(type='cross-match'):
+            name = row['name']
+            self.catalogs[name] = CrossMatch(name, self.db)
+            cat1_name = self.catalogs[name].meta.get('cat1_name')
+            cat2_name = self.catalogs[name].meta.get('cat2_name')
+            if cat1_name is not None:
+                try:
+                    self.catalogs[name].cat1 = self.catalogs[cat1_name]
+                except KeyError:
+                    self.catalogs[name].cat1 = self.input_catalogs[cat1_name]
+            if cat2_name is not None:
+                try:
+                    self.catalogs[name].cat2 = self.catalogs[cat2_name]
+                except KeyError:
+                    self.catalogs[name].cat2 = self.input_catalogs[cat2_name]
+
+        self.logger.info("User catalogs loaded.")
 
     def info(self, outstream=None):
         if outstream is None:
