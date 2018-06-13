@@ -1,3 +1,4 @@
+import importlib
 import logging
 import numpy as np
 import os
@@ -12,8 +13,9 @@ from mpdaf.log import setup_logging
 from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import (load_input_catalogs, Catalog, ResultSet, table_to_odict,
+from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name, LineCatalog)
+from .crossmatching import CrossMatch, gen_crossmatch
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
@@ -73,6 +75,7 @@ def _create_catalogs_table(db):
     return table
 
 
+
 class MuseX:
     """The main MuseX class.
 
@@ -127,13 +130,40 @@ class MuseX:
 
         # Load catalogs table
         self.catalogs_table = _create_catalogs_table(db)
-        self.input_catalogs = load_input_catalogs(self.conf, db)
+        self._load_input_catalogs()
+        self._load_user_catalogs()
+
+        # Marz
+        self.marzcat = MarzCatalog('marz', db, primary_id='_id')
+        # FIXME: handle properly version / revision
+        self.marzcat.version = '1'
+
+        if self.conf['show_banner']:
+            self.info()
+
+    def _load_input_catalogs(self):
+        """Load input catalogs defined in the settings."""
+        self.input_catalogs = {}
+        for name, conf in self.conf['catalogs'].items():
+            if 'class' in conf:
+                mod, class_ = conf['class'].rsplit('.', 1)
+                mod = importlib.import_module(mod)
+                cls = getattr(mod, class_)
+            else:
+                cls = InputCatalog
+            self.input_catalogs[name] = cls.from_settings(name, self.db,
+                                                          **conf)
+        self.logger.info("Input catalogs loaded.")
+
+    def _load_user_catalogs(self):
+        """Load user generated catalogs."""
         self.catalogs = {}
 
+        # User catalogs
         for row in self.catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
-                name, db, workdir=self.workdir, idname=row['idname'],
+                name, self.db, workdir=self.workdir, idname=row['idname'],
                 raname=row['raname'], decname=row['decname'],
                 segmap=row['segmap'])
             # Restore the associated line catalog.
@@ -145,13 +175,24 @@ class MuseX:
                     line_src_idname=line_meta['src_idname']
                 )
 
-        # Marz
-        self.marzcat = MarzCatalog('marz', db, primary_id='_id')
-        # FIXME: handle properly version / revision
-        self.marzcat.version = '1'
+        # Cross-match catalogs
+        for row in self.catalogs_table.find(type='cross-match'):
+            name = row['name']
+            self.catalogs[name] = CrossMatch(name, self.db)
+            cat1_name = self.catalogs[name].meta.get('cat1_name')
+            cat2_name = self.catalogs[name].meta.get('cat2_name')
+            if cat1_name is not None:
+                try:
+                    self.catalogs[name].cat1 = self.catalogs[cat1_name]
+                except KeyError:
+                    self.catalogs[name].cat1 = self.input_catalogs[cat1_name]
+            if cat2_name is not None:
+                try:
+                    self.catalogs[name].cat2 = self.catalogs[cat2_name]
+                except KeyError:
+                    self.catalogs[name].cat2 = self.input_catalogs[cat2_name]
 
-        if self.conf['show_banner']:
-            self.info()
+        self.logger.info("User catalogs loaded.")
 
     def info(self, outstream=None):
         if outstream is None:
@@ -601,3 +642,27 @@ class MuseX:
             raise ValueError('not a valid catalog name')
         self.catalogs[name].drop()
         del self.catalogs[name]
+
+    def cross_match(self, name, cat1, cat2, radius=1.):
+        """Cross-match two catalogs.
+
+        This function cross-match two catalogs and creates a CrossMatch catalog
+        in the database.
+
+        Parameters
+        ----------
+        name: str
+            Name of the CrossMatch catalog in the database.
+        cat1: `musex.catalog.SpatialCatalog`
+            The first catalog to cross-match.
+        cat2. `musex.catalog.SpatialCatalog`
+            The second catalog.
+        radius: float
+            The cross-match radius in  arc-seconds.
+
+        """
+        if name in self.catalogs:
+            raise ValueError("A catalog with this name already exists.")
+
+        return gen_crossmatch(name, self.db, cat1, cat2, radius)
+

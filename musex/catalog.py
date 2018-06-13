@@ -34,20 +34,6 @@ FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 RESERVED_COLNAMES = ['active', 'merged_in', 'merged']
 
 
-def load_input_catalogs(settings, db):
-    """Load input catalogs defined in the settings."""
-    catalogs = {}
-    for name, conf in settings['catalogs'].items():
-        if 'class' in conf:
-            mod, class_ = conf['class'].rsplit('.', 1)
-            mod = importlib.import_module(mod)
-            cls = getattr(mod, class_)
-        else:
-            cls = InputCatalog
-        catalogs[name] = cls.from_settings(name, db, **conf)
-    return catalogs
-
-
 def table_to_odict(table):
     """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
     colnames = table.colnames
