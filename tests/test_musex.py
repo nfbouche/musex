@@ -61,13 +61,13 @@ def test_ingest(mx):
     assert len(orig.lines.select()) == 1
 
     orig.ingest_input_catalog(upsert=True)
-    assert len(orig.select()) == 2
-    assert orig.meta['maxid'] == 2
-    assert len(orig.lines.select()) == 3
-    assert len(orig.lines.select_src_ids(2)) == 2
+    assert len(orig.select()) == 10
+    assert orig.meta['maxid'] == 9
+    assert len(orig.lines.select()) == 13
+    assert len(orig.lines.select_src_ids(2)) == 1
 
     tbl = orig.select().as_table()
-    assert tbl[orig.idname].max() == 2
+    assert tbl[orig.idname].max() == 9
 
 
 def test_catalog_name(settings_file):
@@ -357,8 +357,9 @@ def test_attach_origin_dataset(mx):
 
     outdir = mycat.workdir / mx.muse_dataset.name
     flist = sorted(os.listdir(str(outdir)))
-    assert flist == ['mask-sky-00001.fits', 'mask-sky-00002.fits',
-                     'mask-source-00001.fits', 'mask-source-00002.fits']
+    assert sorted(flist) == sorted(
+        ['mask-%s-%05d.fits' % (t, i)
+         for i in range(10) for t in ['sky', 'source']])
 
 
 def test_export_marz(mx):
@@ -543,7 +544,7 @@ def test_matching(mx):
     orig = mx.input_catalogs['origin']
     phot = mx.input_catalogs['photutils']
     cross = mx.cross_match("cross_matching", orig, phot)
-    assert len(cross) == 14
+    assert len(cross) == 18
     assert cross.cat1 is orig
     assert cross.cat2 is phot
-    assert len(cross.matched_table_with_more_than(0)) == 1
+    assert len(cross.matched_table_with_more_than(0)) == 5
