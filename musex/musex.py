@@ -14,7 +14,7 @@ from mpdaf.obj import Image
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
-                      MarzCatalog, IdMapping, get_cat_name, LineCatalog)
+                      MarzCatalog, IdMapping, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import SourceX
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
@@ -73,7 +73,6 @@ def _create_catalogs_table(db):
     # and make sure that all columns exists
     table._sync_columns(row, True)
     return table
-
 
 
 class MuseX:
@@ -332,14 +331,14 @@ class MuseX:
         elif isinstance(size, Iterable) and isinstance(size, Sized):
             if len(resultset) != len(size):
                 msg = ("Length of res_or_cat (%d) does not match length of "
-                      "size (%d)")
-                raise Exception(msg % (len(resultset), len(size)))
+                       "size (%d)")
+                raise ValueError(msg % (len(resultset), len(size)))
 
             info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
                  len(resultset), self.muse_dataset.name, np.min(size),
                  np.max(size))
         else:
-            raise Exception("'size' should be either a float or list of floats")
+            raise ValueError("'size' should be a float or list of floats")
 
         use_datasets = [self.muse_dataset]
         if datasets is not None:
@@ -665,4 +664,3 @@ class MuseX:
             raise ValueError("A catalog with this name already exists.")
 
         return gen_crossmatch(name, self.db, cat1, cat2, radius)
-
