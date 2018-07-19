@@ -307,11 +307,16 @@ class MuseX:
             else:
                 resultset = res_or_cat.select()
         elif isinstance(res_or_cat, (ResultSet, Table)):
-            # TODO: filter active sources
             resultset = res_or_cat
         else:
             raise ValueError('invalid input for res_or_cat')
 
+        if isinstance(resultset, ResultSet):
+            # To simplify things below, make sure we have a Table
+            # TODO: filter active sources
+            resultset = resultset.as_table()
+
+        nrows = len(resultset)
         cat = resultset.catalog
         origin = ('MuseX', __version__, '', '')
 
@@ -325,18 +330,17 @@ class MuseX:
 
         if isinstance(size, (float, int)):
             info('Exporting %s sources with %s dataset, size=%.1f',
-                 len(resultset), self.muse_dataset.name, size)
-            size = [size] * len(resultset)
+                 nrows, self.muse_dataset.name, size)
+            size = [size] * nrows
 
         elif isinstance(size, Iterable) and isinstance(size, Sized):
-            if len(resultset) != len(size):
+            if nrows != len(size):
                 msg = ("Length of res_or_cat (%d) does not match length of "
                        "size (%d)")
-                raise ValueError(msg % (len(resultset), len(size)))
+                raise ValueError(msg % (nrows, len(size)))
 
             info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
-                 len(resultset), self.muse_dataset.name, np.min(size),
-                 np.max(size))
+                 nrows, self.muse_dataset.name, np.min(size), np.max(size))
         else:
             raise ValueError("'size' should be a float or list of floats")
 
@@ -357,8 +361,13 @@ class MuseX:
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
-        header_columns = self.conf['export'].get('header_columns', {})
         redshifts = self.conf['export'].get('redshifts', {})
+        header_columns = self.conf['export'].get('header_columns', {})
+        for key, colname in header_columns.items():
+            if colname not in resultset.colnames:
+                self.logger.warning(
+                    "'%s' column not found, though it is specified in the "
+                    "settings file for the %s keyword", colname, key)
 
         if verbose is False:
             resultset = progressbar(resultset)
