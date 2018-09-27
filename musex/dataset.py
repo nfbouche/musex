@@ -99,10 +99,11 @@ class MuseDataSet(DataSet):
 
         # add fsf info
         if self.cube.primary_header.get('FSFMODE') == 'MOFFAT1':
-            self.logger.debug('Adding FSF info from the datacube')
+            self.logger.info('Adding FSF info from the datacube')
             try:
                 src.add_FSF(self.cube, fieldmap=self.settings.get('fieldmap'))
             except TypeError:
+                self.logger.warning('Could not use fieldmap with MPDAF')
                 # fieldmap arg not available in MPDAF 2.4
                 src.add_FSF(self.cube)
 

@@ -143,7 +143,7 @@ def create_pdf(src, white, outfile, mastercat=None, debug=False,
     # loop on NB and zoom on spectra
     if 'NB_PAR' not in src.tables or len(src.tables['NB_PAR']) == 0:
         msg = 'No emission lines (table NB_PAR not found or empty)'
-        report_error(src.ID, msg, level='WARNING')
+        report_error(src.ID, msg, level='DEBUG')
         bottom = 0.25
     else:
         tab = src.tables['NB_PAR']

@@ -750,6 +750,7 @@ class Catalog(SpatialCatalog):
         name = dataset.name
         margin = dataset.margin
         if name not in self._segmap_aligned:
+            self.logger.info('Aligning segmap with dataset %s', name)
             self._segmap_aligned[name] = self.segmap_img.align_with_image(
                 dataset.white, truncate=True, margin=margin)
         return self._segmap_aligned[name]

@@ -152,7 +152,7 @@ class MuseX:
                 cls = InputCatalog
             self.input_catalogs[name] = cls.from_settings(name, self.db,
                                                           **conf)
-        self.logger.info("Input catalogs loaded.")
+        self.logger.info("Input catalogs loaded")
 
     def _load_user_catalogs(self):
         """Load user generated catalogs."""
@@ -191,7 +191,7 @@ class MuseX:
                 except KeyError:
                     self.catalogs[name].cat2 = self.input_catalogs[cat2_name]
 
-        self.logger.info("User catalogs loaded.")
+        self.logger.info("User catalogs loaded")
 
     def info(self, outstream=None):
         if outstream is None:
@@ -324,7 +324,6 @@ class MuseX:
         # the one used to produce the masks
         assert cat.meta['dataset'] == self.muse_dataset.name
 
-        # debug = self.logger.debug
         debug = self.logger.debug
         info = self.logger.info
 
@@ -332,12 +331,10 @@ class MuseX:
             info('Exporting %s sources with %s dataset, size=%.1f',
                  nrows, self.muse_dataset.name, size)
             size = [size] * nrows
-
         elif isinstance(size, Iterable) and isinstance(size, Sized):
             if nrows != len(size):
-                msg = ("Length of res_or_cat (%d) does not match length of "
-                       "size (%d)")
-                raise ValueError(msg % (nrows, len(size)))
+                raise ValueError(f"Length of res_or_cat ({nrows}) does not "
+                                 f"match length of size ({len(size)})")
 
             info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
                  nrows, self.muse_dataset.name, np.min(size), np.max(size))
