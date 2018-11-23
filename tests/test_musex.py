@@ -119,7 +119,8 @@ def test_catalog(mx):
 
     # Test selection with a WCS and a mask
     res = phot.select(wcs=mx.muse_dataset.white.wcs,
-                      mask=np.ones(mx.muse_dataset.white.data.shape))
+                      mask=np.ones(mx.muse_dataset.white.data.shape,
+                                   dtype=int))
     assert len(res) == 0
 
 
