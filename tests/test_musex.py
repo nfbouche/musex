@@ -117,6 +117,12 @@ def test_catalog(mx):
                       margin=2/0.2)
     assert len(res) == 8
 
+    # Test selection with a WCS and a mask
+    res = phot.select(wcs=mx.muse_dataset.white.wcs,
+                      mask=np.ones(mx.muse_dataset.white.data.shape))
+    assert len(res) == 0
+
+
 
 def test_user_catalog(mx):
     phot = mx.input_catalogs['photutils']

@@ -541,7 +541,7 @@ class SpatialCatalog(BaseCatalog):
         super().drop()
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
-               **params):
+               mask=None, **params):
         """Select rows in the catalog.
 
         For spatial catalogs, this method allows to pass as WCS to select only
@@ -557,6 +557,9 @@ class SpatialCatalog(BaseCatalog):
             If present sources are selected inside the given WCS.
         margin: float
             Margin from the edges (pixels) for the WCS selection.
+        mask: array-like
+            If addition to the WCS, corresponding mask used to select sources
+            (1 to mask).
         params: dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
@@ -573,7 +576,8 @@ class SpatialCatalog(BaseCatalog):
 
         if wcs is not None:
             t = res.as_table()
-            t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin)
+            t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin,
+                         mask=mask)
             # FIXME Simon, is it OK to take the ResultSet columns here?
             res = ResultSet(table_to_odict(t), whereclause=whereclause,
                             catalog=self, columns=res.columns)
