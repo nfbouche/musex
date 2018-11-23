@@ -27,7 +27,7 @@ input_catalogs : photutils, origin
     assert expected in captured.out
 
 
-def test_ingest(mx):
+def test_ingest_photutils(mx):
     assert list(mx.input_catalogs.keys()) == ['photutils', 'origin']
 
     # Photutils catalog
@@ -46,6 +46,10 @@ def test_ingest(mx):
 
     tbl = phot.select().as_table()
     assert tbl[phot.idname].max() == 13
+
+
+def test_ingest_origin(mx):
+    assert list(mx.input_catalogs.keys()) == ['photutils', 'origin']
 
     # Catalogue origin
     orig = mx.input_catalogs['origin']
@@ -79,6 +83,7 @@ def test_catalog_name(settings_file):
 
 def test_catalog(mx):
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
     assert len(phot) == 13
     assert repr(phot) == "<InputCatalog('photutils', 13 rows)>"
     assert phot.meta['maxid'] == 13
@@ -124,11 +129,12 @@ def test_catalog(mx):
     assert len(res) == 0
 
 
-
 def test_user_catalog(mx):
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    mx.new_catalog_from_resultset('my_cat', res)
 
     with pytest.raises(ValueError):
         mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=False)
@@ -154,10 +160,12 @@ def test_user_catalog(mx):
 
 def test_drop_user_catalog(mx):
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     res = phot.select(phot.c[phot.idname] < 5)
 
     catname = 'my_cat_tmp'
-    mx.new_catalog_from_resultset(catname, res, drop_if_exists=True)
+    mx.new_catalog_from_resultset(catname, res)
     assert catname in mx.db.tables
 
     mycat = mx.catalogs[catname]
@@ -177,9 +185,10 @@ def test_drop_user_catalog(mx):
 def test_update_column(mx):
     # Test addition of a new column
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
-    mycat = mx.catalogs['my_cat']
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
 
     assert 'foobar' not in mycat.table.columns
     mycat.update_column('foobar', 1)
@@ -194,10 +203,10 @@ def test_update_column(mx):
 
 def test_update_rows(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select(phot.c[phot.idname] < 5)
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    phot.ingest_input_catalog()
 
-    mycat = mx.catalogs['my_cat']
+    res = phot.select(phot.c[phot.idname] < 5)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
 
     # insert rows
     for i, r in enumerate(res):
@@ -222,8 +231,10 @@ def test_id_mapping(mx):
     assert mx.id_mapping is not None
 
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     res = phot.select(phot.c[phot.idname] > 8)
-    mycat = mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
 
     mycat_ids = [x['id'] for x in mycat.select()]
     mx.id_mapping.add_ids(mycat_ids, mycat)
@@ -261,7 +272,11 @@ def test_id_mapping(mx):
 
 
 def test_segmap(mx):
-    mycat = mx.catalogs['my_cat']
+    phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+    res = phot.select(phot.c[phot.idname] > 8)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+
     segmap = mycat.get_segmap_aligned(mx.muse_dataset)
 
     assert segmap.img.shape == (90, 90)
@@ -272,10 +287,11 @@ def test_segmap(mx):
 
 def test_merge_sources(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select_ids([9, 10, 11, 12, 13])
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    phot.ingest_input_catalog()
 
-    mycat = mx.catalogs['my_cat']
+    res = phot.select_ids([9, 10, 11, 12, 13])
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+
     mycat.merge_sources([9, 10], weights_colname='source_sum')
     mycat.add_column_with_merged_ids('MERGID')
 
@@ -309,10 +325,11 @@ def test_attach_dataset(mx):
 
     """
     phot = mx.input_catalogs['photutils']
-    res = phot.select(phot.c[phot.idname] > 7)
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    phot.ingest_input_catalog()
 
-    mycat = mx.catalogs['my_cat']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+
     mycat.merge_sources([9, 10])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
                          mask_size=(10, 10), n_jobs=2)
@@ -352,14 +369,14 @@ def test_attach_dataset(mx):
 def test_attach_origin_dataset(mx):
     """Test attaching an origin dataset."""
     orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
 
     assert orig.mask_tpl is not None
     assert orig.skymask_tpl is not None
 
     res = orig.select()
-    mx.new_catalog_from_resultset('my_oricat', res, drop_if_exists=True)
+    mycat = mx.new_catalog_from_resultset('my_oricat', res)
 
-    mycat = mx.catalogs['my_oricat']
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False)
 
     outdir = mycat.workdir / mx.muse_dataset.name
@@ -371,12 +388,13 @@ def test_attach_origin_dataset(mx):
 
 def test_export_marz(mx):
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     res = phot.select(phot.c[phot.idname] > 7,
                       columns=[phot.idname, phot.raname, phot.decname])
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
-    mx.new_catalog_from_resultset('my_cat2', res, drop_if_exists=True)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+    mx.new_catalog_from_resultset('my_cat2', res)
 
-    mycat = mx.catalogs['my_cat']
     mycat.merge_sources([9, 10])
     mycat.merge_sources([11, 12, 13])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
@@ -424,10 +442,11 @@ def test_export_marz(mx):
 
 def test_export_sources(mx):
     phot = mx.input_catalogs['photutils']
-    res = phot.select(phot.c[phot.idname] > 7)
-    mx.new_catalog_from_resultset('my_cat', res, drop_if_exists=True)
+    phot.ingest_input_catalog()
 
-    mycat = mx.catalogs['my_cat']
+    res = phot.select(phot.c[phot.idname] > 7)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+
     mycat.merge_sources([9, 10])
     mycat.merge_sources([11, 12, 13])
     mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
@@ -497,7 +516,16 @@ FORMAT  = '0.5     '           / Version of the Source format
 
 
 def test_join(mx):
-    mycat = mx.catalogs['my_cat']
+    phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+    res = phot.select(phot.c[phot.idname] > 7)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
+    mycat.merge_sources([9, 10])
+    mycat.merge_sources([11, 12, 13])
+
+    marzfile = os.path.join(DATADIR, 'marz-my-cat-hdfs_SCO.mz')
+    mx.import_marz(marzfile, mycat)
+
     photcat = mx.find_parent_cat(mycat)
     res = mycat.join([photcat, mx.marzcat],
                      whereclause=(mx.marzcat.c.catalog == mycat.name),
@@ -549,7 +577,11 @@ def test_merge_masks_on_area():
 
 def test_matching(mx):
     orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
+
     phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
     cross = mx.cross_match("cross_matching", orig, phot)
     assert len(cross) == 18
     assert cross.cat1 is orig

@@ -1,5 +1,5 @@
 workdir: '{tmpdir}'
-db: '{{workdir}}/musex.db'
+db: ':memory:'
 show_banner: true
 author: 'John Doe'
 
