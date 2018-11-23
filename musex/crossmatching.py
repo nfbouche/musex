@@ -219,6 +219,12 @@ class CrossMatch(BaseCatalog):
             np.unique(selection[f'{self.cat2.name}_id'])).as_table()
         cat2.rename_column(self.cat2.idname, f'{self.cat2.name}_id')
 
+        # clear meta (idname, raname, etc.) to avoid conflicts warnings and
+        # weird state on the result catalog
+        cat1.meta.clear()
+        cat2.meta.clear()
+        selection.meta.clear()
+
         result = join(cat1, selection, keys=f'{self.cat1.name}_id',
                       join_type='outer')
         result = join(result, cat2, keys=f'{self.cat2.name}_id',
