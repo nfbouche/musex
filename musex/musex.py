@@ -690,7 +690,7 @@ class MuseX:
 
         wave, data, stat, sky, meta = [], [], [], [], []
 
-        for row in resultset:
+        for row in progressbar(resultset):
             id_ = row[resultset.catalog.idname]
 
             s = Source.from_file(source_tpl % id_)
