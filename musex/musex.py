@@ -11,6 +11,7 @@ from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
+from mpdaf.obj import Image, Source
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
@@ -628,6 +629,84 @@ class MuseX:
                 fname = f'{outdir}/{outn}.fits'
                 s.write(fname)
                 self.logger.info('fits written to %s', fname)
+
+        t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
+                                    'F775W', 'F125W', 'REFSPEC'],
+                  meta={'CUBE_V': s.CUBE_V, 'SRC_V': s.SRC_V})
+        hdulist = fits.HDUList([
+            fits.PrimaryHDU(),
+            fits.ImageHDU(name='WAVE', data=np.vstack(wave)),
+            fits.ImageHDU(name='DATA', data=np.vstack(data)),
+            fits.ImageHDU(name='STAT', data=np.vstack(stat)),
+            fits.ImageHDU(name='SKY', data=np.vstack(sky)),
+            fits.BinTableHDU(name='DETAILS', data=t)
+        ])
+        self.logger.info('Writing %s', outfile)
+        hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
+
+    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None,
+                                 outdir=None, **kwargs):
+        """Export a catalog or selection for MarZ using existing sources.
+
+        Pre-generated sources are used to create an input catalogue for MarZ.
+        Each object in the catalog (or the selection) must have an existing
+        source, and each source must have a REFSPEC attribute designating the
+        spectrum to use in MarZ.
+
+        Parameters
+        ----------
+        res_or_cat: `ResultSet` or `Catalog`
+            Either a result from a query or a catalog to export.
+        source_tpl: str
+            Template for the source file name that is formatted with the object
+            identifier.
+        outfile: str
+            Output file. If None the default is
+            `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
+        outdir: str
+            Output directory. If None the default is
+            `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
+            Output directory. If None the default is `'source-{src.ID:05d}'`.
+
+        """
+
+        if isinstance(res_or_cat, Catalog):
+            if 'active' in res_or_cat.c:
+                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
+            else:
+                resultset = res_or_cat.select()
+        elif isinstance(res_or_cat, (ResultSet, Table)):
+            resultset = res_or_cat
+        else:
+            raise ValueError('invalid input for res_or_cat')
+
+        cname = get_cat_name(res_or_cat)
+        if outdir is None:
+            outdir = f'{self.exportdir}/{cname}/marz'
+        os.makedirs(outdir, exist_ok=True)
+        if outfile is None:
+            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
+
+        wave, data, stat, sky, meta = [], [], [], [], []
+
+        for row in resultset:
+            id_ = row[resultset.catalog.idname]
+
+            s = Source.from_file(source_tpl % id_)
+
+            sp = s.spectra[s.REFSPEC]
+            wave.append(sp.wave.coord())
+            data.append(sp.data.filled(np.nan))
+            stat.append(sp.var.filled(np.nan))
+            sky.append(s.spectra['MUSE_SKY'].data.filled(np.nan))
+
+            z = 0
+            mag1 = -99
+            mag2 = -99
+            meta.append(('%05d' % s.ID, s.RA, s.DEC, z,
+                        s.header.get('CONFID', 0),
+                        s.header.get('TYPE', 0), mag1, mag2, s.REFSPEC))
+
 
         t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
                                     'F775W', 'F125W', 'REFSPEC'],
