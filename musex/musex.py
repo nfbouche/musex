@@ -11,7 +11,8 @@ from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
-from mpdaf.obj import Image, Source
+from mpdaf.obj import Image
+from mpdaf.sdetect import Source
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
