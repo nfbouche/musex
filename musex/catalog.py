@@ -325,6 +325,18 @@ class BaseCatalog:
             if version is not None:
                 keys.append('version')
 
+        # Check that all the rows contain the keys.
+        try:
+            if not set(keys).issubset(set(rows.colnames)):
+                raise KeyError("The table does not contain all the keys: %s"
+                               % ", ".join(keys))
+        except AttributeError:
+            for row in rows:
+                if not set(keys).issubset(set(row)):
+                    raise KeyError("At least one dictionary in the list does "
+                                   "not contain all the keys: %s"
+                                   % ", ".join(keys))
+
         assert self.history is not None  # create table to avoid schema warning
         with self.db as tx:
             tbl = tx[self.name]

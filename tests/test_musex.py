@@ -223,6 +223,12 @@ def test_update_rows(mx):
     assert len(mycat) == 4
     assert_allclose([o['dec'] for o in mycat.select(columns=['dec'])], 2.0)
 
+    # wrong keys in upsert
+    with pytest.raises(KeyError):
+        mycat.upsert(res, show_progress=False, keys=['foo'])
+    with pytest.raises(KeyError):
+        mycat.upsert(tbl, show_progress=False, keys=['foo'])
+
 
 def test_id_mapping(mx):
     mx.create_id_mapping('mapping_name')
