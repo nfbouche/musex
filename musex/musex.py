@@ -75,8 +75,11 @@ def _create_catalogs_table(db):
     return table
 
 
-def _create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures):
+def _create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
+                   verbose):
     logger = logging.getLogger(__name__)
+    if not verbose:
+        logging.getLogger('musex').setLevel('WARNING')
 
     # minsize = min(*size) // 2
     minsize = 0.
@@ -428,7 +431,7 @@ class MuseX:
             skyim = str(cat.workdir / row['mask_sky'])
             maskim = str(cat.workdir / row['mask_obj'])
             args = (row[idname], row[raname], row[decname], src_size, skyim,
-                    maskim, use_datasets, apertures)
+                    maskim, use_datasets, apertures, verbose)
             to_compute.append(delayed(_create_source)(*args))
 
         if verbose is False:
