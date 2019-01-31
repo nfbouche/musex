@@ -432,7 +432,7 @@ class MuseX:
             to_compute.append(delayed(_create_source)(*args))
 
         if verbose is False:
-            # to_compute = progressbar(to_compute)
+            to_compute = progressbar(to_compute)
             rows = progressbar(rows)
             setup_logging('musex', level=logging.WARNING, stream=sys.stdout)
 
