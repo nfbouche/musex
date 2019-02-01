@@ -462,7 +462,8 @@ def test_export_sources(mx):
     os.makedirs(outdir, exist_ok=True)
 
     mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
-                      apertures=None, refspec='MUSE_PSF_SKYSUB')
+                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=3,
+                      verbose=True)
 
     flist = os.listdir(outdir)
     assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
@@ -478,9 +479,9 @@ def test_export_sources(mx):
     assert list(src.cubes.keys()) == ['MUSE_CUBE']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
 
-    assert list(src.images.keys()) == [
+    assert set(src.images.keys()) == {
         'MUSE_WHITE', 'MUSE_EXPMAP', 'TEST_FAKE', 'PHU_SEGMAP', 'MASK_SKY',
-        'MASK_OBJ']
+        'MASK_OBJ'}
     assert list(src.spectra.keys()) == [
         'MUSE_TOT', 'MUSE_WHITE', 'MUSE_PSF', 'MUSE_SKY', 'MUSE_TOT_SKYSUB',
         'MUSE_WHITE_SKYSUB', 'MUSE_PSF_SKYSUB']

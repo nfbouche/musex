@@ -26,6 +26,17 @@ class DataSet:
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove un-pickable objects
+        state['logger'] = None
+        return state
+
+    def __setstate__(self, state):
+        for slot, value in state.items():
+            setattr(self, slot, value)
+        self.logger = logging.getLogger(__name__)
+
     @lazyproperty
     def images(self):
         """Return a dictionary with the images."""
