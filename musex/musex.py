@@ -436,11 +436,13 @@ class MuseX:
 
         if verbose is False:
             to_compute = progressbar(to_compute)
-            rows = progressbar(rows)
             setup_logging('musex', level=logging.WARNING, stream=sys.stdout)
 
         sources = Parallel(n_jobs=n_jobs,
                            verbose=50 if verbose else 0)(to_compute)
+
+        if verbose is False:
+            rows = progressbar(rows)
 
         for row, src, src_size in zip(rows, sources, size):
             src.SRC_V = (srcvers, 'Source Version')
