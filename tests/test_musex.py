@@ -487,7 +487,7 @@ def test_export_sources(mx):
         'MUSE_WHITE_SKYSUB', 'MUSE_PSF_SKYSUB']
 
     ref_header = """\
-ID      =                    8 / object ID u.unitless %d
+ID      =                    8 / object ID %d
 RA      =    338.2289866204975 / RA u.degree %.7f
 DEC     =   -60.56824280312122 / DEC u.degree %.7f
 FROM    = 'MuseX   '           / detection software
@@ -512,7 +512,7 @@ FSKYMSK =                69.44 / Relative Size of MASK_SKY in %
 NOBJMSK =                   43 / Size of MASK_OBJ in spaxels
 FOBJMSK =                 6.88 / Relative Size of MASK_OBJ in %
 AUTHOR  = 'MPDAF   '           / Origin of the file
-FORMAT  = '0.5     '           / Version of the Source format
+FORMAT  = '0.6     '           / Version of the Source format
 """
 
     cards = [fits.Card.fromstring(s) for s in ref_header.splitlines()]
