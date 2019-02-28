@@ -5,18 +5,18 @@ import os
 import re
 import sys
 import textwrap
-from astropy.io import fits
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
+from mpdaf.sdetect import Source
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
-from .source import SourceX
+from .source import SourceX, sources_to_marz
 from .utils import extract_subimage, load_db, load_yaml_config, progressbar
 from .version import __version__, __description__
 
@@ -572,76 +572,92 @@ class MuseX:
         if outfile is None:
             outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
-        wave, data, stat, sky, meta = [], [], [], [], []
-
         # If sources must be exported, we need to tell .to_sources what to put
         # inside the sources (all datasets and the segmap)
         datasets = None if export_sources else []
         content = ('segmap', 'parentcat') if export_sources else tuple()
 
-        for s in self.to_sources(res_or_cat, datasets=datasets,
-                                 content=content, **kwargs):
-            # TODO: how to choose which spectrum to use ?
-            # if args.selmode == 'udf':
-            #     smag = s.mag[s.mag['BAND'] == 'F775W']
-            #     mag = -99 if len(smag) == 0 else smag['MAG'][0]
-            #     if 'MUSE_PSF_SKYSUB' in s.spectra:
-            #         if hasattr(s,'FWHM'):
-            #             if s.FWHM*0.03 > 0.7: # large object we use WHITE
-            #                 sp = s.spectra['MUSE_WHITE_SKYSUB']
-            #             else:
-            #                 sp = s.spectra['MUSE_PSF_SKYSUB']
-            #     else: # we use mag, no size available
-            #         if mag < 26.5:
-            #             sp = s.spectra['MUSE_WHITE_SKYSUB']
-            # elif args.selmode == 'origin':
-            #     if 'MUSE_PSF' in s.spectra:
-            #         sp = s.spectra['MUSE_PSF']
-            #     else:
-            #         sp = s.spectra['MUSE_TOT']
-            # else:
-            #     self.logger.error('unknown selmode '+args.selmode)
-            #     return
+        # TODO: The following commented code was in the export_marz method
+        # before the sources_to_marz code was extracted.
 
-            sp = s.spectra[s.REFSPEC]
-            wave.append(sp.wave.coord())
-            data.append(sp.data.filled(np.nan))
-            stat.append(sp.var.filled(np.nan))
-            sky.append(s.spectra['MUSE_SKY'].data.filled(np.nan))
+        # TODO: how to choose which spectrum to use ?
+        # if args.selmode == 'udf':
+        #     smag = s.mag[s.mag['BAND'] == 'F775W']
+        #     mag = -99 if len(smag) == 0 else smag['MAG'][0]
+        #     if 'MUSE_PSF_SKYSUB' in s.spectra:
+        #         if hasattr(s,'FWHM'):
+        #             if s.FWHM*0.03 > 0.7: # large object we use WHITE
+        #                 sp = s.spectra['MUSE_WHITE_SKYSUB']
+        #             else:
+        #                 sp = s.spectra['MUSE_PSF_SKYSUB']
+        #     else: # we use mag, no size available
+        #         if mag < 26.5:
+        #             sp = s.spectra['MUSE_WHITE_SKYSUB']
+        # elif args.selmode == 'origin':
+        #     if 'MUSE_PSF' in s.spectra:
+        #         sp = s.spectra['MUSE_PSF']
+        #     else:
+        #         sp = s.spectra['MUSE_TOT']
+        # else:
+        #     self.logger.error('unknown selmode '+args.selmode)
+        #     return
 
-            # if args.selmode == 'udf':
-            #     zmuse = s.z[s.z['Z_DESC'] == 'MUSE']
-            #     z = 0 if len(zmuse) == 0 else zmuse['Z'][0]
-            #     band1 = s.mag[s.mag['BAND'] == 'F775W']
-            #     mag1 = -99 if len(band1)==0  else band1['MAG'][0]
-            #     band2 = s.mag[s.mag['BAND'] == 'F125W']
-            #     mag2 = -99 if len(band2)==0  else band2['MAG'][0]
-            z = 0
-            mag1 = -99
-            mag2 = -99
-            meta.append(('%05d' % s.ID, s.RA, s.DEC, z,
-                        s.header.get('CONFID', 0),
-                        s.header.get('TYPE', 0), mag1, mag2, s.REFSPEC))
+        sources_to_marz(
+            src_list=self.to_sources(res_or_cat, datasets=datasets,
+                                     content=content, **kwargs),
+            out_file=outfile,
+            save_src_to=outdir + '/' + srcname + '.fits'
+        )
 
-            if export_sources:
-                outn = srcname.format(src=s)
-                fname = f'{outdir}/{outn}.fits'
-                s.write(fname)
-                self.logger.info('fits written to %s', fname)
+    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None,
+                                 outdir=None):
+        """Export a catalog or selection for MarZ using existing sources.
 
-        t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
-                                    'F775W', 'F125W', 'REFSPEC'],
-                  meta={'CUBE_V': s.CUBE_V, 'SRC_V': s.SRC_V})
-        hdulist = fits.HDUList([
-            fits.PrimaryHDU(),
-            fits.ImageHDU(name='WAVE', data=np.vstack(wave)),
-            fits.ImageHDU(name='DATA', data=np.vstack(data)),
-            fits.ImageHDU(name='STAT', data=np.vstack(stat)),
-            fits.ImageHDU(name='SKY', data=np.vstack(sky)),
-            fits.BinTableHDU(name='DETAILS', data=t)
-        ])
-        self.logger.info('Writing %s', outfile)
-        hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
+        Pre-generated sources are used to create an input catalogue for MarZ.
+        Each object in the catalog (or the selection) must have an existing
+        source, and each source must have a REFSPEC attribute designating the
+        spectrum to use in MarZ.
+
+        Parameters
+        ----------
+        res_or_cat: `ResultSet` or `Catalog`
+            Either a result from a query or a catalog to export.
+        source_tpl: str
+            Template for the source file name that is formatted with the object
+            identifier.
+        outfile: str
+            Output file. If None the default is
+            `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
+        outdir: str
+            Output directory. If None the default is
+            `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
+            Output directory. If None the default is `'source-{src.ID:05d}'`.
+
+        """
+        if isinstance(res_or_cat, Catalog):
+            if 'active' in res_or_cat.c:
+                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
+            else:
+                resultset = res_or_cat.select()
+        elif isinstance(res_or_cat, (ResultSet, Table)):
+            resultset = res_or_cat
+        else:
+            raise ValueError('invalid input for res_or_cat')
+
+        cname = get_cat_name(res_or_cat)
+        if outdir is None:
+            outdir = f'{self.exportdir}/{cname}/marz'
+        os.makedirs(outdir, exist_ok=True)
+        if outfile is None:
+            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
+
+        id_column = resultset.catalog.idname
+        src_list = progressbar(
+            (Source.from_file(source_tpl % row[id_column]) for row in
+             resultset), total=len(resultset)
+        )
+
+        sources_to_marz(src_list, outfile)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.
