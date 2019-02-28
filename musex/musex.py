@@ -5,13 +5,11 @@ import os
 import re
 import sys
 import textwrap
-from astropy.io import fits
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
-from mpdaf.obj import Image
 from mpdaf.sdetect import Source
 
 from .dataset import load_datasets, MuseDataSet
@@ -612,7 +610,7 @@ class MuseX:
         )
 
     def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None,
-                                 outdir=None, **kwargs):
+                                 outdir=None):
         """Export a catalog or selection for MarZ using existing sources.
 
         Pre-generated sources are used to create an input catalogue for MarZ.
