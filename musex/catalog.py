@@ -1094,6 +1094,8 @@ class InputCatalog(SpatialCatalog):
         cat.mask_tpl = mask_tpl
         cat.skymask_tpl = skymask_tpl
 
+        cat.version_meta = kwargs.get('version_meta', None)
+
         # The `line_catalog` setting contains the link to the FITS file
         # containing the line table associated to the input catalog, if any. We
         # put it in the `line_catalog` attribute to use it at ingestion.
@@ -1163,6 +1165,8 @@ class InputCatalog(SpatialCatalog):
         elif self.lines is None and line_catalog is not None:
             raise AttributeError('This input catalog is not associated to a '
                                  'line table but one was provided.')
+
+        version_meta = version_meta or getattr(self, 'version_meta', None)
 
         # Catalog
         if isinstance(catalog, str):

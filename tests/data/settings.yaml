@@ -46,6 +46,7 @@ catalogs:
     line_src_idname: 'ID'
     mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
     skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
+    version_meta: CAT3_TS
     extract:
       prefix: ORIG
       columns: [ID, ra, dec, n_lines, sed_label, comp, line_cleaned_flag]
