@@ -73,6 +73,10 @@ def test_ingest_origin(mx):
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 9
 
+    # Fixme do we need to re-read the input catalog?
+    orig = mx.input_catalogs['origin']
+    assert orig.meta['CAT3_TS'] == "2019-03-01T14:34:31.903825"
+
 
 def test_catalog_name(settings_file):
     mx = MuseX(settings_file=settings_file, show_banner=False, db=':memory:')
