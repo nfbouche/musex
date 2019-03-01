@@ -649,22 +649,18 @@ class MuseX:
         # If the catalog has a version_meta, check that the source of the first
         # item has the same information.
         # TODO: Should we check each source.
-        try:
-            meta_version = catalog.version_meta
-        except AttributeError:
-            meta_version = None
-
-        if meta_version is not None:
-            meta_version_value = catalog.meta[meta_version]
+        version_meta = catalog.meta.get('version_meta', None)
+        if version_meta is not None:
+            version_meta_value = catalog.meta[version_meta]
             first_source = Source.from_file(source_tpl
                                             % resultset[0][catalog.idname])
             try:
-                source_version = first_source.header[meta_version]
-                if source_version != meta_version_value:
+                source_version = first_source.header[version_meta]
+                if source_version != version_meta_value:
                     raise ValueError("The sources were not made from the same "
                                      "catalog.")
             except KeyError:
-                raise KeyError("The sources have no %s keyword.", meta_version)
+                raise KeyError("The sources have no %s keyword.", version_meta)
 
         cname = get_cat_name(res_or_cat)
         if outdir is None:

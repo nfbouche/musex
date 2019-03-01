@@ -75,6 +75,7 @@ def test_ingest_origin(mx):
 
     # Fixme do we need to re-read the input catalog?
     orig = mx.input_catalogs['origin']
+    assert orig.meta['version_meta'] == 'CAT3_TS'
     assert orig.meta['CAT3_TS'] == "2019-03-01T14:34:31.903825"
 
 

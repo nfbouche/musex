@@ -1191,6 +1191,7 @@ class InputCatalog(SpatialCatalog):
                          segmap=getattr(self, 'segmap', None))
 
         if version_meta is not None:
+            self.update_meta(**{'version_meta': version_meta})
             self.update_meta(**{version_meta: catalog.meta[version_meta]})
 
         # Lines
