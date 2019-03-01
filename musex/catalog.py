@@ -1112,7 +1112,7 @@ class InputCatalog(SpatialCatalog):
 
     def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
                              upsert=False, keys=None, line_keys=None,
-                             show_progress=True):
+                             show_progress=True, import_meta=None):
         """Ingest an input catalog and the associated line table if any.
 
         The catalog and the line table to ingest can be given with the
@@ -1145,6 +1145,9 @@ class InputCatalog(SpatialCatalog):
             Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
+        import_meta: list of str, optional
+            List of the keywords in the catalog file meta-data to import in
+            MuseX meta-data table.
         """
         catalog = catalog or self.catalog
         # We use getattr because the input catalog may not have a line_catalog
@@ -1181,6 +1184,10 @@ class InputCatalog(SpatialCatalog):
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname),
                          segmap=getattr(self, 'segmap', None))
+
+        if import_meta is not None:
+            for keyword in import_meta:
+                self.update_meta(**{keyword: catalog.meta[keyword]})
 
         # Lines
         if line_catalog is not None:
