@@ -445,6 +445,21 @@ def test_export_marz(mx):
     assert res[0]['catalog'] == 'my_cat'
     assert res[1]['catalog'] == 'my_cat2'
 
+    source_tpl = f"{mx.workdir}/export/hdfs/my_cat/marz/source-%05d.fits"
+    outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz2'
+    mx.export_marz_from_sources(mycat, source_tpl, outdir=outdir2)
+    with fits.open(f'{outdir2}/marz-my_cat-hdfs.fits') as hdul:
+        assert [hdu.name for hdu in hdul] == [
+            'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
+        for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
+            assert hdul[name].shape == (3, 200)
+        assert hdul['DETAILS'].data.dtype.names == (
+            'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W',
+            'REFSPEC')
+        assert_array_equal(
+            hdul['DETAILS'].data['REFSPEC'],
+            ['MUSE_PSF_SKYSUB', 'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
+
 
 def test_export_sources(mx):
     phot = mx.input_catalogs['photutils']
