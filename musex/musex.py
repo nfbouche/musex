@@ -639,10 +639,32 @@ class MuseX:
                 resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
             else:
                 resultset = res_or_cat.select()
+            catalog = res_or_cat
         elif isinstance(res_or_cat, (ResultSet, Table)):
             resultset = res_or_cat
+            catalog = res_or_cat.catalog
         else:
             raise ValueError('invalid input for res_or_cat')
+
+        # If the catalog has a version_meta, check that the source of the first
+        # item has the same information.
+        # TODO: Should we check each source.
+        try:
+            meta_version = catalog.version_meta
+        except AttributeError:
+            meta_version = None
+
+        if meta_version is not None:
+            meta_version_value = catalog.meta[meta_version]
+            first_source = Source.from_file(source_tpl
+                                            % resultset[0][catalog.idname])
+            try:
+                source_version = first_source.header[meta_version]
+                if source_version != meta_version_value:
+                    raise ValueError("The sources were not made from the same "
+                                     "catalog.")
+            except KeyError:
+                raise KeyError("The sources have no %s keyword.", meta_version)
 
         cname = get_cat_name(res_or_cat)
         if outdir is None:
