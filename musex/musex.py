@@ -646,21 +646,12 @@ class MuseX:
         else:
             raise ValueError('invalid input for res_or_cat')
 
-        # If the catalog has a version_meta, check that the source of the first
-        # item has the same information.
-        # TODO: Should we check each source.
+        # Keyword to check in the sources for ORIGIN.
         version_meta = catalog.meta.get('version_meta', None)
         if version_meta is not None:
-            version_meta_value = catalog.meta[version_meta]
-            first_source = Source.from_file(source_tpl
-                                            % resultset[0][catalog.idname])
-            try:
-                source_version = first_source.header[version_meta]
-                if source_version != version_meta_value:
-                    raise ValueError("The sources were not made from the same "
-                                     "catalog.")
-            except KeyError:
-                raise KeyError("The sources have no %s keyword.", version_meta)
+            check_keyword = (version_meta, catalog.meta[version_meta])
+        else:
+            check_keyword = None
 
         cname = get_cat_name(res_or_cat)
         if outdir is None:
@@ -675,7 +666,7 @@ class MuseX:
              resultset), total=len(resultset)
         )
 
-        sources_to_marz(src_list, outfile)
+        sources_to_marz(src_list, outfile, check_keyword=check_keyword)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.

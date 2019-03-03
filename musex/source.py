@@ -67,7 +67,8 @@ class SourceX(Source):
 #     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
 
 
-def sources_to_marz(src_list, out_file, *, save_src_to=None):
+def sources_to_marz(src_list, out_file, *, save_src_to=None,
+                    check_keyword=None):
     """Export a list of source to a MarZ input file.
 
     Parameters
@@ -80,6 +81,11 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None):
         None or a template string that is formated with the source as `src` to
         get the name of the file to save the source to (for instance
         `/path/to/source-{src.ID:05d}.fits`).
+    check_keyword: tuple, optional
+        If a tuple (keyword, value) is given, each source header will be
+        checked that it contains the keyword with the value. If the keyword is
+        not here, a KeyError will be raise, if the value is not the expected
+        one, a ValueError is raised.
 
     """
     logger = logging.getLogger(__name__)
@@ -87,6 +93,15 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None):
     wave, data, stat, sky, meta = [], [], [], [], []
 
     for src in src_list:
+        if check_keyword is not None:
+            try:
+                if src.header[check_keyword[0]] != check_keyword[1]:
+                    raise ValueError("The source was not made from the good "
+                                     "catalog: %s = %s", (check_keyword))
+            except KeyError:
+                raise KeyError("The source has no %s keyword.",
+                               check_keyword[0])
+
         sp = src.spectra[src.REFSPEC]
         wave.append(sp.wave.coord())
         data.append(sp.data.filled(np.nan))
