@@ -639,10 +639,19 @@ class MuseX:
                 resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
             else:
                 resultset = res_or_cat.select()
+            catalog = res_or_cat
         elif isinstance(res_or_cat, (ResultSet, Table)):
             resultset = res_or_cat
+            catalog = res_or_cat.catalog
         else:
             raise ValueError('invalid input for res_or_cat')
+
+        # Keyword to check in the sources for ORIGIN.
+        version_meta = catalog.meta.get('version_meta', None)
+        if version_meta is not None:
+            check_keyword = (version_meta, catalog.meta[version_meta])
+        else:
+            check_keyword = None
 
         cname = get_cat_name(res_or_cat)
         if outdir is None:
@@ -657,7 +666,7 @@ class MuseX:
              resultset), total=len(resultset)
         )
 
-        sources_to_marz(src_list, outfile)
+        sources_to_marz(src_list, outfile, check_keyword=check_keyword)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.

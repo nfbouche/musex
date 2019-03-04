@@ -1094,6 +1094,8 @@ class InputCatalog(SpatialCatalog):
         cat.mask_tpl = mask_tpl
         cat.skymask_tpl = skymask_tpl
 
+        cat.version_meta = kwargs.get('version_meta', None)
+
         # The `line_catalog` setting contains the link to the FITS file
         # containing the line table associated to the input catalog, if any. We
         # put it in the `line_catalog` attribute to use it at ingestion.
@@ -1112,7 +1114,7 @@ class InputCatalog(SpatialCatalog):
 
     def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
                              upsert=False, keys=None, line_keys=None,
-                             show_progress=True):
+                             show_progress=True, version_meta=None):
         """Ingest an input catalog and the associated line table if any.
 
         The catalog and the line table to ingest can be given with the
@@ -1145,6 +1147,10 @@ class InputCatalog(SpatialCatalog):
             Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
+        version_meta: str, optional
+            Keyword in the catalog file that is used to identify the version of
+            the catalog. It is used for ORIGIN catalogs to check that the
+            sources correspond to the catalog.
         """
         catalog = catalog or self.catalog
         # We use getattr because the input catalog may not have a line_catalog
@@ -1159,6 +1165,8 @@ class InputCatalog(SpatialCatalog):
         elif self.lines is None and line_catalog is not None:
             raise AttributeError('This input catalog is not associated to a '
                                  'line table but one was provided.')
+
+        version_meta = version_meta or getattr(self, 'version_meta', None)
 
         # Catalog
         if isinstance(catalog, str):
@@ -1181,6 +1189,10 @@ class InputCatalog(SpatialCatalog):
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
                          type=self.catalog_type, maxid=self.max(self.idname),
                          segmap=getattr(self, 'segmap', None))
+
+        if version_meta is not None:
+            self.update_meta(**{'version_meta': version_meta})
+            self.update_meta(**{version_meta: catalog.meta[version_meta]})
 
         # Lines
         if line_catalog is not None:

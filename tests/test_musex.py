@@ -73,6 +73,11 @@ def test_ingest_origin(mx):
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 9
 
+    # Fixme do we need to re-read the input catalog?
+    orig = mx.input_catalogs['origin']
+    assert orig.meta['version_meta'] == 'CAT3_TS'
+    assert orig.meta['CAT3_TS'] == "2019-03-01T14:34:31.903825"
+
 
 def test_catalog_name(settings_file):
     mx = MuseX(settings_file=settings_file, show_banner=False, db=':memory:')
@@ -459,6 +464,32 @@ def test_export_marz(mx):
         assert_array_equal(
             hdul['DETAILS'].data['REFSPEC'],
             ['MUSE_PSF_SKYSUB', 'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
+
+    # Export of ORIGIN to Marz
+    orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
+    # We take one of the previously exported sources to use as ORIGIN source.
+    s = Source.from_file(source_tpl % 100)
+    # Source for ID 1 has no CAT3_TS information
+    s.write(source_tpl % 1)
+    # Source for ID 2 has a wrong CAT3_TS information
+    s.header['CAT3_TS'] = "FOO"
+    s.write(source_tpl % 2)
+    # Source for ID 3 has a good CAT3_TS information
+    s.header['CAT3_TS'] = "2019-03-01T14:34:31.903825"
+    s.write(source_tpl % 3)
+    outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz3'
+    # Exporting from source 1 must fail because CAT3_TS is missing
+    with pytest.raises(KeyError):
+        mx.export_marz_from_sources(orig.select_ids([1]), source_tpl,
+                                    outdir=outdir2)
+    # Exporting from source 2 must fail because CAT3_TS value is wrong
+    with pytest.raises(ValueError):
+        mx.export_marz_from_sources(orig.select_ids([2]), source_tpl,
+                                    outdir=outdir2)
+    # Exporting from source 3 must succeed.
+    mx.export_marz_from_sources(orig.select_ids([3]), source_tpl,
+                                outdir=outdir2)
 
 
 def test_export_sources(mx):
