@@ -17,7 +17,7 @@ def workdir(tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp('musex'))
     print('create tmpdir:', tmpdir)
     with open(os.path.join(DATADIR, 'settings.yaml'), 'r') as f:
-        out = f.read().format(tmpdir=tmpdir, datadir=DATADIR)
+        out = f.read().format(tmpdir=tmpdir, datadir=DATADIR, db=':memory:')
 
     with open(os.path.join(tmpdir, 'settings.yaml'), 'w') as f:
         f.write(out)

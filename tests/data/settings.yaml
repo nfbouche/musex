@@ -1,5 +1,5 @@
 workdir: '{tmpdir}'
-db: ':memory:'
+db: '{db}'
 show_banner: true
 author: 'John Doe'
 
