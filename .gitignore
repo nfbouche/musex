@@ -4,8 +4,9 @@
 *~
 ._*
 .cache/
-.coverage
+.coverage*
 .DS_Store
+.eggs/
 .ipynb_checkpoints/
 .tox/
 _githash.py
