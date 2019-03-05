@@ -743,14 +743,17 @@ class Catalog(SpatialCatalog):
     def from_parent_cat(cls, parent_cat, name, workdir, whereclause):
         """Create a new `Catalog` from another one."""
         cat = cls(name, parent_cat.db, workdir=workdir,
-                  idname=parent_cat.idname, raname=parent_cat.raname,
-                  decname=parent_cat.decname, segmap=parent_cat.segmap,
-                  mask_tpl=parent_cat.mask_tpl,
-                  skymask_tpl=parent_cat.skymask_tpl)
+                  idname=parent_cat.idname,
+                  raname=getattr(parent_cat, 'raname', None),
+                  decname=getattr(parent_cat, 'decname', None),
+                  segmap=getattr(parent_cat, 'segmap', None),
+                  mask_tpl=getattr(parent_cat, 'mask_tpl', None),
+                  skymask_tpl=getattr(parent_cat, 'skymask_tpl', None))
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one
             whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
-        cat.update_meta(parent_cat=parent_cat.name, segmap=parent_cat.segmap,
+        cat.update_meta(parent_cat=parent_cat.name,
+                        segmap=getattr(parent_cat, 'segmap', None),
                         maxid=parent_cat.meta['maxid'], query=whereclause)
         return cat
 
