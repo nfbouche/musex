@@ -1327,6 +1327,9 @@ class MarzCatalog(InputCatalog):
 
         marz_sol = vstack(marz_sol)
         marz_sol.sort(['catalog', 'ID', 'marz_sol'])
+        # We must add a new unique identifier column as the ID columns contains
+        # duplicates by definition.
+        marz_sol["_id"] = np.arange(len(marz_sol)) + 1
 
         return ResultSet(
             results=table_to_odict(marz_sol),
