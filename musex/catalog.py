@@ -7,7 +7,7 @@ import textwrap
 import warnings
 
 import astropy.units as u
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict, defaultdict
@@ -1272,6 +1272,64 @@ class MarzCatalog(InputCatalog):
     """Handles catalogs imported from MarZ."""
 
     catalog_type = 'marz'
+
+    def select_flat(self, *, limit_to_cat=None, max_order=5, columns=None):
+        """Creates a ResultSet with one MarZ solution per row.
+
+        This method creates a ResultSet converting the one source per row
+        MarZ format to a one solution per row format, adding a `marz_sol`
+        column containing the solution order. For instance, the `AutoZ` column
+        with `marz_sol` to 2 contains the value of the `AutoZ2` for the
+        corresponding ID.
+
+        By default, the columns AutoZ, AutoTID, AutoTN, and AutoXCor are
+        exported (in addition to `catalog`, `ID`, `RA`, `DEC`, and `QOP`) up to
+        order 5. If the Marz catalog has different columns or orders, the
+        `max_order` and `columns` parameters must be adapted.
+
+        Parameters
+        ----------
+        limit_to_cat : str, optional
+            If provided, only the lines for the corresponding catalog are used
+            in `marzcat`.
+        maximum_order: int, optional
+            Maximum order of the solutions to take; e.g. 2 will export only the
+            first two solutions.
+        columns: list of str, optional
+            Name of the columns in addition to `catalog`, `ID`, `RA`, `DEC`,
+            and `QOP` to export.
+
+        """
+        if columns is None:
+            columns = ["AutoZ", "AutoTID", "AutoTN", "AutoXCor"]
+
+        if limit_to_cat is None:
+            marz_table = self.select().as_table()
+        else:
+            marz_table = self.select(
+                whereclause="catalog = '%s'" % limit_to_cat).as_table()
+
+        marz_sol = []
+        for sol_order in ["", "2", "3", "4", "5"][:max_order]:
+            sub_table = marz_table[
+                ['catalog', 'ID', 'RA', 'DEC', 'QOP'] + [col + sol_order for
+                                                         col in columns]
+            ]
+            for col in columns:
+                sub_table[col + sol_order].name = col
+            if sol_order == "":
+                sol_order = "1"
+            sub_table["marz_sol"] = int(sol_order)
+            marz_sol.append(sub_table)
+
+        marz_sol = vstack(marz_sol)
+        marz_sol.sort(['catalog', 'ID', 'marz_sol'])
+
+        return ResultSet(
+            results=table_to_odict(marz_sol),
+            catalog=self,
+            columns=marz_sol.colnames
+        )
 
 
 class IdMapping(BaseCatalog):
