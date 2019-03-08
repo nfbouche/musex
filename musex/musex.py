@@ -293,7 +293,7 @@ class MuseX:
                 raise ValueError('parent catalog not found')
         return parent_cat
 
-    def new_catalog_from_resultset(self, name, resultset,
+    def new_catalog_from_resultset(self, name, resultset, primary_id=None,
                                    drop_if_exists=False):
         """Create a new user catalog from a query result.
 
@@ -324,7 +324,7 @@ class MuseX:
         parent_cat = resultset.catalog
         whereclause = resultset.whereclause
         self.catalogs[name] = cat = Catalog.from_parent_cat(
-            parent_cat, name, self.workdir, whereclause)
+            parent_cat, name, self.workdir, whereclause, primary_id=primary_id)
 
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)

@@ -716,9 +716,10 @@ class Catalog(SpatialCatalog):
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None):
+                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None,
+                 **kwargs):
         super().__init__(name, db, idname=idname, raname=raname,
-                         decname=decname)
+                         decname=decname, **kwargs)
         self.segmap = segmap
         self._segmap_aligned = {}
         self.mask_tpl = mask_tpl
@@ -740,9 +741,10 @@ class Catalog(SpatialCatalog):
         # self.table.create_column('merged', self.db.types.boolean)
 
     @classmethod
-    def from_parent_cat(cls, parent_cat, name, workdir, whereclause):
+    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
+                        primary_id=None):
         """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, workdir=workdir,
+        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
                   idname=parent_cat.idname,
                   raname=getattr(parent_cat, 'raname', None),
                   decname=getattr(parent_cat, 'decname', None),
