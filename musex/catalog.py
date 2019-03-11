@@ -1312,7 +1312,7 @@ class MarzCatalog(InputCatalog):
             marz_table = self.select().as_table()
         else:
             marz_table = self.select(
-                whereclause="catalog = '%s'" % limit_to_cat).as_table()
+                whereclause=(self.c.catalog == limit_to_cat)).as_table()
 
         marz_sol = []
         for sol_order in ["", "2", "3", "4", "5"][:max_order]:
