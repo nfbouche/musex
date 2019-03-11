@@ -450,6 +450,18 @@ def test_export_marz(mx):
     assert res[0]['catalog'] == 'my_cat'
     assert res[1]['catalog'] == 'my_cat2'
 
+    # MarZ one solution per row catalog creation
+    marz_sol = mx.new_catalog_from_resultset(
+        name="marzsol", resultset=mx.marzcat.select_flat(), primary_id="_id"
+    )
+    assert len(marz_sol) == 30
+    marz_sol = mx.new_catalog_from_resultset(
+        name="marzsol",
+        resultset=mx.marzcat.select_flat(limit_to_cat="my_cat", max_order=2),
+        primary_id="_id", drop_if_exists=True
+    )
+    assert len(marz_sol) == 6
+
     source_tpl = f"{mx.workdir}/export/hdfs/my_cat/marz/source-%05d.fits"
     outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz2'
     mx.export_marz_from_sources(mycat, source_tpl, outdir=outdir2)

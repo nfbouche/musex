@@ -7,7 +7,7 @@ import textwrap
 import warnings
 
 import astropy.units as u
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.utils.decorators import lazyproperty
 
 from collections import OrderedDict, defaultdict
@@ -716,9 +716,10 @@ class Catalog(SpatialCatalog):
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None):
+                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None,
+                 **kwargs):
         super().__init__(name, db, idname=idname, raname=raname,
-                         decname=decname)
+                         decname=decname, **kwargs)
         self.segmap = segmap
         self._segmap_aligned = {}
         self.mask_tpl = mask_tpl
@@ -740,17 +741,21 @@ class Catalog(SpatialCatalog):
         # self.table.create_column('merged', self.db.types.boolean)
 
     @classmethod
-    def from_parent_cat(cls, parent_cat, name, workdir, whereclause):
+    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
+                        primary_id=None):
         """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, workdir=workdir,
-                  idname=parent_cat.idname, raname=parent_cat.raname,
-                  decname=parent_cat.decname, segmap=parent_cat.segmap,
-                  mask_tpl=parent_cat.mask_tpl,
-                  skymask_tpl=parent_cat.skymask_tpl)
+        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
+                  idname=parent_cat.idname,
+                  raname=getattr(parent_cat, 'raname', None),
+                  decname=getattr(parent_cat, 'decname', None),
+                  segmap=getattr(parent_cat, 'segmap', None),
+                  mask_tpl=getattr(parent_cat, 'mask_tpl', None),
+                  skymask_tpl=getattr(parent_cat, 'skymask_tpl', None))
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one
             whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
-        cat.update_meta(parent_cat=parent_cat.name, segmap=parent_cat.segmap,
+        cat.update_meta(parent_cat=parent_cat.name,
+                        segmap=getattr(parent_cat, 'segmap', None),
                         maxid=parent_cat.meta['maxid'], query=whereclause)
         return cat
 
@@ -1272,6 +1277,67 @@ class MarzCatalog(InputCatalog):
     """Handles catalogs imported from MarZ."""
 
     catalog_type = 'marz'
+
+    def select_flat(self, *, limit_to_cat=None, max_order=5, columns=None):
+        """Creates a ResultSet with one MarZ solution per row.
+
+        This method creates a ResultSet converting the one source per row
+        MarZ format to a one solution per row format, adding a `marz_sol`
+        column containing the solution order. For instance, the `AutoZ` column
+        with `marz_sol` to 2 contains the value of the `AutoZ2` for the
+        corresponding ID.
+
+        By default, the columns AutoZ, AutoTID, AutoTN, and AutoXCor are
+        exported (in addition to `catalog`, `ID`, `RA`, `DEC`, and `QOP`) up to
+        order 5. If the Marz catalog has different columns or orders, the
+        `max_order` and `columns` parameters must be adapted.
+
+        Parameters
+        ----------
+        limit_to_cat : str, optional
+            If provided, only the lines for the corresponding catalog are used
+            in `marzcat`.
+        maximum_order: int, optional
+            Maximum order of the solutions to take; e.g. 2 will export only the
+            first two solutions.
+        columns: list of str, optional
+            Name of the columns in addition to `catalog`, `ID`, `RA`, `DEC`,
+            and `QOP` to export.
+
+        """
+        if columns is None:
+            columns = ["AutoZ", "AutoTID", "AutoTN", "AutoXCor"]
+
+        if limit_to_cat is None:
+            marz_table = self.select().as_table()
+        else:
+            marz_table = self.select(
+                whereclause=(self.c.catalog == limit_to_cat)).as_table()
+
+        marz_sol = []
+        for sol_order in ["", "2", "3", "4", "5"][:max_order]:
+            sub_table = marz_table[
+                ['catalog', 'ID', 'RA', 'DEC', 'QOP'] + [col + sol_order for
+                                                         col in columns]
+            ]
+            for col in columns:
+                sub_table[col + sol_order].name = col
+            if sol_order == "":
+                sol_order = "1"
+            sub_table["marz_sol"] = int(sol_order)
+            marz_sol.append(sub_table)
+
+        marz_sol = vstack(marz_sol)
+        marz_sol.sort(['catalog', 'ID', 'marz_sol'])
+        # We must add a new unique identifier column as the ID columns contains
+        # duplicates by definition.
+        marz_sol["_id"] = np.arange(len(marz_sol)) + 1
+
+        return ResultSet(
+            results=table_to_odict(marz_sol),
+            catalog=self,
+            columns=marz_sol.colnames
+        )
 
 
 class IdMapping(BaseCatalog):
