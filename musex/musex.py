@@ -609,8 +609,7 @@ class MuseX:
             save_src_to=outdir + '/' + srcname + '.fits'
         )
 
-    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None,
-                                 outdir=None):
+    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None):
         """Export a catalog or selection for MarZ using existing sources.
 
         Pre-generated sources are used to create an input catalogue for MarZ.
@@ -625,13 +624,9 @@ class MuseX:
         source_tpl: str
             Template for the source file name that is formatted with the object
             identifier.
-        outfile: str
-            Output file. If None the default is
-            `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
-        outdir: str
-            Output directory. If None the default is
-            `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
-            Output directory. If None the default is `'source-{src.ID:05d}'`.
+        outfile : str, optional
+            Output file. If None, the default is `<export dir>/<muse dataset
+            name>/<catalog name>/marz/marz-<catalog name>-<dataset name>.fits'`.
 
         """
         if isinstance(res_or_cat, Catalog):
@@ -653,11 +648,10 @@ class MuseX:
         else:
             check_keyword = None
 
-        cname = get_cat_name(res_or_cat)
-        if outdir is None:
-            outdir = f'{self.exportdir}/{cname}/marz'
-        os.makedirs(outdir, exist_ok=True)
         if outfile is None:
+            cname = get_cat_name(res_or_cat)
+            outdir = f'{self.exportdir}/{cname}/marz'
+            os.makedirs(outdir, exist_ok=True)
             outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
         id_column = resultset.catalog.idname
@@ -710,6 +704,12 @@ class MuseX:
         if ('group_id' not in resultset.columns or
                 'id' not in resultset.columns):
             raise ValueError(" This is not an ODHIN catalog.")
+
+        if outfile is None:
+            cname = get_cat_name(res_or_cat)
+            outdir = f'{self.exportdir}/{cname}/marz'
+            os.makedirs(outdir, exist_ok=True)
+            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
         src_list = progressbar(
             (_odhin_source(row) for row in resultset),
