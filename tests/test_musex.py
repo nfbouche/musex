@@ -464,7 +464,9 @@ def test_export_marz(mx):
 
     source_tpl = f"{mx.workdir}/export/hdfs/my_cat/marz/source-%05d.fits"
     outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz2'
-    mx.export_marz_from_sources(mycat, source_tpl, outdir=outdir2)
+    os.makedirs(outdir2, exist_ok=True)
+    mx.export_marz_from_sources(mycat, source_tpl,
+                                outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
     with fits.open(f'{outdir2}/marz-my_cat-hdfs.fits') as hdul:
         assert [hdu.name for hdu in hdul] == [
             'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
@@ -491,17 +493,18 @@ def test_export_marz(mx):
     s.header['CAT3_TS'] = "2019-03-01T14:34:31.903825"
     s.write(source_tpl % 3)
     outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz3'
+    os.makedirs(outdir2, exist_ok=True)
     # Exporting from source 1 must fail because CAT3_TS is missing
     with pytest.raises(KeyError):
         mx.export_marz_from_sources(orig.select_ids([1]), source_tpl,
-                                    outdir=outdir2)
+                                    outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
     # Exporting from source 2 must fail because CAT3_TS value is wrong
     with pytest.raises(ValueError):
         mx.export_marz_from_sources(orig.select_ids([2]), source_tpl,
-                                    outdir=outdir2)
+                                    outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
     # Exporting from source 3 must succeed.
     mx.export_marz_from_sources(orig.select_ids([3]), source_tpl,
-                                outdir=outdir2)
+                                outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
 
 
 def test_export_sources(mx):
