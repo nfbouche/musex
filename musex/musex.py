@@ -704,6 +704,7 @@ class MuseX:
             )
             src.spectra['ODHIN'] = group_src.spectra[str(row['id'])]
             src.spectra['MUSE_SKY'] = group_src.spectra['BG']
+            src.REFSPEC = "ODHIN"
             return src
 
         if ('group_id' not in resultset.columns or
