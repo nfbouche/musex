@@ -712,7 +712,8 @@ class MuseX:
             raise ValueError(" This is not an ODHIN catalog.")
 
         src_list = progressbar(
-            (_odhin_source(row) for row in resultset)
+            (_odhin_source(row) for row in resultset),
+            total=len(resultset)
         )
         sources_to_marz(src_list, outfile)
 
