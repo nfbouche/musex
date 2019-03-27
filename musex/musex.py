@@ -668,6 +668,55 @@ class MuseX:
 
         sources_to_marz(src_list, outfile, check_keyword=check_keyword)
 
+    def export_marz_from_odhin(self, res_or_cat, group_tpl, outfile=None):
+        """Export and ODHIN catalog or selection for MarZ.
+
+        The ODHIN group sources are used to create the input catalog.
+
+        Parameters
+        ----------
+        res_or_cat : `ResultSet` or `Catalog`
+            Resultset extracted from ODHIN catalog.
+        group_tpl : str
+            Template for the group source file that is percent formatted with
+            the group ID.
+        outfile : str, optional
+            Output file. If None, the default is `<export dir>/<muse dataset
+            name>/<catalog name>/marz/marz-<catalog name>-<dataset name>.fits'`.
+
+        """
+        if isinstance(res_or_cat, Catalog):
+            if 'active' in res_or_cat.c:
+                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
+            else:
+                resultset = res_or_cat.select()
+        elif isinstance(res_or_cat, (ResultSet, Table)):
+            resultset = res_or_cat
+        else:
+            raise ValueError('invalid input for res_or_cat')
+
+        def _odhin_source(row):
+            """Create a minimal source with the spectra."""
+            group_src = Source.from_file(group_tpl % row['group_id'])
+            src = Source.from_data(
+                ID=row['id'], ra=row['ra'], dec=row['dec'],
+                origin=('', '', '', '')
+            )
+            src.spectra['ODHIN'] = group_src.spectra[str(row['id'])]
+            src.spectra['MUSE_SKY'] = group_src.spectra['BG']
+            src.REFSPEC = "ODHIN"
+            return src
+
+        if ('group_id' not in resultset.columns or
+                'id' not in resultset.columns):
+            raise ValueError(" This is not an ODHIN catalog.")
+
+        src_list = progressbar(
+            (_odhin_source(row) for row in resultset),
+            total=len(resultset)
+        )
+        sources_to_marz(src_list, outfile)
+
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.
 
