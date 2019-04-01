@@ -609,13 +609,18 @@ class MuseX:
             save_src_to=outdir + '/' + srcname + '.fits'
         )
 
-    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None):
+    def export_marz_from_sources(self, res_or_cat, source_tpl, outfile=None,
+                                 is_odhin=False):
         """Export a catalog or selection for MarZ using existing sources.
 
         Pre-generated sources are used to create an input catalogue for MarZ.
         Each object in the catalog (or the selection) must have an existing
         source, and each source must have a REFSPEC attribute designating the
         spectrum to use in MarZ.
+
+        If the catalog (or the resultset) comes from ODHIN, the `source_tpl`
+        points to the ODHIN group source and the catalog must contain
+        a `group_id` column.
 
         Parameters
         ----------
@@ -627,6 +632,8 @@ class MuseX:
         outfile : str, optional
             Output file. If None, the default is `<export dir>/<muse dataset
             name>/<catalog name>/marz/marz-<catalog name>-<dataset name>.fits'`.
+        is_odhin : bool, optional
+            True is `res_or_cat` comes from ODHIN.
 
         """
         if isinstance(res_or_cat, Catalog):
@@ -640,6 +647,10 @@ class MuseX:
             catalog = res_or_cat.catalog
         else:
             raise ValueError('invalid input for res_or_cat')
+
+        if is_odhin and ('group_id' not in resultset.columns or 'id' not in
+                         resultset.columns):
+            raise ValueError(" This is not an ODHIN catalog.")
 
         # Keyword to check in the sources for ORIGIN.
         version_meta = catalog.meta.get('version_meta', None)
@@ -655,43 +666,16 @@ class MuseX:
             outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
         id_column = resultset.catalog.idname
-        src_list = progressbar(
-            (Source.from_file(source_tpl % row[id_column]) for row in
-             resultset), total=len(resultset)
-        )
 
-        sources_to_marz(src_list, outfile, check_keyword=check_keyword)
+        # There are two ways to get the source corresponding to a catalog row
+        # depending on if the catalog comes from ODHIN or not.
 
-    def export_marz_from_odhin(self, res_or_cat, group_tpl, outfile=None):
-        """Export and ODHIN catalog or selection for MarZ.
-
-        The ODHIN group sources are used to create the input catalog.
-
-        Parameters
-        ----------
-        res_or_cat : `ResultSet` or `Catalog`
-            Resultset extracted from ODHIN catalog.
-        group_tpl : str
-            Template for the group source file that is percent formatted with
-            the group ID.
-        outfile : str, optional
-            Output file. If None, the default is `<export dir>/<muse dataset
-            name>/<catalog name>/marz/marz-<catalog name>-<dataset name>.fits'`.
-
-        """
-        if isinstance(res_or_cat, Catalog):
-            if 'active' in res_or_cat.c:
-                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
-            else:
-                resultset = res_or_cat.select()
-        elif isinstance(res_or_cat, (ResultSet, Table)):
-            resultset = res_or_cat
-        else:
-            raise ValueError('invalid input for res_or_cat')
+        def _simple_source(row):
+            return Source.from_file(source_tpl % row[id_column])
 
         def _odhin_source(row):
             """Create a minimal source with the spectra."""
-            group_src = Source.from_file(group_tpl % row['group_id'])
+            group_src = Source.from_file(source_tpl % row['group_id'])
             src = Source.from_data(
                 ID=row['id'], ra=row['ra'], dec=row['dec'],
                 origin=('', '', '', '')
@@ -701,21 +685,16 @@ class MuseX:
             src.REFSPEC = "ODHIN"
             return src
 
-        if ('group_id' not in resultset.columns or
-                'id' not in resultset.columns):
-            raise ValueError(" This is not an ODHIN catalog.")
-
-        if outfile is None:
-            cname = get_cat_name(res_or_cat)
-            outdir = f'{self.exportdir}/{cname}/marz'
-            os.makedirs(outdir, exist_ok=True)
-            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
+        if is_odhin:
+            get_source = _odhin_source
+        else:
+            get_source = _simple_source
 
         src_list = progressbar(
-            (_odhin_source(row) for row in resultset),
-            total=len(resultset)
+            (get_source(row) for row in resultset), total=len(resultset)
         )
-        sources_to_marz(src_list, outfile)
+
+        sources_to_marz(src_list, outfile, check_keyword=check_keyword)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.
