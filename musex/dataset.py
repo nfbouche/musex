@@ -26,6 +26,11 @@ class DataSet:
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
 
+    def __repr__(self):
+        return (f'<{self.__class__.__name__}('
+                f'{self.prefix}, version {self.version}, '
+                f'{len(self.settings["images"])} images)')
+
     def __getstate__(self):
         state = self.__dict__.copy()
         # remove un-pickable objects

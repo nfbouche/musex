@@ -6,7 +6,6 @@ import shutil
 import textwrap
 import warnings
 
-import astropy.units as u
 from astropy.table import Table, vstack
 from astropy.utils.decorators import lazyproperty
 
@@ -125,18 +124,20 @@ class ResultSet(Sequence):
 
 
 class BaseCatalog:
-    """Handle Catalogs by the way of a database table.
+    """Handle Catalogs by the way of a database table, on top of
+    `dataset.Table`.
 
     Parameters
     ----------
     name: str
-        Name of the catalog.
+        Name of the catalog and associated SQL table.
     db: `dataset.Database`
         The database object.
     idname: str
         Name of the 'id' column.
     primary_id: str
-        The primary id for the SQL table, must be a column name.
+        The primary id for the SQL table, must be a column name. Defaults to
+        ``idname``.
 
     """
 
@@ -171,7 +172,7 @@ class BaseCatalog:
                              idname=self.idname)
 
     def __len__(self):
-        return self.table.count()
+        return len(self.table)
 
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
@@ -362,7 +363,7 @@ class BaseCatalog:
             The SQLAlchemy selection clause.
         columns: list of str
             List of columns to retrieve (all columns if None).
-        params: dict
+        **params
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
@@ -373,10 +374,8 @@ class BaseCatalog:
 
         query = sql.select(columns=columns, whereclause=whereclause, **params)
         res = self.db.query(query)
-        res = ResultSet(res, whereclause=whereclause, catalog=self,
-                        columns=query.columns)
-
-        return res
+        return ResultSet(res, whereclause=whereclause, catalog=self,
+                         columns=query.columns)
 
     def select_id(self, id_):
         """Return a dict with all keys for a given ID."""
@@ -508,7 +507,7 @@ class SpatialCatalog(BaseCatalog):
     Parameters
     ----------
     name: str
-        Name of the catalog.
+        Name of the catalog and associated SQL table.
     db: `dataset.Database`
         The database object.
     idname: str
@@ -532,7 +531,7 @@ class SpatialCatalog(BaseCatalog):
                 'for line tables. If you want to create a line table for '
                 'a catalog, use it\'s create_lines method.')
 
-        super().__init__(name, db, idname, primary_id)
+        super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
@@ -589,7 +588,6 @@ class SpatialCatalog(BaseCatalog):
             t = res.as_table()
             t = t.select(wcs, ra=self.raname, dec=self.decname, margin=margin,
                          mask=mask)
-            # FIXME Simon, is it OK to take the ResultSet columns here?
             res = ResultSet(table_to_odict(t), whereclause=whereclause,
                             catalog=self, columns=res.columns)
 
@@ -648,11 +646,9 @@ class SpatialCatalog(BaseCatalog):
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""
-        from astropy.coordinates import SkyCoord
         columns = [self.idname, self.raname, self.decname]
-        tab = self.select(columns=columns).as_table()
-        return SkyCoord(ra=tab[self.raname], dec=tab[self.decname],
-                        unit=(u.deg, u.deg), frame='fk5')
+        tbl = self.select(columns=columns).as_table()
+        return tbl.to_skycoord(ra=self.raname, dec=self.decname)
 
     def create_lines(self, line_idname="ID", line_src_idname="src_ID"):
         """Create an associated line catalog.
@@ -670,21 +666,14 @@ class SpatialCatalog(BaseCatalog):
 
         """
         if self.lines is not None:
-            raise ValueError("The catalogue has a line table associated "
-                             "already.")
-
-        self.lines = LineCatalog(
-            name=f'{self.name}_lines',
-            db=self.db,
-            idname=line_idname,
-            src_idname=line_src_idname)
+            raise ValueError("catalogue already has a line table associated")
+        self.lines = LineCatalog(name=f'{self.name}_lines', db=self.db,
+                                 idname=line_idname,
+                                 src_idname=line_src_idname)
 
 
 class Catalog(SpatialCatalog):
     """Handle user catalogs.
-
-    TODO: Should a segmap or (exclusive or) templates for maks and sky maks be
-    mandatory?
 
     Parameters
     ----------
@@ -1075,7 +1064,7 @@ class Catalog(SpatialCatalog):
 
 
 class InputCatalog(SpatialCatalog):
-    """Handles catalogs imported from an exiting file."""
+    """Handles catalogs imported from an existing file."""
 
     catalog_type = 'input'
 
@@ -1090,15 +1079,10 @@ class InputCatalog(SpatialCatalog):
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])
 
-        segmap = kwargs.get('segmap')
-        mask_tpl = kwargs.get('mask_tpl')
-        skymask_tpl = kwargs.get('skymask_tpl')
-
-        cat.segmap = segmap
-        cat.mask_tpl = mask_tpl
-        cat.skymask_tpl = skymask_tpl
-
-        cat.version_meta = kwargs.get('version_meta', None)
+        cat.segmap = kwargs.get('segmap')
+        cat.mask_tpl = kwargs.get('mask_tpl')
+        cat.skymask_tpl = kwargs.get('skymask_tpl')
+        cat.version_meta = kwargs.get('version_meta')
 
         # The `line_catalog` setting contains the link to the FITS file
         # containing the line table associated to the input catalog, if any. We
@@ -1333,11 +1317,8 @@ class MarzCatalog(InputCatalog):
         # duplicates by definition.
         marz_sol["_id"] = np.arange(len(marz_sol)) + 1
 
-        return ResultSet(
-            results=table_to_odict(marz_sol),
-            catalog=self,
-            columns=marz_sol.colnames
-        )
+        return ResultSet(results=table_to_odict(marz_sol), catalog=self,
+                         columns=marz_sol.colnames)
 
 
 class IdMapping(BaseCatalog):

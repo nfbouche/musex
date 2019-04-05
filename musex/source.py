@@ -152,6 +152,8 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None,
 
     """
     logger = logging.getLogger(__name__)
+    if save_src_to is not None:
+        logger.info('Saving sources to %s', save_src_to)
 
     wave, data, stat, sky, meta = [], [], [], [], []
 
