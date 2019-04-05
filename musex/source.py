@@ -1,16 +1,16 @@
 import logging
+import numpy as np
 
 from astropy.io import fits
 from astropy.table import Table
-
 from mpdaf.MUSE.PSF import create_psf_cube
 from mpdaf.sdetect import Source
 
-import numpy as np
-
 from .pdf import create_pdf
+from .utils import extract_subimage
+from .version import __version__
 
-__all__ = ['SourceX']
+__all__ = ('SourceX', 'create_source', 'sources_to_marz')
 
 
 class SourceX(Source):
@@ -65,6 +65,69 @@ class SourceX(Source):
 #             zval = '{:.1f}'.format(z)
 #             zval = zval[0] + zval[2]
 #     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
+
+
+def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
+                  verbose):
+    logger = logging.getLogger(__name__)
+    if not verbose:
+        logging.getLogger('musex').setLevel('WARNING')
+
+    # minsize = min(*size) // 2
+    minsize = 0.
+    nskywarn = (50, 5)
+    origin = ('MuseX', __version__, '', '')
+
+    src = SourceX.from_data(iden, ra, dec, origin)
+    logger.info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    src.default_size = size
+    src.SIZE = size
+
+    for ds in datasets:
+        ds.add_to_source(src)
+
+    center = (src.DEC, src.RA)
+    # If mask_sky is always the same, reuse it instead of reloading
+    src.images['MASK_SKY'] = extract_subimage(
+        skyim, center, (size, size), minsize=minsize)
+
+    # centerpix = maskim.wcs.sky2pix(center)[0]
+    # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
+    #       *centerpix.tolist())
+    # FIXME: check that center is inside mask
+    src.images['MASK_OBJ'] = extract_subimage(
+        maskim, center, (size, size), minsize=minsize)
+
+    # compute surface of each masks and compare to field of view, save
+    # values in header
+    nsky = np.count_nonzero(src.images['MASK_SKY']._data)
+    nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
+    nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
+    nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
+    min_nsky_abs, min_nsky_rel = nskywarn
+    if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
+        logger.warning('sky mask is too small. Size is %d spaxel '
+                       'or %.1f %% of total area', nsky, nfracsky)
+
+    src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+    src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
+    src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+    src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
+    # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
+    # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
+    # return nobj, nfracobj, nsky, nfracobj
+    logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+
+    src.extract_all_spectra(apertures=apertures)
+
+    # Joblib has a memmap reducer that does not work with astropy.io.fits
+    # memmaps. So here we copy the arrays to avoid relying the memmaps.
+    for name, im in src.images.items():
+        src.images[name] = im.copy()
+    for name, cube in src.cubes.items():
+        src.cubes[name] = cube.copy()
+
+    return src
 
 
 def sources_to_marz(src_list, out_file, *, save_src_to=None,
