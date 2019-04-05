@@ -7,12 +7,13 @@ from astropy.coordinates import search_around_sky
 from astropy.table import Table, join, vstack
 from astropy.visualization import hist
 from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
 import numpy as np
 
 from .catalog import BaseCatalog
 
 NULL_VALUE = {int: -9999, np.int64: -9999, float: np.nan, str: ''}
+
+__all__ = ('CrossMatch', 'gen_crossmatch')
 
 
 def _null_value(value):
@@ -291,4 +292,3 @@ class CrossMatch(BaseCatalog):
         ax2.legend(loc=0)
 
         return fig
-

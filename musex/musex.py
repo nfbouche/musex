@@ -194,6 +194,7 @@ class MuseX:
         self.logger.info("User catalogs loaded")
 
     def info(self, outstream=None):
+        """Print all available information."""
         if outstream is None:
             outstream = sys.stdout
         outstream.write(LOGO)
@@ -211,10 +212,12 @@ class MuseX:
 
     @property
     def exportdir(self):
+        """The directory where files are exported."""
         exportdir = self.conf['export']['path']
         return f'{exportdir}/{self.muse_dataset.name}'
 
     def find_parent_cat(self, cat):
+        """Find the parent catalog of a given catalog."""
         current_cat = cat
         while True:
             parent = current_cat.meta['parent_cat']
@@ -238,8 +241,11 @@ class MuseX:
         ----------
         name: str
             Name of the catalog.
-        resultset: ResultSet
+        resultset: `musex.ResultSet`
             Result from a query.
+        primary_id: str
+            The primary id for the SQL table, must be a column name. Defaults
+            to 'ID'.
         drop_if_exists: bool
             Drop the catalog if it already exists.
 
@@ -659,6 +665,7 @@ class MuseX:
         self.marzcat.ingest_input_catalog(catalog=cat, keys=keys, **kwargs)
 
     def delete_user_cat(self, name):
+        """Delete a user catalog."""
         if name not in self.db.tables or name not in self.catalogs:
             raise ValueError('not a valid catalog name')
         self.catalogs[name].drop()
