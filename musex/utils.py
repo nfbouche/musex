@@ -14,8 +14,8 @@ def load_yaml_config(filename):
     """Load a YAML config file, with string substitution."""
     with open(filename, 'r') as f:
         conftext = f.read()
-        conf = yaml.load(conftext)
-        return yaml.load(conftext.format(**conf))
+        conf = yaml.full_load(conftext)
+        return yaml.full_load(conftext.format(**conf))
 
 
 def load_db(filename, **kwargs):
