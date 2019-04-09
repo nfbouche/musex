@@ -13,6 +13,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from datetime import datetime
 from mpdaf.sdetect import Catalog as _Catalog, Segmap, create_masks_from_segmap
+from mpdaf.sdetect.segmap import _get_psf_convolution_params  # temporary
 from mpdaf.tools import isiter, progressbar
 from numpy import ma
 from os.path import exists, relpath
@@ -1035,6 +1036,7 @@ class InputCatalog(SpatialCatalog):
         init_keys = ('idname', 'raname', 'decname')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
+
         for key in ('catalog', 'version', 'extract'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')

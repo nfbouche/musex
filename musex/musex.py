@@ -324,7 +324,7 @@ class MuseX:
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
-                   n_jobs=-1):
+                   n_jobs=1):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -405,6 +405,11 @@ class MuseX:
                 for row in resultset]
         to_compute = []
         for row, src_size in zip(rows, size):
+            if row['mask_sky'] is None or row['mask_obj'] is None:
+                self.logger.warning('cannot export source %d without mask',
+                                    row[idname])
+                continue
+
             skyim = str(cat.workdir / row['mask_sky'])
             maskim = str(cat.workdir / row['mask_obj'])
             args = (row[idname], row[raname], row[decname], src_size, skyim,
