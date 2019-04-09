@@ -23,7 +23,6 @@ muse_datasets:
 
 catalogs:
   photutils:
-    class: musex.catalog.InputCatalog
     version: '1.0'
     catalog: '{datadir}/catalog.fits'
     idname: id

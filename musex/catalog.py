@@ -25,7 +25,8 @@ from .utils import struct_from_moffat_fwhm, isiter, progressbar
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
-           'InputCatalog', 'MarzCatalog', 'IdMapping')
+           'InputCatalog', 'SpatialCatalog', 'MarzCatalog', 'LineCatalog',
+           'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
