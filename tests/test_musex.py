@@ -3,6 +3,7 @@ import os
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
+from astropy.table import Table
 from astropy.wcs import WCS
 from mpdaf.sdetect import Source
 from musex import Catalog, MuseX, masks
@@ -161,6 +162,16 @@ def test_user_catalog(mx):
     assert len(mycat) == 2
     assert mycat.meta['type'] == 'user'
     assert mycat.meta['query'] == 'photutils.id < 5 AND my_cat.id > 2'
+
+
+def test_user_catalog_from_scratch(mx):
+    cat = mx.new_catalog('custom_cat', idname='id', raname='ra', decname='dec')
+    catfile = os.path.join(DATADIR, 'catalog.fits')
+    tbl = Table.read(catfile)
+    cat.insert(tbl)
+    assert 'custom_cat' in mx.catalogs
+    assert cat.meta['type'] == 'user'
+    assert cat.meta['maxid'] == 13
 
 
 def test_drop_user_catalog(mx):

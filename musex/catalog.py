@@ -291,6 +291,9 @@ class BaseCatalog:
                 ids.append(tbl.insert(row, ensure=False))
                 self.log(ids[-1], f'inserted from input catalog')
 
+        if ids:
+            self.update_meta(maxid=self.max(self.idname))
+
         if self.idmap:
             self.idmap.add_ids(ids, self.name)
 
@@ -346,6 +349,9 @@ class BaseCatalog:
                 op = 'updated' if res is True else 'inserted'
                 count[op].append(res)
                 self.log(res, f'{op} from input catalog')
+
+        if count['inserted']:
+            self.update_meta(maxid=self.max(self.idname))
 
         if self.idmap:
             self.idmap.add_ids(count['inserted'], self.name)
@@ -1176,7 +1182,7 @@ class InputCatalog(SpatialCatalog):
                         show_progress=show_progress)
 
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type=self.catalog_type, maxid=self.max(self.idname),
+                         type=self.catalog_type,
                          segmap=getattr(self, 'segmap', None))
 
         if version_meta is not None:
@@ -1204,8 +1210,7 @@ class InputCatalog(SpatialCatalog):
                                   show_progress=show_progress)
 
             self.lines.update_meta(creation_date=datetime.utcnow().isoformat(),
-                                   type='lines',
-                                   maxid=self.lines.max(self.lines.idname))
+                                   type='lines')
 
 
 class LineCatalog(BaseCatalog):

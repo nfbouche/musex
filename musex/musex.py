@@ -233,6 +233,39 @@ class MuseX:
                 raise ValueError('parent catalog not found')
         return parent_cat
 
+    def new_catalog(self, name, idname='ID', raname='RA', decname='DEC',
+                    drop_if_exists=False):
+        """Create a new user catalog.
+
+        Parameters
+        ----------
+        name: str
+            Name of the catalog.
+        idname: str
+            Name of the 'id' column.
+        raname: str
+            Name of the 'ra' column.
+        decname: str
+            Name of the 'dec' column.
+        drop_if_exists: bool
+            Drop the catalog if it already exists.
+
+        """
+        if name in self.db.tables:
+            if name in self.input_catalogs or name not in self.catalogs:
+                raise ValueError('a table with the same name already exists, '
+                                 'and cannot be dropped since it is not a '
+                                 'user catalog. Please choose another name.')
+            if drop_if_exists:
+                self.db[name].drop()
+            else:
+                raise ValueError('table already exists')
+
+        self.catalogs[name] = Catalog(name, self.db, idname=idname,
+                                      raname=raname, decname=decname,
+                                      workdir=self.workdir)
+        return self.catalogs[name]
+
     def new_catalog_from_resultset(self, name, resultset, primary_id=None,
                                    drop_if_exists=False):
         """Create a new user catalog from a query result.
