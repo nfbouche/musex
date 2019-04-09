@@ -2,7 +2,6 @@ from .catalog import *
 from .crossmatching import *
 from .dataset import *
 from .musex import *
-from .segmap import *
 from .source import *
 from .version import __version__, __description__
 

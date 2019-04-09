@@ -12,15 +12,12 @@ from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from datetime import datetime
-from joblib import delayed, Parallel
-from mpdaf.sdetect import Catalog as _Catalog
+from mpdaf.sdetect import Catalog as _Catalog, Segmap, create_masks_from_segmap
+from mpdaf.tools import isiter, progressbar
 from numpy import ma
 from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy import sql
-
-from .segmap import SegMap
-from .utils import struct_from_moffat_fwhm, isiter, progressbar
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
@@ -52,21 +49,6 @@ def get_cat_name(res_or_cat):
         return res_or_cat.catalog.name
     else:
         raise ValueError('cat must be a Catalog instance or name')
-
-
-def _get_psf_convolution_params(convolve_fwhm, segmap, psf_threshold):
-    if convolve_fwhm:
-        # compute a structuring element for the dilatation, to simulate
-        # a convolution with a psf, but faster.
-        dilateit = 1
-        # logging.getLogger(__name__).debug(
-        #     'dilate with %d iterations, psf=%.2f', dilateit, convolve_fwhm)
-        struct = struct_from_moffat_fwhm(segmap.img.wcs, convolve_fwhm,
-                                         psf_threshold=psf_threshold)
-    else:
-        dilateit = 0
-        struct = None
-    return dilateit, struct
 
 
 class ResultSet(Sequence):
@@ -759,7 +741,7 @@ class Catalog(SpatialCatalog):
     def segmap_img(self):
         """The segmentation map as an `musex.Segmap` object."""
         if self.segmap:
-            return SegMap(self.segmap)
+            return Segmap(self.segmap)
 
     def get_segmap_aligned(self, dataset):
         """Get a segmap image rotated and aligned to a dataset."""
@@ -849,46 +831,18 @@ class Catalog(SpatialCatalog):
         if self.segmap is not None:
             # Get a segmap image rotated and aligned with our dataset
             segmap = self.get_segmap_aligned(dataset)
-
-            dilateit, struct = _get_psf_convolution_params(
-                convolve_fwhm, segmap, psf_threshold)
-
-            # create sky mask
-            if exists(self.masksky_name()) and skip_existing:
-                self.logger.debug('sky mask exists, skipping')
-            else:
-                self.logger.debug('creating sky mask')
-                segmap.get_mask(0, inverse=True, dilate=dilateit,
-                                struct=struct, regrid_to=white,
-                                outname=self.masksky_name())
-
-            # extract source masks
-            minsize = 0.
-            to_compute = []
-            for row in tab:
-                id_ = int(row[idname])  # need int, not np.int64
-                source_path = self.maskobj_name(id_)
-                if exists(source_path) and skip_existing:
-                    stats['skipped'].append(id_)
-                else:
-                    center = (row[self.decname], row[self.raname])
-                    if 'merged' in row.colnames and row['merged']:
-                        ids = [o[idname] for o in self.select(
-                            self.c.merged_in == id_, columns=[idname])]
-                        # debug('merged sources, using ids %s for the mask',
-                        # ids)
-                    else:
-                        ids = id_
-
-                    stats['computed'].append(ids)
-                    to_compute.append(delayed(segmap.get_source_mask)(
-                        ids, center, mask_size, minsize=minsize, struct=struct,
-                        dilate=dilateit, outname=source_path, regrid_to=white))
-
-            # FIXME: check which value to use for max_nbytes
-            if to_compute:
-                Parallel(n_jobs=n_jobs,
-                         verbose=verbose)(progressbar(to_compute))
+            create_masks_from_segmap(
+                segmap, tab, dataset.white, n_jobs=n_jobs,
+                skip_existing=skip_existing,
+                masksky_name=self.masksky_name,
+                maskobj_name=self.maskobj_name,
+                idname=idname, raname=self.raname, decname=self.decname,
+                margin=dataset.margin,
+                mask_size=mask_size,
+                convolve_fwhm=convolve_fwhm,
+                psf_threshold=psf_threshold,
+                verbose=verbose
+            )
         else:
             # If there is no segmap, we use individual mask files
             # TODO: If we don't set segmap or masks mandatory, consider here

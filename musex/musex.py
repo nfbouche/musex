@@ -11,13 +11,14 @@ from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
 from mpdaf.sdetect import Source
+from mpdaf.tools import progressbar
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
                       MarzCatalog, IdMapping, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import sources_to_marz, create_source
-from .utils import load_db, load_yaml_config, progressbar
+from .utils import load_db, load_yaml_config
 from .version import __version__, __description__
 
 __all__ = ['MuseX']

@@ -88,6 +88,7 @@ def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
 
     center = (src.DEC, src.RA)
     # If mask_sky is always the same, reuse it instead of reloading
+    # FIXME: use Source.add_image instead ?
     src.images['MASK_SKY'] = extract_subimage(
         skyim, center, (size, size), minsize=minsize)
 

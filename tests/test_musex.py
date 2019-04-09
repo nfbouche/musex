@@ -293,20 +293,6 @@ def test_id_mapping(mx):
         assert mycat.select_id(6)['area'] == 100
 
 
-def test_segmap(mx):
-    phot = mx.input_catalogs['photutils']
-    phot.ingest_input_catalog()
-    res = phot.select(phot.c[phot.idname] > 8)
-    mycat = mx.new_catalog_from_resultset('my_cat', res)
-
-    segmap = mycat.get_segmap_aligned(mx.muse_dataset)
-
-    assert segmap.img.shape == (90, 90)
-    assert segmap.img.dtype == np.int64
-    assert np.max(segmap.img._data) == 13
-    assert np.all(np.unique(segmap.img._data) == np.arange(14))
-
-
 def test_merge_sources(mx):
     phot = mx.input_catalogs['photutils']
     phot.ingest_input_catalog()
