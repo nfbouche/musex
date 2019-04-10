@@ -7,7 +7,7 @@ import warnings
 from astropy.table import Table, vstack
 from astropy.utils.decorators import lazyproperty
 
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime
 from mpdaf.sdetect import Catalog as _Catalog
@@ -17,19 +17,12 @@ from sqlalchemy import sql
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
+__all__ = ('ResultSet', 'Catalog', 'BaseCatalog',
            'InputCatalog', 'MarzCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
 RESERVED_COLNAMES = ['active', 'merged_in', 'merged']
-
-
-def table_to_odict(table):
-    """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
-    colnames = table.colnames
-    return [OrderedDict(zip(colnames, row))
-            for row in zip(*[c.tolist() for c in table.columns.values()])]
 
 
 def get_cat_name(res_or_cat):

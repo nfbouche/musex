@@ -4,10 +4,12 @@ import logging
 import os
 import yaml
 
+from collections import OrderedDict
 from mpdaf.obj import Image
 from sqlalchemy.engine import Engine
 from sqlalchemy import event, pool
 
+__all__ = ('load_db', 'load_yaml_config', 'table_to_odict', 'extract_subimage')
 
 def load_yaml_config(filename):
     """Load a YAML config file, with string substitution."""
@@ -42,6 +44,13 @@ def load_db(filename, **kwargs):
         cursor.close()
 
     return db
+
+
+def table_to_odict(table):
+    """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
+    colnames = table.colnames
+    return [OrderedDict(zip(colnames, row))
+            for row in zip(*[c.tolist() for c in table.columns.values()])]
 
 
 def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
