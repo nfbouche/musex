@@ -109,7 +109,8 @@ class MuseX:
         self.workdir = self.conf['workdir']
         self.conf.setdefault('export', {})
         self.conf['export'].setdefault('path', f'{self.workdir}/export')
-        self.db = db = load_db(self.conf['db'])
+        self.db = load_db(filename=self.conf.get('db'),
+                          db_env=self.conf.get('db_env'))
 
         # Creating the IdMapping object if required
         self.id_mapping = None
@@ -118,7 +119,7 @@ class MuseX:
             self.create_id_mapping(id_mapping)
 
         # Table to store history of operations
-        self.history = db.create_table('history', primary_id='_id')
+        self.history = self.db.create_table('history', primary_id='_id')
 
         # Load datasets
         self.datasets = load_datasets(self.conf)
@@ -128,12 +129,12 @@ class MuseX:
                                         settings=settings[muse_dataset])
 
         # Load catalogs table
-        self.catalogs_table = _create_catalogs_table(db)
+        self.catalogs_table = _create_catalogs_table(self.db)
         self._load_input_catalogs()
         self._load_user_catalogs()
 
         # Marz
-        self.marzcat = MarzCatalog('marz', db, primary_id='_id')
+        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id')
         # FIXME: handle properly version / revision
         self.marzcat.version = '1'
 

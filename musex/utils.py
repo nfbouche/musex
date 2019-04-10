@@ -18,29 +18,45 @@ def load_yaml_config(filename):
         return yaml.full_load(conftext.format(**conf))
 
 
-def load_db(filename, **kwargs):
+def load_db(filename=None, db_env=None, **kwargs):
     """Open a sqlite database with dataset."""
 
     kwargs.setdefault('engine_kwargs', {})
 
-    # Use a NullPool by default, which is sqlalchemy's default but dataset
-    # uses instead a StaticPool.
-    kwargs['engine_kwargs'].setdefault('poolclass', pool.NullPool)
+    if filename is not None:
+        path = os.path.dirname(os.path.abspath(filename))
+        if not os.path.isdir(path):
+            raise ValueError(f'database path "{path}/" does not exist, you '
+                             'should create it before running musered.')
 
+        # Use a NullPool by default, which is sqlalchemy's default but dataset
+        # uses instead a StaticPool.
+        kwargs['engine_kwargs'].setdefault('poolclass', pool.NullPool)
+
+        url = f'sqlite:///{filename}'
+    elif db_env is not None:
+        url = os.environ.get(db_env)
+    else:
+        raise ValueError('database url should be provided either with '
+                         'filename or with db_env')
+
+    logger = logging.getLogger(__name__)
     debug = os.getenv('SQLDEBUG')
     if debug is not None:
-        logging.getLogger(__name__).info('Activate debug mode')
+        logger.info('Activate debug mode')
         kwargs['engine_kwargs']['echo'] = True
 
-    db = dataset.connect(f'sqlite:///{filename}', **kwargs)
+    logger.debug('Connecting to %s', url)
+    db = dataset.connect(url, **kwargs)
 
-    @event.listens_for(Engine, 'connect')
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute('PRAGMA foreign_keys = ON')
-        cursor.execute('PRAGMA cache_size = -100000')
-        cursor.execute('PRAGMA journal_mode = WAL')
-        cursor.close()
+    if db.engine.driver == 'pysqlite':
+        @event.listens_for(Engine, 'connect')
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON')
+            cursor.execute('PRAGMA cache_size = -100000')
+            # cursor.execute('PRAGMA journal_mode = WAL')
+            cursor.close()
 
     return db
 
