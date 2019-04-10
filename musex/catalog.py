@@ -20,7 +20,7 @@ from sqlalchemy import sql
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
-           'InputCatalog', 'MarzCatalog', 'LineCatalog', 'IdMapping')
+           'InputCatalog', 'MarzCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
@@ -486,8 +486,7 @@ class BaseCatalog:
 
 
 class Catalog(BaseCatalog):
-    """Handle user catalogs, with spatial information, and optionally lines
-    information.
+    """Handle user catalogs, with spatial information.
 
     Parameters
     ----------
@@ -512,18 +511,10 @@ class Catalog(BaseCatalog):
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  workdir=None, **kwargs):
-        if name.endswith('_lines'):
-            raise ValueError(
-                'Catalog names must not end with "_lines" as it is reserved '
-                'for line tables. If you want to create a line table for '
-                'a catalog, use it\'s create_lines method.')
-
         super().__init__(name, db, idname=idname, **kwargs)
-
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
-        self.lines = None
 
         # Work dir for intermediate files
         if workdir is None:
@@ -557,19 +548,6 @@ class Catalog(BaseCatalog):
         cat.update_meta(parent_cat=parent_cat.name,
                         maxid=parent_cat.meta['maxid'], query=whereclause)
         return cat
-
-    def info(self):
-        """Print information about catalog and line table if any."""
-        super().info()
-        if self.lines is not None:
-            print('\nThe catalog has a line table associated:\n')
-            self.lines.info()
-
-    def drop(self):
-        """Drop the catalog and it's associated line table if any."""
-        if self.lines is not None:
-            self.lines.drop()
-        super().drop()
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                mask=None, **params):
@@ -671,27 +649,6 @@ class Catalog(BaseCatalog):
         tbl = self.select(columns=columns).as_table()
         return tbl.to_skycoord(ra=self.raname, dec=self.decname)
 
-    def create_lines(self, line_idname="ID", line_src_idname="src_ID"):
-        """Create an associated line catalog.
-
-        This function creates a line catalog in the database and associates it
-        to the Catalog. The line catalog is named by suffixing the name
-        of the catalog with `_lines`.
-
-        Parameters
-        ----------
-        line_idname: str
-            Name of the line identifier column in the line catalog.
-        line_src_idname: str
-            Name of the source identifier column in the line catalog.
-
-        """
-        if self.lines is not None:
-            raise ValueError("catalogue already has a line table associated")
-        self.lines = LineCatalog(name=f'{self.name}_lines', db=self.db,
-                                 idname=line_idname,
-                                 src_idname=line_src_idname)
-
     def merge_sources(self, idlist, id_=None, dataset=None,
                       weights_colname=None):
         """Merge sources into one.
@@ -768,44 +725,6 @@ class Catalog(BaseCatalog):
 
         self.logger.info('sources %s have been merged in %s', idlist, newid)
 
-        if dataset is None:
-            # Just return in this case
-            # self.logger.debug('cannot compute mask (missing dataset)')
-            return newid
-
-        if dataset.name != self.meta['dataset']:
-            self.logger.warning('cannot compute masks with a different '
-                                'dataset as the one used previously')
-            return newid
-
-        # try:
-        #     # maskobj
-        #     maskobj = self.maskobj_name(newid)
-        #     segmap = self.get_segmap_aligned(dataset)
-        #     dilateit, struct = _get_psf_convolution_params(
-        #         self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
-
-        #     mask_size = (self.meta['mask_size_x'], self.meta['mask_size_y'])
-        #     minsize = min(*mask_size) // 2
-        #     segmap.get_source_mask(
-        #         idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
-        #         dilate=dilateit, outname=maskobj, regrid_to=dataset.white)
-
-        #     # masksky
-        #     # FIXME: currenlty we suppose that mask_sky is always the same
-        #     masksky = relpath(self.masksky_name(), self.workdir)
-        #     if any(s['mask_sky'] != masksky for s in sources):
-        #         self.logger.warning('cannot reuse mask_sky')
-        #         masksky = None
-        # except Exception:
-        #     self.logger.error('unexpected error while computing the masks',
-        #                       exc_info=True)
-        # else:
-        #     # update in db
-        #     self.table.upsert({self.idname: newid, 'mask_sky': masksky,
-        #                        'mask_obj': relpath(maskobj, self.workdir)},
-        #                       [self.idname])
-
         return newid
 
     def get_ids_merged_in(self, id_):
@@ -850,48 +769,24 @@ class InputCatalog(Catalog):
             setattr(cat, key, kwargs[key])
 
         cat.params = kwargs.copy()
-
-        cat.segmap = kwargs.get('segmap')
         cat.version_meta = kwargs.get('version_meta')
-
-        # The `line_catalog` setting contains the link to the FITS file
-        # containing the line table associated to the input catalog, if any. We
-        # put it in the `line_catalog` attribute to use it at ingestion.
-        cat.line_catalog = kwargs.get('line_catalog')
-        if cat.line_catalog is not None:
-            line_idname = kwargs.get('line_idname')
-            line_src_idname = kwargs.get('line_src_idname')
-            if line_idname is None or line_src_idname is None:
-                raise ValueError("The YAML setting file contains a "
-                                 "line_catalog but no line_idname or no "
-                                 "line_src_idname for the catalog %s." % name)
-            cat.create_lines(line_idname=line_idname,
-                             line_src_idname=line_src_idname)
-
         return cat
 
-    def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
-                             upsert=False, keys=None, line_keys=None,
-                             show_progress=True, version_meta=None):
-        """Ingest an input catalog and the associated line table if any.
+    def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
+                             keys=None, show_progress=True, version_meta=None):
+        """Ingest an input catalog.
 
-        The catalog and the line table to ingest can be given with the
-        ``catalog`` and ``line_catalog`` parameters or in the setting file.
-        Existing records can be updated using ``upsert=True``, and ``keys`` and
-        ``line_keys`` parameters.
-
-        Only the lines corresponding to sources from the catalog are ingested.
+        The catalog to ingest can be given with the ``catalog`` parameter or
+        in the setting file.  Existing records can be updated using
+        ``upsert=True`` and ``keys``.
 
         The ``limit`` parameter is used to limit the number of rows from the
-        catalog to ingest; the ingested lines will then be limited to the
-        ingested sources.
+        catalog to ingest.
 
         Parameters
         ----------
         catalog: str or `astropy.table.Table`
             Table to insert.
-        line_catalog: str or `astropy.table.Table`
-            Line table to insert.
         limit: int
             To limit the number of rows from the catalog.
         upsert: bool
@@ -901,29 +796,15 @@ class InputCatalog(Catalog):
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
-        line_keys: list of str
-            Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
         version_meta: str, optional
             Keyword in the catalog file that is used to identify the version of
             the catalog. It is used for ORIGIN catalogs to check that the
             sources correspond to the catalog.
+
         """
         catalog = catalog or self.catalog
-        # We use getattr because the input catalog may not have a line_catalog
-        # attribute.
-        line_catalog = line_catalog or getattr(self, 'line_catalog', None)
-
-        # Check that we provide the line table when needed and only when
-        # needed.
-        if self.lines is not None and line_catalog is None:
-            raise AttributeError('This input catalog is associated to a line '
-                                 'table but none was provided.')
-        elif self.lines is None and line_catalog is not None:
-            raise AttributeError('This input catalog is not associated to a '
-                                 'line table but one was provided.')
-
         version_meta = version_meta or getattr(self, 'version_meta', None)
 
         # Catalog
@@ -945,85 +826,11 @@ class InputCatalog(Catalog):
                         show_progress=show_progress)
 
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type=self.catalog_type,
-                         segmap=getattr(self, 'segmap', None))
+                         type=self.catalog_type)
 
         if version_meta is not None:
             self.update_meta(**{'version_meta': version_meta})
             self.update_meta(**{version_meta: catalog.meta[version_meta]})
-
-        # Lines
-        if line_catalog is not None:
-            if isinstance(line_catalog, str):
-                self.logger.info('ingesting line table %s', line_catalog)
-                line_catalog = Table.read(line_catalog)
-            elif line_catalog is not None:
-                self.logger.info('ingesting line table')
-
-            # Indices of the line table rows corresponding to sources in the
-            # catalog.
-            line_idx = np.in1d(
-                line_catalog[self.lines.src_idname], catalog[self.idname])
-
-            if upsert:
-                self.lines.upsert(line_catalog[line_idx], version=self.version,
-                                  keys=line_keys, show_progress=show_progress)
-            else:
-                self.lines.insert(line_catalog[line_idx], version=self.version,
-                                  show_progress=show_progress)
-
-            self.lines.update_meta(creation_date=datetime.utcnow().isoformat(),
-                                   type='lines')
-
-
-class LineCatalog(BaseCatalog):
-    """Handles list of lines associated to sources.
-
-    This class handles a “line table” that is a list of lines associated to
-    sources from a catalog.
-
-    Parameters
-    ----------
-    name: str
-        Name of the table.
-    db: `dataset.Database`
-        The database object.
-    idname: str
-        Name of the 'id' column.
-    src_idname: str
-        Name of the column containing the IDs from the source catalog.
-    primary_id: str
-        The primary id for the SQL table, must be a column name.
-
-    """
-
-    catalog_type = 'lines'
-
-    def __init__(self, name, db, idname, src_idname, primary_id=None):
-        # TODO Check for existence of the source catalog name and ID column.
-        super().__init__(name, db, idname=idname, primary_id=primary_id)
-        self.src_idname = src_idname
-        self.update_meta(src_idname=self.src_idname)
-
-    def select_src_ids(self, src_ids, columns=None, **params):
-        """Select lines for given source identifiers.
-
-        Parameters
-        ----------
-        src_ids : scaler or list
-            List of source identifiers to get the lines corresponding to.
-        columns: list of str
-            List of columns to retrieve (all columns if None).
-        params: dict
-            Additional parameters are passed to `dataset.Database.query`.
-
-        Returns
-        -------
-        ``musex.catalog.ResultSet``
-
-        """
-        return super().select_ids(src_ids, columns=columns,
-                                  idcolumn=self.src_idname, **params)
 
 
 class MarzCatalog(InputCatalog):
