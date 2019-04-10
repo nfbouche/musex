@@ -151,7 +151,7 @@ class MuseX:
         for row in self.catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
-                name, self.db, workdir=self.workdir, idname=row['idname'],
+                name, self.db, idname=row['idname'],
                 raname=row['raname'], decname=row['decname'])
             # Restore the associated line catalog.
             line_tablename = f'{name}_lines'
@@ -250,8 +250,7 @@ class MuseX:
                 raise ValueError('table already exists')
 
         self.catalogs[name] = Catalog(name, self.db, idname=idname,
-                                      raname=raname, decname=decname,
-                                      workdir=self.workdir)
+                                      raname=raname, decname=decname)
         return self.catalogs[name]
 
     def new_catalog_from_resultset(self, name, resultset, primary_id=None,
@@ -288,7 +287,7 @@ class MuseX:
         parent_cat = resultset.catalog
         whereclause = resultset.whereclause
         self.catalogs[name] = cat = Catalog.from_parent_cat(
-            parent_cat, name, self.workdir, whereclause, primary_id=primary_id)
+            parent_cat, name, whereclause, primary_id=primary_id)
 
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
@@ -418,13 +417,8 @@ class MuseX:
                 for row in resultset]
         to_compute = []
         for row, src_size in zip(rows, size):
-            if row['mask_sky'] is None or row['mask_obj'] is None:
-                self.logger.warning('cannot export source %d without mask',
-                                    row[idname])
-                continue
-
-            skyim = str(cat.workdir / row['mask_sky'])
-            maskim = str(cat.workdir / row['mask_obj'])
+            skyim = str(row['mask_sky'])
+            maskim = str(row['mask_obj'])
             args = (row[idname], row[raname], row[decname], src_size, skyim,
                     maskim, use_datasets, apertures, verbose)
             to_compute.append(delayed(create_source)(*args))

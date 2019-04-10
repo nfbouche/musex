@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import os
 import re
-import textwrap
 import warnings
 
 from astropy.table import Table, vstack
@@ -14,7 +13,6 @@ from datetime import datetime
 from mpdaf.sdetect import Catalog as _Catalog
 from mpdaf.tools import isiter, progressbar
 from numpy import ma
-from pathlib import Path
 from sqlalchemy import sql
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
@@ -195,23 +193,18 @@ class BaseCatalog:
 
     def info(self):
         """Print information about the catalog (columns etc.)."""
-        print(textwrap.dedent(f"""\
-        {self.__class__.__name__} '{self.name}' - {len(self)} rows.
-
-        Workdir: {getattr(self, 'workdir', '')}
-        """))
-
+        print(f"{self.__class__.__name__} '{self.name}' - {len(self)} rows.")
         if self.meta:
             maxlen = max(len(k) for k in self.meta.keys()) + 1
             meta = '\n'.join(f'- {k:{maxlen}s}: {v}'
                              for k, v in self.meta.items()
                              if k not in ('id', 'name'))
-            print(f"Metadata:\n{meta}\n")
+            print(f"\nMetadata:\n{meta}")
 
         maxlen = max(len(k) for k in self.table.table.columns.keys()) + 1
         columns = '\n'.join(f"- {k:{maxlen}s}: {v.type} {v.default or ''}"
                             for k, v in self.table.table.columns.items())
-        print(f"Columns:\n{columns}\n")
+        print(f"\nColumns:\n{columns}")
 
     def drop(self):
         """Drop the SQL table and its metadata."""
@@ -502,27 +495,17 @@ class Catalog(BaseCatalog):
         Name of the 'dec' column.
     primary_id: str
         The primary id for the SQL table, must be a column name.
-    workdir: str
-        Directory used for intermediate files.
 
     """
 
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 workdir=None, **kwargs):
+                 **kwargs):
         super().__init__(name, db, idname=idname, **kwargs)
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
-
-        # Work dir for intermediate files
-        if workdir is None:
-            # raise Exception('FIXME: find a better way to handle this')
-            self.workdir = None
-        else:
-            self.workdir = Path(workdir) / self.name
-            self.workdir.mkdir(exist_ok=True, parents=True)
 
         # FIXME: sadly this doesn't work well currently, it is not taken into
         # account until an insert is done
@@ -535,10 +518,9 @@ class Catalog(BaseCatalog):
         # self.table.create_column('merged', self.db.types.boolean)
 
     @classmethod
-    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
-                        primary_id=None):
+    def from_parent_cat(cls, parent_cat, name, whereclause, primary_id=None):
         """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
+        cat = cls(name, parent_cat.db, primary_id=primary_id,
                   idname=parent_cat.idname,
                   raname=getattr(parent_cat, 'raname', None),
                   decname=getattr(parent_cat, 'decname', None))
