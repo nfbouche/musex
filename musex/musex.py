@@ -16,11 +16,11 @@ from mpdaf.sdetect import (Source, create_masks_from_segmap,
 from mpdaf.tools import progressbar
 
 from .dataset import load_datasets, MuseDataSet
-from .catalog import (Catalog, InputCatalog, ResultSet, table_to_odict,
-                      MarzCatalog, IdMapping, get_cat_name)
+from .catalog import (Catalog, InputCatalog, ResultSet, MarzCatalog,
+                      IdMapping, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import sources_to_marz, create_source
-from .utils import load_db, load_yaml_config
+from .utils import load_db, load_yaml_config, table_to_odict
 from .version import __version__, __description__
 
 __all__ = ['MuseX']
@@ -367,10 +367,6 @@ class MuseX:
         nrows = len(resultset)
         cat = resultset.catalog
 
-        # FIXME: not sure here, but the current dataset should be the same as
-        # the one used to produce the masks
-        assert cat.meta['dataset'] == self.muse_dataset.name
-
         debug = self.logger.debug
         info = self.logger.info
 
@@ -521,9 +517,7 @@ class MuseX:
         os.makedirs(outdir, exist_ok=True)
 
         pdfconf = self.conf['export'].get('pdf', {})
-        white = self.muse_dataset.white
         info = self.logger.info
-        ima2 = pdfconf.get('image')
 
         for src in self.to_sources(res_or_cat, **kwargs):
             outn = outname.format(src=src)
@@ -532,7 +526,8 @@ class MuseX:
             info('fits written to %s', fname)
             if create_pdf:
                 fname = f'{outdir}/{outn}.pdf'
-                src.to_pdf(fname, white, ima2=ima2, mastercat=cat)
+                src.to_pdf(fname, self.muse_dataset.white,
+                           ima2=pdfconf.get('image'), mastercat=cat)
                 info('pdf written to %s', fname)
 
     def export_marz(self, res_or_cat, outfile=None, export_sources=False,

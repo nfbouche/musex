@@ -36,7 +36,6 @@ def test_ingest_photutils(mx):
     assert phot.idname == 'id'
     assert phot.raname == 'ra'
     assert phot.decname == 'dec'
-    assert phot.segmap.endswith('segmap.fits')
 
     phot.ingest_input_catalog(limit=3)
     assert len(phot.select()) == 3
@@ -57,19 +56,13 @@ def test_ingest_origin(mx):
     assert orig.idname == 'ID'
     assert orig.raname == 'ra'
     assert orig.decname == 'dec'
-    assert orig.segmap is None
-    assert orig.mask_tpl.endswith('source-mask-%05d.fits')
-    assert orig.skymask_tpl.endswith('sky-mask-%05d.fits')
 
     orig.ingest_input_catalog(limit=1)
     assert len(orig.select()) == 1
-    assert len(orig.lines.select()) == 1
 
     orig.ingest_input_catalog(upsert=True)
     assert len(orig.select()) == 10
     assert orig.meta['maxid'] == 9
-    assert len(orig.lines.select()) == 13
-    assert len(orig.lines.select_src_ids(2)) == 1
 
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 9
@@ -84,7 +77,7 @@ def test_catalog_name(settings_file):
     mx = MuseX(settings_file=settings_file, show_banner=False, db=':memory:')
     with pytest.warns(UserWarning,
                       match='catalog name should contain only ascii letters '):
-        Catalog('dont-use-dash', mx.db, workdir=mx.workdir)
+        Catalog('dont-use-dash', mx.db)
 
 
 def test_catalog(mx):
@@ -325,75 +318,6 @@ def test_merge_sources(mx):
     mycat.add_column_with_merged_ids('MERGID')
 
 
-def test_attach_dataset(mx):
-    """Test attaching a dataset with the merging of sources.
-
-    - merge 9 & 10 before
-    - merge 11, 12 & 13 after
-
-    """
-    phot = mx.input_catalogs['photutils']
-    phot.ingest_input_catalog()
-
-    res = phot.select(phot.c[phot.idname] > 7)
-    mycat = mx.new_catalog_from_resultset('my_cat', res)
-
-    mycat.merge_sources([9, 10])
-    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         mask_size=(10, 10), n_jobs=2)
-
-    outdir = mycat.workdir / mx.muse_dataset.name
-    flist = sorted(os.listdir(str(outdir)))
-    assert flist[0] == 'mask-sky.fits'
-    assert flist[1:] == ['mask-source-%05d.fits' % i
-                         for i in (8, 11, 12, 13, 100)]
-
-    segm = fits.getdata(mycat.segmap)
-    sky = fits.getdata(str(outdir / 'mask-sky.fits'))
-
-    assert segm.shape == sky.shape
-    assert_array_equal(np.unique(sky), [0, 1])
-
-    # FIXME: check why these are slightly different
-    # assert_array_equal((segm == 0).astype(np.uint8), sky)
-    assert_array_equal((segm[:89, :] == 0).astype(np.uint8), sky[:89, :])
-
-    mask = fits.getdata(outdir / 'mask-source-00012.fits')
-    assert mask.shape == (50, 50)
-    assert np.count_nonzero(mask) == 92
-
-    mname = outdir / 'mask-source-%05d.fits'
-    totmask = sum([np.count_nonzero(fits.getdata(str(mname) % i))
-                   for i in (11, 12, 13)])
-
-    # check that the new mask is computed if possible, and that it corresponds
-    # to the union of the sources mask
-    mycat.merge_sources([11, 12, 13], dataset=mx.muse_dataset)
-    mask = fits.getdata(outdir / 'mask-source-00101.fits')
-    assert mask.shape == (50, 50)
-    assert np.count_nonzero(mask) == totmask
-
-
-def test_attach_origin_dataset(mx):
-    """Test attaching an origin dataset."""
-    orig = mx.input_catalogs['origin']
-    orig.ingest_input_catalog()
-
-    assert orig.mask_tpl is not None
-    assert orig.skymask_tpl is not None
-
-    res = orig.select()
-    mycat = mx.new_catalog_from_resultset('my_oricat', res)
-
-    mycat.attach_dataset(mx.muse_dataset, skip_existing=False)
-
-    outdir = mycat.workdir / mx.muse_dataset.name
-    flist = sorted(os.listdir(str(outdir)))
-    assert sorted(flist) == sorted(
-        ['mask-%s-%05d.fits' % (t, i)
-         for i in range(10) for t in ['sky', 'source']])
-
-
 def test_export_marz(mx):
     phot = mx.input_catalogs['photutils']
     phot.ingest_input_catalog()
@@ -403,10 +327,10 @@ def test_export_marz(mx):
     mycat = mx.new_catalog_from_resultset('my_cat', res)
     mx.new_catalog_from_resultset('my_cat2', res)
 
-    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         mask_size=(10, 10))
-    mycat.merge_sources([9, 10])
-    mycat.merge_sources([11, 12, 13])
+    # mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+    #                      mask_size=(10, 10))
+    # mycat.merge_sources([9, 10])
+    # mycat.merge_sources([11, 12, 13])
 
     refspec = ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'] * 4
     mycat.update_column('refspec', refspec)
@@ -512,10 +436,10 @@ def test_export_sources(mx):
     res = phot.select(phot.c[phot.idname] > 7)
     mycat = mx.new_catalog_from_resultset('my_cat', res)
 
-    mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
-                         convolve_fwhm=0.5, mask_size=(10, 10))
-    mycat.merge_sources([9, 10])
-    mycat.merge_sources([11, 12, 13])
+    # mycat.attach_dataset(mx.muse_dataset, skip_existing=False,
+    #                      convolve_fwhm=0.5, mask_size=(10, 10))
+    # mycat.merge_sources([9, 10])
+    # mycat.merge_sources([11, 12, 13])
 
     outdir = f'{mycat.workdir}/export'
     os.makedirs(outdir, exist_ok=True)

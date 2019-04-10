@@ -40,11 +40,6 @@ catalogs:
     idname: ID
     raname: ra
     decname: dec
-    line_catalog: '{datadir}/cat_origin_lines.fits'
-    line_idname: 'num_line'
-    line_src_idname: 'ID'
-    mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
-    skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
     version_meta: CAT3_TS
     extract:
       prefix: ORIG

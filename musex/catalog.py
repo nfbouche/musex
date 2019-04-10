@@ -15,6 +15,8 @@ from mpdaf.tools import isiter, progressbar
 from numpy import ma
 from sqlalchemy import sql
 
+from .utils import table_to_odict
+
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('ResultSet', 'Catalog', 'BaseCatalog',
@@ -734,9 +736,9 @@ class InputCatalog(Catalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        cat = cls(name, db, idname=kwargs.pop('idname'),
-                  raname=kwargs.pop('raname'), decname=kwargs.pop('decname'),
-                  primary_id=kwargs.pop('primary_id'))
+        init_keys = ('idname', 'raname', 'decname')
+        kw = {k: v for k, v in kwargs.items() if k in init_keys}
+        cat = cls(name, db, **kw)
 
         for key in ('catalog', 'version'):
             if kwargs.get(key) is None:
