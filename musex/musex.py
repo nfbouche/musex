@@ -61,12 +61,6 @@ def _create_catalogs_table(db):
         ('idname', 'ID'),
         ('maxid', 1),
         ('query', ''),
-        # ('segmap', ''),
-        # ('dataset', ''),
-        # ('convolve_fwhm', 1.0),
-        # ('psf_threshold', 1.0),
-        # ('mask_size_x', 1),
-        # ('mask_size_y', 1)
     ])
 
     # Create the table
@@ -87,9 +81,7 @@ class MuseX:
     Parameters
     ----------
     settings_file: str
-        Path of the settings file. If None, it defaults to
-        ``~/.musex/settings.yaml`` if possible, otherwise to the
-        ``udf/settings.yaml`` file which comes with MuseX.
+        Path of the settings file.
     muse_dataset: str
         Name of the Muse dataset to work on.
     id_mapping: str
@@ -97,14 +89,8 @@ class MuseX:
 
     """
 
-    def __init__(self, settings_file=None, muse_dataset=None, id_mapping=None,
+    def __init__(self, settings_file, muse_dataset=None, id_mapping=None,
                  **kwargs):
-        if settings_file is None:
-            settings_file = os.path.expanduser('~/.musex/settings.yaml')
-            if not os.path.exists(settings_file):
-                dirname = os.path.abspath(os.path.dirname(__file__))
-                settings_file = os.path.join(dirname, 'udf', 'settings.yaml')
-
         self.logger = logging.getLogger(__name__)
         self.settings_file = settings_file
         self.conf = load_yaml_config(settings_file)
