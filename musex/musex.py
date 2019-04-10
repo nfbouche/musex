@@ -11,7 +11,8 @@ from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
 from mpdaf.obj import Image
-from mpdaf.sdetect import Source
+from mpdaf.sdetect import (Source, create_masks_from_segmap,
+                           Catalog as MpdafCatalog)
 from mpdaf.tools import progressbar
 
 from .dataset import load_datasets, MuseDataSet
@@ -320,6 +321,27 @@ class MuseX:
         cat.idmap = self.id_mapping
         yield
         cat.idmap = None
+
+    def create_masks_from_segmap(self, cat, maskdir, limit=None, n_jobs=-1,
+                                 skip_existing=True):
+        ref_image = self.muse_dataset.white
+        catfile = cat.params['catalog']
+        tbl = MpdafCatalog.read(catfile)
+        self.logger.info('read catalog %s with %d sources', catfile, len(tbl))
+
+        tbl = tbl.select(ref_image.wcs, ra='RA', dec='DEC', margin=10)
+        self.logger.info('selected %d sources in dataset footprint', len(tbl))
+
+        if limit:
+            tbl = tbl[:limit]
+
+        create_masks_from_segmap(
+            cat.params['segmap'], tbl[:10], ref_image, n_jobs=n_jobs,
+            skip_existing=skip_existing,
+            masksky_name=f'{maskdir}/mask-sky.fits',
+            maskobj_name=f'{maskdir}/mask-source-%05d.fits',
+            idname=cat.idname, raname=cat.raname, decname=cat.decname,
+            margin=0, mask_size=(25, 25), convolve_fwhm=0.8)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
