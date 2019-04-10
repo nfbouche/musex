@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import os
 import re
-import shutil
+# import shutil
 import textwrap
 import warnings
 
@@ -12,19 +12,16 @@ from astropy.utils.decorators import lazyproperty
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from datetime import datetime
-from mpdaf.sdetect import Catalog as _Catalog, Segmap, create_masks_from_segmap
-from mpdaf.sdetect.segmap import _get_psf_convolution_params  # temporary
+from mpdaf.sdetect import Catalog as _Catalog
 from mpdaf.tools import isiter, progressbar
 from numpy import ma
-from os.path import exists, relpath
 from pathlib import Path
 from sqlalchemy import sql
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
-           'InputCatalog', 'SpatialCatalog', 'MarzCatalog', 'LineCatalog',
-           'IdMapping')
+           'InputCatalog', 'MarzCatalog', 'LineCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
@@ -489,10 +486,9 @@ class BaseCatalog:
                 tbl.upsert(row, [self.idname], ensure=False)
 
 
-class SpatialCatalog(BaseCatalog):
-    """Catalog with spatial information.
-
-    This class handles catalogs with spacial information associated (RA, Dec).
+class Catalog(BaseCatalog):
+    """Handle user catalogs, with spatial information, and optionally lines
+    information.
 
     Parameters
     ----------
@@ -508,24 +504,60 @@ class SpatialCatalog(BaseCatalog):
         Name of the 'dec' column.
     primary_id: str
         The primary id for the SQL table, must be a column name.
+    workdir: str
+        Directory used for intermediate files.
 
     """
 
-    catalog_type = ''
+    catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 primary_id=None):
+                 workdir=None, **kwargs):
         if name.endswith('_lines'):
             raise ValueError(
                 'Catalog names must not end with "_lines" as it is reserved '
                 'for line tables. If you want to create a line table for '
                 'a catalog, use it\'s create_lines method.')
 
-        super().__init__(name, db, idname=idname, primary_id=primary_id)
+        super().__init__(name, db, idname=idname, **kwargs)
+
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
         self.lines = None
+
+        # Work dir for intermediate files
+        if workdir is None:
+            # raise Exception('FIXME: find a better way to handle this')
+            self.workdir = None
+        else:
+            self.workdir = Path(workdir) / self.name
+            self.workdir.mkdir(exist_ok=True, parents=True)
+
+        # FIXME: sadly this doesn't work well currently, it is not taken into
+        # account until an insert is done
+        # from sqlalchemy.schema import ColumnDefault
+        # self.table._sync_columns({idname: 1, raname: 1., decname: 1.,
+        #                           'active': True, 'merged': False}, True)
+        # self.c.active.default = ColumnDefault(True)
+        # self.c.merged.default = ColumnDefault(False)
+        # self.table.create_column('active', self.db.types.boolean)
+        # self.table.create_column('merged', self.db.types.boolean)
+
+    @classmethod
+    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
+                        primary_id=None):
+        """Create a new `Catalog` from another one."""
+        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
+                  idname=parent_cat.idname,
+                  raname=getattr(parent_cat, 'raname', None),
+                  decname=getattr(parent_cat, 'decname', None))
+        if parent_cat.meta.get('query'):
+            # Combine query string with the parent cat's one
+            whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
+        cat.update_meta(parent_cat=parent_cat.name,
+                        maxid=parent_cat.meta['maxid'], query=whereclause)
+        return cat
 
     def info(self):
         """Print information about catalog and line table if any."""
@@ -644,7 +676,7 @@ class SpatialCatalog(BaseCatalog):
         """Create an associated line catalog.
 
         This function creates a line catalog in the database and associates it
-        to the SpatialCatalog. The line catalog is named by suffixing the name
+        to the Catalog. The line catalog is named by suffixing the name
         of the catalog with `_lines`.
 
         Parameters
@@ -660,230 +692,6 @@ class SpatialCatalog(BaseCatalog):
         self.lines = LineCatalog(name=f'{self.name}_lines', db=self.db,
                                  idname=line_idname,
                                  src_idname=line_src_idname)
-
-
-class Catalog(SpatialCatalog):
-    """Handle user catalogs.
-
-    Parameters
-    ----------
-    name: str
-        Name of the catalog.
-    db: `dataset.Database`
-        The database object.
-    idname: str
-        Name of the 'id' column.
-    raname: str
-        Name of the 'ra' column.
-    decname: str
-        Name of the 'dec' column.
-    primary_id: str
-        The primary id for the SQL table, must be a column name.
-    segmap: str
-        Path to the segmentation map file associated to the catalog.
-    workdir: str
-        Directory used for intermediate files.
-    mask_tpl: str
-        Template to find the mask associated to the ID of a source.  The
-        template is formated with `mask_tpl % id` to get the path to the mask
-        of a source.
-    skymask_tpl: str
-        Same as mask_tpl but for the sky mask.
-
-    """
-
-    catalog_type = 'user'
-
-    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None,
-                 **kwargs):
-        super().__init__(name, db, idname=idname, raname=raname,
-                         decname=decname, **kwargs)
-        self.segmap = segmap
-        self._segmap_aligned = {}
-        self.mask_tpl = mask_tpl
-        self.skymask_tpl = skymask_tpl
-        # Work dir for intermediate files
-        if workdir is None:
-            raise Exception('FIXME: find a better way to handle this')
-        self.workdir = Path(workdir) / self.name
-        self.workdir.mkdir(exist_ok=True, parents=True)
-
-        # FIXME: sadly this doesn't work well currently, it is not taken into
-        # account until an insert is done
-        # from sqlalchemy.schema import ColumnDefault
-        # self.table._sync_columns({idname: 1, raname: 1., decname: 1.,
-        #                           'active': True, 'merged': False}, True)
-        # self.c.active.default = ColumnDefault(True)
-        # self.c.merged.default = ColumnDefault(False)
-        # self.table.create_column('active', self.db.types.boolean)
-        # self.table.create_column('merged', self.db.types.boolean)
-
-    @classmethod
-    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
-                        primary_id=None):
-        """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
-                  idname=parent_cat.idname,
-                  raname=getattr(parent_cat, 'raname', None),
-                  decname=getattr(parent_cat, 'decname', None),
-                  segmap=getattr(parent_cat, 'segmap', None),
-                  mask_tpl=getattr(parent_cat, 'mask_tpl', None),
-                  skymask_tpl=getattr(parent_cat, 'skymask_tpl', None))
-        if parent_cat.meta.get('query'):
-            # Combine query string with the parent cat's one
-            whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
-        cat.update_meta(parent_cat=parent_cat.name,
-                        segmap=getattr(parent_cat, 'segmap', None),
-                        maxid=parent_cat.meta['maxid'], query=whereclause)
-        return cat
-
-    @lazyproperty
-    def segmap_img(self):
-        """The segmentation map as an `musex.Segmap` object."""
-        if self.segmap:
-            return Segmap(self.segmap)
-
-    def get_segmap_aligned(self, dataset):
-        """Get a segmap image rotated and aligned to a dataset."""
-        name = dataset.name
-        margin = dataset.margin
-        if name not in self._segmap_aligned:
-            self.logger.info('Aligning segmap with dataset %s', name)
-            self._segmap_aligned[name] = self.segmap_img.align_with_image(
-                dataset.white, truncate=True, margin=margin)
-        return self._segmap_aligned[name]
-
-    def maskobj_name(self, id_):
-        """Return the path of the source mask files."""
-        name = f'mask-source-{id_:05d}.fits'  # add setting ?
-        dataset = self.meta['dataset']
-        assert dataset is not None
-        return str(self.workdir / dataset / name)
-
-    def masksky_name(self, id_=None):
-        """Return the path of the sky mask file."""
-        dataset = self.meta['dataset']
-        assert dataset is not None
-        name = 'mask-sky.fits' if id_ is None else f'mask-sky-{id_:05d}.fits'
-        return str(self.workdir / dataset / name)
-
-    def attach_dataset(self, dataset, skip_existing=True,
-                       convolve_fwhm=0, mask_size=(20, 20),
-                       psf_threshold=0.5, n_jobs=1, verbose=0):
-        """Attach a dataset to the catalog and generate intermediate products.
-
-        If the catalog is associated to a segmap, create the masks adapted to
-        the given dataset for each source. If the catalog is associated to
-        pre-computed masks just copy them (so that the user can modify them
-        without touching the original ones).
-
-        TODO: For now, the masks are supposed to be adapted to the attached
-        dataset (they come from the same MUSE cube). Implement the
-        re-projection to attach arbitrary masks.
-
-        TODO: store preprocessing status?
-
-        Parameters
-        ----------
-        dataset: `musex.Dataset`
-            The dataset.
-
-        """
-        # A segmap or the mask templates are mandatory to be able to extract
-        # spectra.
-        if (self.segmap is None) and \
-                (self.mask_tpl is None or self.skymask_tpl is None):
-            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
-                             'are required')
-
-        # create output path if needed
-        outpath = self.workdir / dataset.name
-        outpath.mkdir(exist_ok=True)
-
-        ref_dataset = self.meta.get('dataset')
-        if ref_dataset is not None and dataset.name != ref_dataset:
-            raise ValueError('cannot compute masks with a different '
-                             'dataset as the one used previously')
-
-        # FIXME: If pre-computed masks are provided, take the size of the masks
-        # from them (that means that all the masks must have the same size).
-        self.update_meta(dataset=dataset.name, convolve_fwhm=convolve_fwhm,
-                         mask_size_x=mask_size[0], mask_size_y=mask_size[1],
-                         psf_threshold=psf_threshold)
-
-        white = dataset.white
-
-        # check sources inside dataset, excluding inactive sources
-        if 'active' in self.c:
-            tab = self.select(self.c.active.isnot(False)).as_table()
-        else:
-            tab = self.select().as_table()
-
-        idname = self.idname
-        ntot = len(tab)
-        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname,
-                         margin=dataset.margin)
-        self.logger.info('%d sources inside dataset (%d in catalog)',
-                         len(tab), ntot)
-
-        stats = defaultdict(list)
-
-        if self.segmap is not None:
-            # Get a segmap image rotated and aligned with our dataset
-            segmap = self.get_segmap_aligned(dataset)
-            create_masks_from_segmap(
-                segmap, tab, dataset.white, n_jobs=n_jobs,
-                skip_existing=skip_existing,
-                masksky_name=self.masksky_name,
-                maskobj_name=self.maskobj_name,
-                idname=idname, raname=self.raname, decname=self.decname,
-                margin=dataset.margin,
-                mask_size=mask_size,
-                convolve_fwhm=convolve_fwhm,
-                psf_threshold=psf_threshold,
-                verbose=verbose
-            )
-        else:
-            # If there is no segmap, we use individual mask files
-            # TODO: If we don't set segmap or masks mandatory, consider here
-            # the case with none of them.
-            for row in tab:
-                id_ = int(row[idname])  # need int, not np.int64
-
-                src_mask = Path(self.mask_tpl % id_)
-                src_sky = Path(self.skymask_tpl % id_)
-
-                mask_path = self.maskobj_name(id_)
-                skymask_path = self.masksky_name(id_)
-
-                if exists(mask_path) and skip_existing:
-                    stats['skipped'].append(id_)
-                else:
-                    shutil.copy(src_mask, mask_path)
-                    shutil.copy(src_sky, skymask_path)
-                    stats['copied'].append(id_)
-
-        for row in tab:
-            # update in db
-            id_ = int(row[idname])  # need int, not np.int64
-            source_path = self.maskobj_name(id_)
-            self.table.upsert(
-                {idname: id_,
-                 'mask_obj': relpath(source_path, self.workdir),
-                 'mask_sky': relpath(self.masksky_name(), self.workdir)},
-                [idname])
-
-        for key, val in stats.items():
-            self.logger.info('%s %d sources: %r', key, len(val),
-                             np.array(val, dtype=object))
-
-    def add_segmap_to_source(self, src, conf, dataset):
-        """Add the segmap extension to the source object."""
-        segm = self.get_segmap_aligned(dataset)
-        tag = f'{conf["prefix"]}_SEGMAP'
-        src.SEGMAP = tag
-        src.add_image(segm.img, tag, rotate=True, order=0)
 
     def merge_sources(self, idlist, id_=None, dataset=None,
                       weights_colname=None):
@@ -971,33 +779,33 @@ class Catalog(SpatialCatalog):
                                 'dataset as the one used previously')
             return newid
 
-        try:
-            # maskobj
-            maskobj = self.maskobj_name(newid)
-            segmap = self.get_segmap_aligned(dataset)
-            dilateit, struct = _get_psf_convolution_params(
-                self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
+        # try:
+        #     # maskobj
+        #     maskobj = self.maskobj_name(newid)
+        #     segmap = self.get_segmap_aligned(dataset)
+        #     dilateit, struct = _get_psf_convolution_params(
+        #         self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
 
-            mask_size = (self.meta['mask_size_x'], self.meta['mask_size_y'])
-            minsize = min(*mask_size) // 2
-            segmap.get_source_mask(
-                idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
-                dilate=dilateit, outname=maskobj, regrid_to=dataset.white)
+        #     mask_size = (self.meta['mask_size_x'], self.meta['mask_size_y'])
+        #     minsize = min(*mask_size) // 2
+        #     segmap.get_source_mask(
+        #         idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
+        #         dilate=dilateit, outname=maskobj, regrid_to=dataset.white)
 
-            # masksky
-            # FIXME: currenlty we suppose that mask_sky is always the same
-            masksky = relpath(self.masksky_name(), self.workdir)
-            if any(s['mask_sky'] != masksky for s in sources):
-                self.logger.warning('cannot reuse mask_sky')
-                masksky = None
-        except Exception:
-            self.logger.error('unexpected error while computing the masks',
-                              exc_info=True)
-        else:
-            # update in db
-            self.table.upsert({self.idname: newid, 'mask_sky': masksky,
-                               'mask_obj': relpath(maskobj, self.workdir)},
-                              [self.idname])
+        #     # masksky
+        #     # FIXME: currenlty we suppose that mask_sky is always the same
+        #     masksky = relpath(self.masksky_name(), self.workdir)
+        #     if any(s['mask_sky'] != masksky for s in sources):
+        #         self.logger.warning('cannot reuse mask_sky')
+        #         masksky = None
+        # except Exception:
+        #     self.logger.error('unexpected error while computing the masks',
+        #                       exc_info=True)
+        # else:
+        #     # update in db
+        #     self.table.upsert({self.idname: newid, 'mask_sky': masksky,
+        #                        'mask_obj': relpath(maskobj, self.workdir)},
+        #                       [self.idname])
 
         return newid
 
@@ -1025,7 +833,7 @@ class Catalog(SpatialCatalog):
         self.update_column(name, val)
 
 
-class InputCatalog(SpatialCatalog):
+class InputCatalog(Catalog):
     """Handles catalogs imported from an existing file."""
 
     catalog_type = 'input'
@@ -1037,14 +845,14 @@ class InputCatalog(SpatialCatalog):
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
 
-        for key in ('catalog', 'version', 'extract'):
+        for key in ('catalog', 'version'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])
 
+        cat.params = kwargs.copy()
+
         cat.segmap = kwargs.get('segmap')
-        cat.mask_tpl = kwargs.get('mask_tpl')
-        cat.skymask_tpl = kwargs.get('skymask_tpl')
         cat.version_meta = kwargs.get('version_meta')
 
         # The `line_catalog` setting contains the link to the FITS file

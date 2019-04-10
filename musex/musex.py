@@ -10,6 +10,7 @@ from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
+from mpdaf.obj import Image
 from mpdaf.sdetect import Source
 from mpdaf.tools import progressbar
 
@@ -58,13 +59,13 @@ def _create_catalogs_table(db):
         ('decname', 'DEC'),
         ('idname', 'ID'),
         ('maxid', 1),
-        ('segmap', ''),
         ('query', ''),
-        ('dataset', ''),
-        ('convolve_fwhm', 1.0),
-        ('psf_threshold', 1.0),
-        ('mask_size_x', 1),
-        ('mask_size_y', 1)
+        # ('segmap', ''),
+        # ('dataset', ''),
+        # ('convolve_fwhm', 1.0),
+        # ('psf_threshold', 1.0),
+        # ('mask_size_x', 1),
+        # ('mask_size_y', 1)
     ])
 
     # Create the table
@@ -164,8 +165,7 @@ class MuseX:
             name = row['name']
             self.catalogs[name] = Catalog(
                 name, self.db, workdir=self.workdir, idname=row['idname'],
-                raname=row['raname'], decname=row['decname'],
-                segmap=row['segmap'])
+                raname=row['raname'], decname=row['decname'])
             # Restore the associated line catalog.
             line_tablename = f'{name}_lines'
             line_meta = self.catalogs_table.find_one(name=line_tablename)
@@ -393,6 +393,11 @@ class MuseX:
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
+        segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+        segmap = parent_cat.params['segmap']
+        if isinstance(segmap, str):
+            segmap = Image(segmap)
+
         redshifts = self.conf['export'].get('redshifts', {})
         header_columns = self.conf['export'].get('header_columns', {})
         for key, colname in header_columns.items():
@@ -430,8 +435,8 @@ class MuseX:
             src.SRC_V = (srcvers, 'Source Version')
             info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
             src.CATALOG = os.path.basename(parent_cat.name)
-            src.add_attr('FSFMSK', cat.meta['convolve_fwhm'],
-                         'Mask Conv Gauss FWHM in arcsec')
+            # src.add_attr('FSFMSK', cat.meta['convolve_fwhm'],
+            #              'Mask Conv Gauss FWHM in arcsec')
 
             # Add keywords from columns
             for key, colname in header_columns.items():
@@ -464,10 +469,12 @@ class MuseX:
                 src.add_history('source created', author=author)
 
             if 'segmap' in content:
-                cat.add_segmap_to_source(src, parent_cat.extract,
-                                         dataset=self.muse_dataset)
+                src.SEGMAP = segmap_tag
+                src.add_image(segmap, segmap_tag, rotate=True, order=0)
+
             if 'parentcat' in content:
-                parent_cat.add_to_source(src, row, **parent_cat.extract)
+                parent_cat.add_to_source(src, row,
+                                         **parent_cat.params['extract'])
 
             debug('IMAGES: %s', ', '.join(src.images.keys()))
             debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
