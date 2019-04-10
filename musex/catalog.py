@@ -501,8 +501,8 @@ class Catalog(BaseCatalog):
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 **kwargs):
-        super().__init__(name, db, idname=idname, **kwargs)
+                 primary_id=None):
+        super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
@@ -741,9 +741,9 @@ class InputCatalog(Catalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname')
-        kw = {k: v for k, v in kwargs.items() if k in init_keys}
-        cat = cls(name, db, **kw)
+        cat = cls(name, db, idname=kwargs.pop('idname'),
+                  raname=kwargs.pop('raname'), decname=kwargs.pop('decname'),
+                  primary_id=kwargs.pop('primary_id'))
 
         for key in ('catalog', 'version'):
             if kwargs.get(key) is None:
@@ -787,7 +787,7 @@ class InputCatalog(Catalog):
 
         """
         catalog = catalog or self.catalog
-        version_meta = version_meta or getattr(self, 'version_meta', None)
+        version_meta = version_meta or self.version_meta
 
         # Catalog
         if isinstance(catalog, str):
@@ -811,8 +811,8 @@ class InputCatalog(Catalog):
                          type=self.catalog_type)
 
         if version_meta is not None:
-            self.update_meta(**{'version_meta': version_meta})
-            self.update_meta(**{version_meta: catalog.meta[version_meta]})
+            self.update_meta(**{'version_meta': version_meta,
+                                version_meta: catalog.meta[version_meta]})
 
 
 class MarzCatalog(InputCatalog):
