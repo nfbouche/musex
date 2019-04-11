@@ -119,7 +119,6 @@ class BaseCatalog:
     def __init__(self, name, db, idname='ID', primary_id=None):
         self.name = name
         self.db = db
-        self.idmap = None
         self.idname = idname
         self.logger = logging.getLogger(__name__)
 
@@ -261,9 +260,6 @@ class BaseCatalog:
         if ids:
             self.update_meta(maxid=self.max(self.idname))
 
-        if self.idmap:
-            self.idmap.add_ids(ids, self.name)
-
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
         self.logger.info('%d rows inserted', len(ids))
@@ -320,9 +316,6 @@ class BaseCatalog:
         if count['inserted']:
             self.update_meta(maxid=self.max(self.idname))
 
-        if self.idmap:
-            self.idmap.add_ids(count['inserted'], self.name)
-
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
         self.logger.info('%d rows inserted, %s updated',
@@ -353,12 +346,6 @@ class BaseCatalog:
 
     def select_id(self, id_):
         """Return a dict with all keys for a given ID."""
-        if self.idmap:
-            res = self.idmap.table.find_one(ID=id_)
-            if res and f'{self.name}_id' in res:
-                id_ = res[f'{self.name}_id']
-            else:
-                return None
         return self.table.find_one(**{self.idname: id_})
 
     def select_ids(self, idlist, columns=None, idcolumn=None, **params):
@@ -451,12 +438,6 @@ class BaseCatalog:
 
     def update_id(self, id_, **kwargs):
         """Update values for a given ID."""
-        if self.idmap:
-            res = self.idmap.table.find_one(ID=id_)
-            if res and f'{self.name}_id' in res:
-                id_ = res[f'{self.name}_id']
-            else:
-                return None
         return self.table.update({self.idname: id_, **kwargs}, [self.idname])
 
     def update_column(self, name, values):

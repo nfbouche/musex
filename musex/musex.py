@@ -7,7 +7,6 @@ import sys
 import textwrap
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
-from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
 from mpdaf.obj import Image
@@ -297,15 +296,6 @@ class MuseX:
     def create_id_mapping(self, name):
         """Create or get an IdMapping object."""
         self.id_mapping = IdMapping(name, self.db)
-
-    @contextmanager
-    def use_id_mapping(self, cat):
-        """Temporarily modifies ``cat`` to use the ``id_mapping``."""
-        if self.id_mapping is None:
-            raise ValueError('no id_mapping defined.')
-        cat.idmap = self.id_mapping
-        yield
-        cat.idmap = None
 
     def create_masks_from_segmap(self, cat, maskdir, limit=None, n_jobs=-1,
                                  skip_existing=True):
