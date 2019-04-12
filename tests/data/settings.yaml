@@ -60,7 +60,7 @@ catalogs:
     version_meta: CAT3_TS
     extract:
       prefix: ORIG
-      columns: [ID, ra, dec, n_lines, sed_label, comp, line_cleaned_flag]
+      columns: [ID, ra, dec, n_lines, seg_label, comp, line_merged_flag]
       select_in: TEST_FAKE
 
 export:
