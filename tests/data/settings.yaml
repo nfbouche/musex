@@ -9,6 +9,22 @@ datasets:
     prefix: TEST
     images:
       FAKE: '{datadir}/image.fits'
+  photutils-hdfs:
+    prefix: PHU
+    masks:
+      # mask_tpl, skymask_tpl, skymask
+      skymask: '{tmpdir}/masks/hdfs/mask-sky.fits'
+      mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
+  origin:
+    prefix: ORIG
+    tables:
+      lines:
+        file: '{datadir}/cat_origin_lines.fits'
+        idname: 'num_line'
+        src_idname: 'ID'
+    masks:
+      mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
+      skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
 muse_datasets:
   default: hdfs
@@ -25,10 +41,10 @@ catalogs:
   photutils:
     version: '1.0'
     catalog: '{datadir}/catalog.fits'
+    segmap: '{datadir}/segmap.fits'
     idname: id
     raname: ra
     decname: dec
-    segmap: '{datadir}/segmap.fits'
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]
@@ -40,22 +56,17 @@ catalogs:
     idname: ID
     raname: ra
     decname: dec
-    line_catalog: '{datadir}/cat_origin_lines.fits'
-    line_idname: 'num_line'
-    line_src_idname: 'ID'
-    mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
-    skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
     version_meta: CAT3_TS
     extract:
       prefix: ORIG
-      columns: [ID, ra, dec, n_lines, sed_label, comp, line_cleaned_flag]
+      columns: [ID, ra, dec, n_lines, seg_label, comp, line_merged_flag]
       select_in: TEST_FAKE
 
 export:
   path: '{tmpdir}/export'
   redshifts:
     # Define redshift columns.
-    MUSE: AutoZ
+    MUSE: Z
     # MUSE: FinZ
   header_columns:
     # Maps keader keywords to column names

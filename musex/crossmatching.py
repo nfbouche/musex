@@ -32,9 +32,9 @@ def gen_crossmatch(name, db, cat1, cat2, radius=1.):
         Name of the CrossMatch catalog in the database.
     db: `dataset.Database`
         The database object to use.
-    cat1: `musex.catalog.SpatialCatalog`
+    cat1: `musex.catalog.Catalog`
         The first catalog to cross-match.
-    cat2. `musex.catalog.SpatialCatalog`
+    cat2. `musex.catalog.Catalog`
         The second catalog.
     radius: float
         The cross-match radius in  arc-seconds.
@@ -164,19 +164,7 @@ class CrossMatch(BaseCatalog):
     depending of the type of the identifier and the distance is set to NaN.
     """
 
-    def __init__(self, name, db):
-        """Create a new cross match catalog.
-
-        Parameters
-        ----------
-        name: str
-            Name of this cross-match catalog.
-        db: `dataset.Database`
-            The database object to use.
-
-        """
-        super().__init__(name=name, db=db, idname='ID')
-        self.update_meta(type='cross-match')
+    catalog_type = 'cross-match'
 
     def matched_table_with_more_than(self, min_matches, *, min_in_cat=None):
         """Return the full table of matches.

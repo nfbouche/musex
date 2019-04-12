@@ -2,42 +2,29 @@ import logging
 import numpy as np
 import os
 import re
-import shutil
-import textwrap
 import warnings
 
 from astropy.table import Table, vstack
 from astropy.utils.decorators import lazyproperty
 
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime
-from joblib import delayed, Parallel
 from mpdaf.sdetect import Catalog as _Catalog
+from mpdaf.tools import isiter, progressbar
 from numpy import ma
-from os.path import exists, relpath
-from pathlib import Path
 from sqlalchemy import sql
 
-from .segmap import SegMap
-from .utils import struct_from_moffat_fwhm, isiter, progressbar
+from .utils import table_to_odict
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
-__all__ = ('table_to_odict', 'ResultSet', 'Catalog', 'BaseCatalog',
-           'InputCatalog', 'SpatialCatalog', 'MarzCatalog', 'LineCatalog',
-           'IdMapping')
+__all__ = ('ResultSet', 'Catalog', 'BaseCatalog',
+           'InputCatalog', 'MarzCatalog', 'IdMapping')
 
 FILL_VALUES = {int: -9999, float: np.nan, str: ''}
 
 RESERVED_COLNAMES = ['active', 'merged_in', 'merged']
-
-
-def table_to_odict(table):
-    """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
-    colnames = table.colnames
-    return [OrderedDict(zip(colnames, row))
-            for row in zip(*[c.tolist() for c in table.columns.values()])]
 
 
 def get_cat_name(res_or_cat):
@@ -52,21 +39,6 @@ def get_cat_name(res_or_cat):
         return res_or_cat.catalog.name
     else:
         raise ValueError('cat must be a Catalog instance or name')
-
-
-def _get_psf_convolution_params(convolve_fwhm, segmap, psf_threshold):
-    if convolve_fwhm:
-        # compute a structuring element for the dilatation, to simulate
-        # a convolution with a psf, but faster.
-        dilateit = 1
-        # logging.getLogger(__name__).debug(
-        #     'dilate with %d iterations, psf=%.2f', dilateit, convolve_fwhm)
-        struct = struct_from_moffat_fwhm(segmap.img.wcs, convolve_fwhm,
-                                         psf_threshold=psf_threshold)
-    else:
-        dilateit = 0
-        struct = None
-    return dilateit, struct
 
 
 class ResultSet(Sequence):
@@ -147,7 +119,6 @@ class BaseCatalog:
     def __init__(self, name, db, idname='ID', primary_id=None):
         self.name = name
         self.db = db
-        self.idmap = None
         self.idname = idname
         self.logger = logging.getLogger(__name__)
 
@@ -216,23 +187,18 @@ class BaseCatalog:
 
     def info(self):
         """Print information about the catalog (columns etc.)."""
-        print(textwrap.dedent(f"""\
-        {self.__class__.__name__} '{self.name}' - {len(self)} rows.
-
-        Workdir: {getattr(self, 'workdir', '')}
-        """))
-
+        print(f"{self.__class__.__name__} '{self.name}' - {len(self)} rows.")
         if self.meta:
             maxlen = max(len(k) for k in self.meta.keys()) + 1
             meta = '\n'.join(f'- {k:{maxlen}s}: {v}'
                              for k, v in self.meta.items()
                              if k not in ('id', 'name'))
-            print(f"Metadata:\n{meta}\n")
+            print(f"\nMetadata:\n{meta}")
 
         maxlen = max(len(k) for k in self.table.table.columns.keys()) + 1
         columns = '\n'.join(f"- {k:{maxlen}s}: {v.type} {v.default or ''}"
                             for k, v in self.table.table.columns.items())
-        print(f"Columns:\n{columns}\n")
+        print(f"\nColumns:\n{columns}")
 
     def drop(self):
         """Drop the SQL table and its metadata."""
@@ -291,8 +257,8 @@ class BaseCatalog:
                 ids.append(tbl.insert(row, ensure=False))
                 self.log(ids[-1], f'inserted from input catalog')
 
-        if self.idmap:
-            self.idmap.add_ids(ids, self.name)
+        if ids:
+            self.update_meta(maxid=self.max(self.idname))
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
@@ -347,8 +313,8 @@ class BaseCatalog:
                 count[op].append(res)
                 self.log(res, f'{op} from input catalog')
 
-        if self.idmap:
-            self.idmap.add_ids(count['inserted'], self.name)
+        if count['inserted']:
+            self.update_meta(maxid=self.max(self.idname))
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
@@ -380,12 +346,6 @@ class BaseCatalog:
 
     def select_id(self, id_):
         """Return a dict with all keys for a given ID."""
-        if self.idmap:
-            res = self.idmap.table.find_one(ID=id_)
-            if res and f'{self.name}_id' in res:
-                id_ = res[f'{self.name}_id']
-            else:
-                return None
         return self.table.find_one(**{self.idname: id_})
 
     def select_ids(self, idlist, columns=None, idcolumn=None, **params):
@@ -478,12 +438,6 @@ class BaseCatalog:
 
     def update_id(self, id_, **kwargs):
         """Update values for a given ID."""
-        if self.idmap:
-            res = self.idmap.table.find_one(ID=id_)
-            if res and f'{self.name}_id' in res:
-                id_ = res[f'{self.name}_id']
-            else:
-                return None
         return self.table.update({self.idname: id_, **kwargs}, [self.idname])
 
     def update_column(self, name, values):
@@ -500,10 +454,8 @@ class BaseCatalog:
                 tbl.upsert(row, [self.idname], ensure=False)
 
 
-class SpatialCatalog(BaseCatalog):
-    """Catalog with spatial information.
-
-    This class handles catalogs with spacial information associated (RA, Dec).
+class Catalog(BaseCatalog):
+    """Handle user catalogs, with spatial information.
 
     Parameters
     ----------
@@ -522,34 +474,38 @@ class SpatialCatalog(BaseCatalog):
 
     """
 
-    catalog_type = ''
+    catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
                  primary_id=None):
-        if name.endswith('_lines'):
-            raise ValueError(
-                'Catalog names must not end with "_lines" as it is reserved '
-                'for line tables. If you want to create a line table for '
-                'a catalog, use it\'s create_lines method.')
-
         super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.raname = raname
         self.decname = decname
         self.update_meta(raname=self.raname, decname=self.decname)
-        self.lines = None
 
-    def info(self):
-        """Print information about catalog and line table if any."""
-        super().info()
-        if self.lines is not None:
-            print('\nThe catalog has a line table associated:\n')
-            self.lines.info()
+        # FIXME: sadly this doesn't work well currently, it is not taken into
+        # account until an insert is done
+        # from sqlalchemy.schema import ColumnDefault
+        # self.table._sync_columns({idname: 1, raname: 1., decname: 1.,
+        #                           'active': True, 'merged': False}, True)
+        # self.c.active.default = ColumnDefault(True)
+        # self.c.merged.default = ColumnDefault(False)
+        # self.table.create_column('active', self.db.types.boolean)
+        # self.table.create_column('merged', self.db.types.boolean)
 
-    def drop(self):
-        """Drop the catalog and it's associated line table if any."""
-        if self.lines is not None:
-            self.lines.drop()
-        super().drop()
+    @classmethod
+    def from_parent_cat(cls, parent_cat, name, whereclause, primary_id=None):
+        """Create a new `Catalog` from another one."""
+        cat = cls(name, parent_cat.db, primary_id=primary_id,
+                  idname=parent_cat.idname,
+                  raname=getattr(parent_cat, 'raname', None),
+                  decname=getattr(parent_cat, 'decname', None))
+        if parent_cat.meta.get('query'):
+            # Combine query string with the parent cat's one
+            whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
+        cat.update_meta(parent_cat=parent_cat.name,
+                        maxid=parent_cat.meta['maxid'], query=whereclause)
+        return cat
 
     def select(self, whereclause=None, columns=None, wcs=None, margin=0,
                mask=None, **params):
@@ -651,279 +607,6 @@ class SpatialCatalog(BaseCatalog):
         tbl = self.select(columns=columns).as_table()
         return tbl.to_skycoord(ra=self.raname, dec=self.decname)
 
-    def create_lines(self, line_idname="ID", line_src_idname="src_ID"):
-        """Create an associated line catalog.
-
-        This function creates a line catalog in the database and associates it
-        to the SpatialCatalog. The line catalog is named by suffixing the name
-        of the catalog with `_lines`.
-
-        Parameters
-        ----------
-        line_idname: str
-            Name of the line identifier column in the line catalog.
-        line_src_idname: str
-            Name of the source identifier column in the line catalog.
-
-        """
-        if self.lines is not None:
-            raise ValueError("catalogue already has a line table associated")
-        self.lines = LineCatalog(name=f'{self.name}_lines', db=self.db,
-                                 idname=line_idname,
-                                 src_idname=line_src_idname)
-
-
-class Catalog(SpatialCatalog):
-    """Handle user catalogs.
-
-    Parameters
-    ----------
-    name: str
-        Name of the catalog.
-    db: `dataset.Database`
-        The database object.
-    idname: str
-        Name of the 'id' column.
-    raname: str
-        Name of the 'ra' column.
-    decname: str
-        Name of the 'dec' column.
-    primary_id: str
-        The primary id for the SQL table, must be a column name.
-    segmap: str
-        Path to the segmentation map file associated to the catalog.
-    workdir: str
-        Directory used for intermediate files.
-    mask_tpl: str
-        Template to find the mask associated to the ID of a source.  The
-        template is formated with `mask_tpl % id` to get the path to the mask
-        of a source.
-    skymask_tpl: str
-        Same as mask_tpl but for the sky mask.
-
-    """
-
-    catalog_type = 'user'
-
-    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
-                 segmap=None, workdir=None, mask_tpl=None, skymask_tpl=None,
-                 **kwargs):
-        super().__init__(name, db, idname=idname, raname=raname,
-                         decname=decname, **kwargs)
-        self.segmap = segmap
-        self._segmap_aligned = {}
-        self.mask_tpl = mask_tpl
-        self.skymask_tpl = skymask_tpl
-        # Work dir for intermediate files
-        if workdir is None:
-            raise Exception('FIXME: find a better way to handle this')
-        self.workdir = Path(workdir) / self.name
-        self.workdir.mkdir(exist_ok=True, parents=True)
-
-        # FIXME: sadly this doesn't work well currently, it is not taken into
-        # account until an insert is done
-        # from sqlalchemy.schema import ColumnDefault
-        # self.table._sync_columns({idname: 1, raname: 1., decname: 1.,
-        #                           'active': True, 'merged': False}, True)
-        # self.c.active.default = ColumnDefault(True)
-        # self.c.merged.default = ColumnDefault(False)
-        # self.table.create_column('active', self.db.types.boolean)
-        # self.table.create_column('merged', self.db.types.boolean)
-
-    @classmethod
-    def from_parent_cat(cls, parent_cat, name, workdir, whereclause,
-                        primary_id=None):
-        """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, workdir=workdir, primary_id=primary_id,
-                  idname=parent_cat.idname,
-                  raname=getattr(parent_cat, 'raname', None),
-                  decname=getattr(parent_cat, 'decname', None),
-                  segmap=getattr(parent_cat, 'segmap', None),
-                  mask_tpl=getattr(parent_cat, 'mask_tpl', None),
-                  skymask_tpl=getattr(parent_cat, 'skymask_tpl', None))
-        if parent_cat.meta.get('query'):
-            # Combine query string with the parent cat's one
-            whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
-        cat.update_meta(parent_cat=parent_cat.name,
-                        segmap=getattr(parent_cat, 'segmap', None),
-                        maxid=parent_cat.meta['maxid'], query=whereclause)
-        return cat
-
-    @lazyproperty
-    def segmap_img(self):
-        """The segmentation map as an `musex.Segmap` object."""
-        if self.segmap:
-            return SegMap(self.segmap)
-
-    def get_segmap_aligned(self, dataset):
-        """Get a segmap image rotated and aligned to a dataset."""
-        name = dataset.name
-        margin = dataset.margin
-        if name not in self._segmap_aligned:
-            self.logger.info('Aligning segmap with dataset %s', name)
-            self._segmap_aligned[name] = self.segmap_img.align_with_image(
-                dataset.white, truncate=True, margin=margin)
-        return self._segmap_aligned[name]
-
-    def maskobj_name(self, id_):
-        """Return the path of the source mask files."""
-        name = f'mask-source-{id_:05d}.fits'  # add setting ?
-        dataset = self.meta['dataset']
-        assert dataset is not None
-        return str(self.workdir / dataset / name)
-
-    def masksky_name(self, id_=None):
-        """Return the path of the sky mask file."""
-        dataset = self.meta['dataset']
-        assert dataset is not None
-        name = 'mask-sky.fits' if id_ is None else f'mask-sky-{id_:05d}.fits'
-        return str(self.workdir / dataset / name)
-
-    def attach_dataset(self, dataset, skip_existing=True,
-                       convolve_fwhm=0, mask_size=(20, 20),
-                       psf_threshold=0.5, n_jobs=1, verbose=0):
-        """Attach a dataset to the catalog and generate intermediate products.
-
-        If the catalog is associated to a segmap, create the masks adapted to
-        the given dataset for each source. If the catalog is associated to
-        pre-computed masks just copy them (so that the user can modify them
-        without touching the original ones).
-
-        TODO: For now, the masks are supposed to be adapted to the attached
-        dataset (they come from the same MUSE cube). Implement the
-        re-projection to attach arbitrary masks.
-
-        TODO: store preprocessing status?
-
-        Parameters
-        ----------
-        dataset: `musex.Dataset`
-            The dataset.
-
-        """
-        # A segmap or the mask templates are mandatory to be able to extract
-        # spectra.
-        if (self.segmap is None) and \
-                (self.mask_tpl is None or self.skymask_tpl is None):
-            raise ValueError(f'a segmap or a mask_tpl and a skymask_tpl '
-                             'are required')
-
-        # create output path if needed
-        outpath = self.workdir / dataset.name
-        outpath.mkdir(exist_ok=True)
-
-        ref_dataset = self.meta.get('dataset')
-        if ref_dataset is not None and dataset.name != ref_dataset:
-            raise ValueError('cannot compute masks with a different '
-                             'dataset as the one used previously')
-
-        # FIXME: If pre-computed masks are provided, take the size of the masks
-        # from them (that means that all the masks must have the same size).
-        self.update_meta(dataset=dataset.name, convolve_fwhm=convolve_fwhm,
-                         mask_size_x=mask_size[0], mask_size_y=mask_size[1],
-                         psf_threshold=psf_threshold)
-
-        white = dataset.white
-
-        # check sources inside dataset, excluding inactive sources
-        if 'active' in self.c:
-            tab = self.select(self.c.active.isnot(False)).as_table()
-        else:
-            tab = self.select().as_table()
-
-        idname = self.idname
-        ntot = len(tab)
-        tab = tab.select(white.wcs, ra=self.raname, dec=self.decname,
-                         margin=dataset.margin)
-        self.logger.info('%d sources inside dataset (%d in catalog)',
-                         len(tab), ntot)
-
-        stats = defaultdict(list)
-
-        if self.segmap is not None:
-            # Get a segmap image rotated and aligned with our dataset
-            segmap = self.get_segmap_aligned(dataset)
-
-            dilateit, struct = _get_psf_convolution_params(
-                convolve_fwhm, segmap, psf_threshold)
-
-            # create sky mask
-            if exists(self.masksky_name()) and skip_existing:
-                self.logger.debug('sky mask exists, skipping')
-            else:
-                self.logger.debug('creating sky mask')
-                segmap.get_mask(0, inverse=True, dilate=dilateit,
-                                struct=struct, regrid_to=white,
-                                outname=self.masksky_name())
-
-            # extract source masks
-            minsize = 0.
-            to_compute = []
-            for row in tab:
-                id_ = int(row[idname])  # need int, not np.int64
-                source_path = self.maskobj_name(id_)
-                if exists(source_path) and skip_existing:
-                    stats['skipped'].append(id_)
-                else:
-                    center = (row[self.decname], row[self.raname])
-                    if 'merged' in row.colnames and row['merged']:
-                        ids = [o[idname] for o in self.select(
-                            self.c.merged_in == id_, columns=[idname])]
-                        # debug('merged sources, using ids %s for the mask',
-                        # ids)
-                    else:
-                        ids = id_
-
-                    stats['computed'].append(ids)
-                    to_compute.append(delayed(segmap.get_source_mask)(
-                        ids, center, mask_size, minsize=minsize, struct=struct,
-                        dilate=dilateit, outname=source_path, regrid_to=white))
-
-            # FIXME: check which value to use for max_nbytes
-            if to_compute:
-                Parallel(n_jobs=n_jobs,
-                         verbose=verbose)(progressbar(to_compute))
-        else:
-            # If there is no segmap, we use individual mask files
-            # TODO: If we don't set segmap or masks mandatory, consider here
-            # the case with none of them.
-            for row in tab:
-                id_ = int(row[idname])  # need int, not np.int64
-
-                src_mask = Path(self.mask_tpl % id_)
-                src_sky = Path(self.skymask_tpl % id_)
-
-                mask_path = self.maskobj_name(id_)
-                skymask_path = self.masksky_name(id_)
-
-                if exists(mask_path) and skip_existing:
-                    stats['skipped'].append(id_)
-                else:
-                    shutil.copy(src_mask, mask_path)
-                    shutil.copy(src_sky, skymask_path)
-                    stats['copied'].append(id_)
-
-        for row in tab:
-            # update in db
-            id_ = int(row[idname])  # need int, not np.int64
-            source_path = self.maskobj_name(id_)
-            self.table.upsert(
-                {idname: id_,
-                 'mask_obj': relpath(source_path, self.workdir),
-                 'mask_sky': relpath(self.masksky_name(), self.workdir)},
-                [idname])
-
-        for key, val in stats.items():
-            self.logger.info('%s %d sources: %r', key, len(val),
-                             np.array(val, dtype=object))
-
-    def add_segmap_to_source(self, src, conf, dataset):
-        """Add the segmap extension to the source object."""
-        segm = self.get_segmap_aligned(dataset)
-        tag = f'{conf["prefix"]}_SEGMAP'
-        src.SEGMAP = tag
-        src.add_image(segm.img, tag, rotate=True, order=0)
-
     def merge_sources(self, idlist, id_=None, dataset=None,
                       weights_colname=None):
         """Merge sources into one.
@@ -995,49 +678,7 @@ class Catalog(SpatialCatalog):
                 tbl.upsert({idname: s[idname], 'active': False,
                             'merged_in': newid}, [idname], ensure=False)
 
-        if self.idmap:
-            self.idmap.add_ids(newid, self.name)
-
         self.logger.info('sources %s have been merged in %s', idlist, newid)
-
-        if dataset is None:
-            # Just return in this case
-            # self.logger.debug('cannot compute mask (missing dataset)')
-            return newid
-
-        if dataset.name != self.meta['dataset']:
-            self.logger.warning('cannot compute masks with a different '
-                                'dataset as the one used previously')
-            return newid
-
-        try:
-            # maskobj
-            maskobj = self.maskobj_name(newid)
-            segmap = self.get_segmap_aligned(dataset)
-            dilateit, struct = _get_psf_convolution_params(
-                self.meta['convolve_fwhm'], segmap, self.meta['psf_threshold'])
-
-            mask_size = (self.meta['mask_size_x'], self.meta['mask_size_y'])
-            minsize = min(*mask_size) // 2
-            segmap.get_source_mask(
-                idlist, (dec, ra), mask_size, minsize=minsize, struct=struct,
-                dilate=dilateit, outname=maskobj, regrid_to=dataset.white)
-
-            # masksky
-            # FIXME: currenlty we suppose that mask_sky is always the same
-            masksky = relpath(self.masksky_name(), self.workdir)
-            if any(s['mask_sky'] != masksky for s in sources):
-                self.logger.warning('cannot reuse mask_sky')
-                masksky = None
-        except Exception:
-            self.logger.error('unexpected error while computing the masks',
-                              exc_info=True)
-        else:
-            # update in db
-            self.table.upsert({self.idname: newid, 'mask_sky': masksky,
-                               'mask_obj': relpath(maskobj, self.workdir)},
-                              [self.idname])
-
         return newid
 
     def get_ids_merged_in(self, id_):
@@ -1064,10 +705,14 @@ class Catalog(SpatialCatalog):
         self.update_column(name, val)
 
 
-class InputCatalog(SpatialCatalog):
+class InputCatalog(Catalog):
     """Handles catalogs imported from an existing file."""
 
     catalog_type = 'input'
+
+    def __init__(self, name, db, **kwargs):
+        super().__init__(name, db, **kwargs)
+        self.version_meta = None
 
     @classmethod
     def from_settings(cls, name, db, **kwargs):
@@ -1075,54 +720,31 @@ class InputCatalog(SpatialCatalog):
         init_keys = ('idname', 'raname', 'decname')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
-        for key in ('catalog', 'version', 'extract'):
+
+        for key in ('catalog', 'version'):
             if kwargs.get(key) is None:
                 raise ValueError(f'an input {key} is required')
             setattr(cat, key, kwargs[key])
 
-        cat.segmap = kwargs.get('segmap')
-        cat.mask_tpl = kwargs.get('mask_tpl')
-        cat.skymask_tpl = kwargs.get('skymask_tpl')
+        cat.params = kwargs.copy()
         cat.version_meta = kwargs.get('version_meta')
-
-        # The `line_catalog` setting contains the link to the FITS file
-        # containing the line table associated to the input catalog, if any. We
-        # put it in the `line_catalog` attribute to use it at ingestion.
-        cat.line_catalog = kwargs.get('line_catalog')
-        if cat.line_catalog is not None:
-            line_idname = kwargs.get('line_idname')
-            line_src_idname = kwargs.get('line_src_idname')
-            if line_idname is None or line_src_idname is None:
-                raise ValueError("The YAML setting file contains a "
-                                 "line_catalog but no line_idname or no "
-                                 "line_src_idname for the catalog %s." % name)
-            cat.create_lines(line_idname=line_idname,
-                             line_src_idname=line_src_idname)
-
         return cat
 
-    def ingest_input_catalog(self, catalog=None, line_catalog=None, limit=None,
-                             upsert=False, keys=None, line_keys=None,
-                             show_progress=True, version_meta=None):
-        """Ingest an input catalog and the associated line table if any.
+    def ingest_input_catalog(self, catalog=None, limit=None, upsert=False,
+                             keys=None, show_progress=True, version_meta=None):
+        """Ingest an input catalog.
 
-        The catalog and the line table to ingest can be given with the
-        ``catalog`` and ``line_catalog`` parameters or in the setting file.
-        Existing records can be updated using ``upsert=True``, and ``keys`` and
-        ``line_keys`` parameters.
-
-        Only the lines corresponding to sources from the catalog are ingested.
+        The catalog to ingest can be given with the ``catalog`` parameter or
+        in the setting file.  Existing records can be updated using
+        ``upsert=True`` and ``keys``.
 
         The ``limit`` parameter is used to limit the number of rows from the
-        catalog to ingest; the ingested lines will then be limited to the
-        ingested sources.
+        catalog to ingest.
 
         Parameters
         ----------
         catalog: str or `astropy.table.Table`
             Table to insert.
-        line_catalog: str or `astropy.table.Table`
-            Line table to insert.
         limit: int
             To limit the number of rows from the catalog.
         upsert: bool
@@ -1132,30 +754,16 @@ class InputCatalog(SpatialCatalog):
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
-        line_keys: list of str
-            Same as `keys` but for the line table.
         show_progress: bool
             Show a progress bar.
         version_meta: str, optional
             Keyword in the catalog file that is used to identify the version of
             the catalog. It is used for ORIGIN catalogs to check that the
             sources correspond to the catalog.
+
         """
         catalog = catalog or self.catalog
-        # We use getattr because the input catalog may not have a line_catalog
-        # attribute.
-        line_catalog = line_catalog or getattr(self, 'line_catalog', None)
-
-        # Check that we provide the line table when needed and only when
-        # needed.
-        if self.lines is not None and line_catalog is None:
-            raise AttributeError('This input catalog is associated to a line '
-                                 'table but none was provided.')
-        elif self.lines is None and line_catalog is not None:
-            raise AttributeError('This input catalog is not associated to a '
-                                 'line table but one was provided.')
-
-        version_meta = version_meta or getattr(self, 'version_meta', None)
+        version_meta = version_meta or self.version_meta
 
         # Catalog
         if isinstance(catalog, str):
@@ -1176,86 +784,11 @@ class InputCatalog(SpatialCatalog):
                         show_progress=show_progress)
 
         self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type=self.catalog_type, maxid=self.max(self.idname),
-                         segmap=getattr(self, 'segmap', None))
+                         type=self.catalog_type)
 
         if version_meta is not None:
-            self.update_meta(**{'version_meta': version_meta})
-            self.update_meta(**{version_meta: catalog.meta[version_meta]})
-
-        # Lines
-        if line_catalog is not None:
-            if isinstance(line_catalog, str):
-                self.logger.info('ingesting line table %s', line_catalog)
-                line_catalog = Table.read(line_catalog)
-            elif line_catalog is not None:
-                self.logger.info('ingesting line table')
-
-            # Indices of the line table rows corresponding to sources in the
-            # catalog.
-            line_idx = np.in1d(
-                line_catalog[self.lines.src_idname], catalog[self.idname])
-
-            if upsert:
-                self.lines.upsert(line_catalog[line_idx], version=self.version,
-                                  keys=line_keys, show_progress=show_progress)
-            else:
-                self.lines.insert(line_catalog[line_idx], version=self.version,
-                                  show_progress=show_progress)
-
-            self.lines.update_meta(creation_date=datetime.utcnow().isoformat(),
-                                   type='lines',
-                                   maxid=self.lines.max(self.lines.idname))
-
-
-class LineCatalog(BaseCatalog):
-    """Handles list of lines associated to sources.
-
-    This class handles a “line table” that is a list of lines associated to
-    sources from a catalog.
-
-    Parameters
-    ----------
-    name: str
-        Name of the table.
-    db: `dataset.Database`
-        The database object.
-    idname: str
-        Name of the 'id' column.
-    src_idname: str
-        Name of the column containing the IDs from the source catalog.
-    primary_id: str
-        The primary id for the SQL table, must be a column name.
-
-    """
-
-    catalog_type = 'lines'
-
-    def __init__(self, name, db, idname, src_idname, primary_id=None):
-        # TODO Check for existence of the source catalog name and ID column.
-        super().__init__(name, db, idname=idname, primary_id=primary_id)
-        self.src_idname = src_idname
-        self.update_meta(src_idname=self.src_idname)
-
-    def select_src_ids(self, src_ids, columns=None, **params):
-        """Select lines for given source identifiers.
-
-        Parameters
-        ----------
-        src_ids : scaler or list
-            List of source identifiers to get the lines corresponding to.
-        columns: list of str
-            List of columns to retrieve (all columns if None).
-        params: dict
-            Additional parameters are passed to `dataset.Database.query`.
-
-        Returns
-        -------
-        ``musex.catalog.ResultSet``
-
-        """
-        return super().select_ids(src_ids, columns=columns,
-                                  idcolumn=self.src_idname, **params)
+            self.update_meta(**{'version_meta': version_meta,
+                                version_meta: catalog.meta[version_meta]})
 
 
 class MarzCatalog(InputCatalog):
