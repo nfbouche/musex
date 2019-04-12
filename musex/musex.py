@@ -9,7 +9,6 @@ from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
-from mpdaf.obj import Image
 from mpdaf.sdetect import (Source, create_masks_from_segmap,
                            Catalog as MpdafCatalog)
 from mpdaf.tools import progressbar
@@ -298,25 +297,49 @@ class MuseX:
         self.id_mapping = IdMapping(name, self.db)
 
     def create_masks_from_segmap(self, cat, maskdir, limit=None, n_jobs=-1,
-                                 skip_existing=True):
+                                 skip_existing=True, margin=0,
+                                 mask_size=(20, 20), convolve_fwhm=0):
+        """Create binary masks from a segmentation map.
+
+        Parameters
+        ----------
+        cat : `Catalog`
+            The catalog with sources for which masks are computed.
+        maskdir : str
+            The output directory.
+        n_jobs : int
+            Number of parallel processes (for joblib).
+        skip_existing : bool
+            If True, skip sources for which the mask file exists.
+        margin : float
+            Margin from the edges (pixels), for the sources selection and the
+            segmap alignment.
+        mask_size : tuple
+            Size of the source masks (arcsec).
+        convolve_fwhm : float
+            FWHM for the PSF convolution (arcsec).
+
+        """
         ref_image = self.muse_dataset.white
         catfile = cat.params['catalog']
         tbl = MpdafCatalog.read(catfile)
         self.logger.info('read catalog %s with %d sources', catfile, len(tbl))
 
-        tbl = tbl.select(ref_image.wcs, ra='RA', dec='DEC', margin=10)
+        tbl = tbl.select(ref_image.wcs, ra=cat.raname, dec=cat.decname,
+                         margin=margin)
         self.logger.info('selected %d sources in dataset footprint', len(tbl))
 
         if limit:
             tbl = tbl[:limit]
 
+        os.makedirs(maskdir, exist_ok=True)
         create_masks_from_segmap(
             cat.params['segmap'], tbl[:10], ref_image, n_jobs=n_jobs,
             skip_existing=skip_existing,
             masksky_name=f'{maskdir}/mask-sky.fits',
             maskobj_name=f'{maskdir}/mask-source-%05d.fits',
             idname=cat.idname, raname=cat.raname, decname=cat.decname,
-            margin=0, mask_size=(25, 25), convolve_fwhm=0.8)
+            margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
@@ -554,7 +577,6 @@ class MuseX:
             Output directory. If None the default is `'source-{src.ID:05d}'`.
 
         """
-
         cname = get_cat_name(res_or_cat)
         if outdir is None:
             outdir = f'{self.exportdir}/{cname}/marz'
