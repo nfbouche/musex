@@ -389,10 +389,10 @@ class MuseX:
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
-        segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
-        segmap = parent_cat.params['segmap']
-        if isinstance(segmap, str):
-            segmap = Image(segmap)
+        # segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+        # segmap = parent_cat.params['segmap']
+        # if isinstance(segmap, str):
+        #     segmap = Image(segmap)
 
         redshifts = self.conf['export'].get('redshifts', {})
         header_columns = self.conf['export'].get('header_columns', {})
@@ -470,9 +470,9 @@ class MuseX:
                     src.add_history(o['msg'], author=author, date=o['date'])
                 src.add_history('source created', author=author)
 
-            if 'segmap' in content:
-                src.SEGMAP = segmap_tag
-                src.add_image(segmap, segmap_tag, rotate=True, order=0)
+            # if 'segmap' in content:
+            #     src.SEGMAP = segmap_tag
+            #     src.add_image(segmap, segmap_tag, rotate=True, order=0)
 
             if 'parentcat' in content:
                 parent_cat.add_to_source(src, row,
