@@ -9,6 +9,24 @@ datasets:
     prefix: TEST
     images:
       FAKE: '{datadir}/image.fits'
+  photutils-hdfs:
+    prefix: PHU
+    images:
+      segmap: '{datadir}/segmap.fits'
+    masks:
+      # mask_tpl, skymask_tpl, skymask
+      skymask: '{tmpdir}/masks/hdfs/mask-sky.fits'
+      mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
+  origin:
+    prefix: ORIG
+    tables:
+      lines:
+        file: '{datadir}/cat_origin_lines.fits'
+        idname: 'num_line'
+        src_idname: 'ID'
+    masks:
+      mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
+      skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
 muse_datasets:
   default: hdfs
@@ -28,7 +46,6 @@ catalogs:
     idname: id
     raname: ra
     decname: dec
-    segmap: '{datadir}/segmap.fits'
     extract:
       prefix: PHU
       columns: [id, ra, dec, source_sum, area]

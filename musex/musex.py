@@ -321,22 +321,25 @@ class MuseX:
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
-                   n_jobs=1):
+                   n_jobs=1, masks_dataset=None):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
         ----------
-        res_or_cat: `ResultSet`, `Catalog`, `Table`
+        res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        size: float or list of float
+        size : float or list of float
             Size of the images (in arcseconds) added in the sources.
-        srcvers: str
+        srcvers : str
             Version of the sources (SRC_V).
-        apertures: list of float
+        apertures : list of float
             List of aperture radii for spectra extraction.
-        datasets: list of str
+        datasets : list of str
             List of dataset names to use for the sources. By default all
             datasets are used.
+        masks_dataset : str
+            Name of the dataset from which the source and sky masks are taken.
+            If missing, no spectra will be extracted from the source cube.
 
         """
         if isinstance(res_or_cat, Catalog):
@@ -399,13 +402,24 @@ class MuseX:
                     "'%s' column not found, though it is specified in the "
                     "settings file for the %s keyword", colname, key)
 
+        if masks_dataset is not None:
+            maskds = self.datasets[masks_dataset]
+        else:
+            info('no masks specified, spectra will not be extracted')
+            maskds = None
+
         rows = [dict(zip(row.colnames, row.as_void().tolist()))
                 for row in resultset]
         to_compute = []
         for row, src_size in zip(rows, size):
-            skyim = str(row['mask_sky'])
-            maskim = str(row['mask_obj'])
-            args = (row[idname], row[raname], row[decname], src_size, skyim,
+            id_ = row[idname]
+            if maskds:
+                skyim = maskds.get_skymask_file(id_)
+                maskim = maskds.get_objmask_file(id_)
+            else:
+                skyim, maskim = None, None
+
+            args = (id_, row[raname], row[decname], src_size, skyim,
                     maskim, use_datasets, apertures, verbose)
             to_compute.append(delayed(create_source)(*args))
 
@@ -553,31 +567,6 @@ class MuseX:
         datasets = None if export_sources else []
         content = ('segmap', 'parentcat') if export_sources else tuple()
 
-        # TODO: The following commented code was in the export_marz method
-        # before the sources_to_marz code was extracted.
-
-        # TODO: how to choose which spectrum to use ?
-        # if args.selmode == 'udf':
-        #     smag = s.mag[s.mag['BAND'] == 'F775W']
-        #     mag = -99 if len(smag) == 0 else smag['MAG'][0]
-        #     if 'MUSE_PSF_SKYSUB' in s.spectra:
-        #         if hasattr(s,'FWHM'):
-        #             if s.FWHM*0.03 > 0.7: # large object we use WHITE
-        #                 sp = s.spectra['MUSE_WHITE_SKYSUB']
-        #             else:
-        #                 sp = s.spectra['MUSE_PSF_SKYSUB']
-        #     else: # we use mag, no size available
-        #         if mag < 26.5:
-        #             sp = s.spectra['MUSE_WHITE_SKYSUB']
-        # elif args.selmode == 'origin':
-        #     if 'MUSE_PSF' in s.spectra:
-        #         sp = s.spectra['MUSE_PSF']
-        #     else:
-        #         sp = s.spectra['MUSE_TOT']
-        # else:
-        #     self.logger.error('unknown selmode '+args.selmode)
-        #     return
-
         sources_to_marz(
             src_list=self.to_sources(res_or_cat, datasets=datasets,
                                      content=content, **kwargs),
@@ -606,10 +595,10 @@ class MuseX:
             Template for the source file name that is formatted with the object
             identifier.
         outfile : str, optional
-            Output file. If None, the default is `<export dir>/<muse dataset
-            name>/<catalog name>/marz/marz-<catalog name>-<dataset name>.fits'`.
+            Output file. Defaults to ``<export dir>/<muse dataset name>/
+            <catalog name>/marz/marz-<catalog name>-<dataset name>.fits'``.
         is_odhin : bool, optional
-            True is `res_or_cat` comes from ODHIN.
+            True if ``res_or_cat`` comes from ODHIN.
 
         """
         if isinstance(res_or_cat, Catalog):
@@ -666,10 +655,8 @@ class MuseX:
         else:
             get_source = _simple_source
 
-        src_list = progressbar(
-            (get_source(row) for row in resultset), total=len(resultset)
-        )
-
+        src_list = progressbar((get_source(row) for row in resultset),
+                               total=len(resultset))
         sources_to_marz(src_list, outfile, check_keyword=check_keyword)
 
     def import_marz(self, catfile, catalog, **kwargs):
@@ -705,24 +692,20 @@ class MuseX:
         del self.catalogs[name]
 
     def cross_match(self, name, cat1, cat2, radius=1.):
-        """Cross-match two catalogs.
-
-        This function cross-match two catalogs and creates a CrossMatch catalog
-        in the database.
+        """Cross-match two catalogs and creates a CrossMatch catalog.
 
         Parameters
         ----------
         name: str
-            Name of the CrossMatch catalog in the database.
-        cat1: `musex.catalog.SpatialCatalog`
+            Name of the `musex.catalog.CrossMatch` catalog in the database.
+        cat1: `musex.catalog.Catalog`
             The first catalog to cross-match.
-        cat2. `musex.catalog.SpatialCatalog`
+        cat2. `musex.catalog.Catalog`
             The second catalog.
         radius: float
-            The cross-match radius in  arc-seconds.
+            The cross-match radius in arc-seconds.
 
         """
         if name in self.catalogs:
             raise ValueError("A catalog with this name already exists.")
-
         return gen_crossmatch(name, self.db, cat1, cat2, radius)

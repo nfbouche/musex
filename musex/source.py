@@ -87,39 +87,40 @@ def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
         ds.add_to_source(src)
 
     center = (src.DEC, src.RA)
-    # If mask_sky is always the same, reuse it instead of reloading
-    # FIXME: use Source.add_image instead ?
-    src.images['MASK_SKY'] = extract_subimage(
-        skyim, center, (size, size), minsize=minsize)
 
-    # centerpix = maskim.wcs.sky2pix(center)[0]
-    # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
-    #       *centerpix.tolist())
-    # FIXME: check that center is inside mask
-    src.images['MASK_OBJ'] = extract_subimage(
-        maskim, center, (size, size), minsize=minsize)
+    if skyim is not None and maskim is not None:
+        # FIXME: use Source.add_image instead ?
+        src.images['MASK_SKY'] = extract_subimage(
+            skyim, center, (size, size), minsize=minsize)
 
-    # compute surface of each masks and compare to field of view, save
-    # values in header
-    nsky = np.count_nonzero(src.images['MASK_SKY']._data)
-    nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
-    nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
-    nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
-    min_nsky_abs, min_nsky_rel = nskywarn
-    if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
-        logger.warning('sky mask is too small. Size is %d spaxel '
-                       'or %.1f %% of total area', nsky, nfracsky)
+        # FIXME: check that center is inside mask
+        # centerpix = maskim.wcs.sky2pix(center)[0]
+        # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
+        #       *centerpix.tolist())
+        src.images['MASK_OBJ'] = extract_subimage(
+            maskim, center, (size, size), minsize=minsize)
 
-    src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-    src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
-    src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-    src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
-    # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
-    # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-    # return nobj, nfracobj, nsky, nfracobj
-    logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+        # compute surface of each masks and compare to field of view, save
+        # values in header
+        nsky = np.count_nonzero(src.images['MASK_SKY']._data)
+        nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
+        nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
+        nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
+        min_nsky_abs, min_nsky_rel = nskywarn
+        if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
+            logger.warning('sky mask is too small. Size is %d spaxel '
+                           'or %.1f %% of total area', nsky, nfracsky)
 
-    src.extract_all_spectra(apertures=apertures)
+        src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+        src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
+        src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+        src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
+        # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
+        # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
+        # return nobj, nfracobj, nsky, nfracobj
+        logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+
+        src.extract_all_spectra(apertures=apertures)
 
     # Joblib has a memmap reducer that does not work with astropy.io.fits
     # memmaps. So here we copy the arrays to avoid relying the memmaps.

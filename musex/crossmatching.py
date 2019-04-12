@@ -32,9 +32,9 @@ def gen_crossmatch(name, db, cat1, cat2, radius=1.):
         Name of the CrossMatch catalog in the database.
     db: `dataset.Database`
         The database object to use.
-    cat1: `musex.catalog.SpatialCatalog`
+    cat1: `musex.catalog.Catalog`
         The first catalog to cross-match.
-    cat2. `musex.catalog.SpatialCatalog`
+    cat2. `musex.catalog.Catalog`
         The second catalog.
     radius: float
         The cross-match radius in  arc-seconds.

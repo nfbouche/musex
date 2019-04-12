@@ -27,9 +27,21 @@ class DataSet:
             setattr(self, key, self.settings.get(key))
 
     def __repr__(self):
-        return (f'<{self.__class__.__name__}('
-                f'{self.prefix}, version {self.version}, '
-                f'{len(self.settings["images"])} images)')
+        out = f'<{self.__class__.__name__}('
+        if self.prefix:
+            out += f'prefix={self.prefix}, '
+        if self.version:
+            out += f'version={self.version}, '
+        for k, v in self.settings.items():
+            if k not in ('version', 'prefix'):
+                if isinstance(v, dict):
+                    if len(v) > 0:
+                        out += f'{len(v)} {k}, '
+                else:
+                    out += f'1 {k}, '
+        if out.endswith(', '):
+            out = out[:-2]
+        return out + ')>'
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -50,6 +62,39 @@ class DataSet:
         # TODO ? strip header
         return {k: Image(v, copy=False)
                 for k, v in self.settings['images'].items()}
+
+    def get_skymask_file(self, id_):
+        """Return the sky mask, optionally for a given ID.
+
+        The mask file must be defined in the settings::
+
+            masks:
+                skymask: '{tmpdir}/masks/hdfs/mask-sky.fits'
+
+        Or with a template for the mask of each source::
+
+            masks:
+                skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
+
+        """
+        masks = self.settings.get('masks', {})
+        if 'skymask_tpl' in masks:
+            return masks['skymask_tpl'] % id_
+        elif 'skymask' in masks:
+            return masks['skymask']
+
+    def get_objmask_file(self, id_):
+        """Return the source mask for a given ID.
+
+        The mask file template must be defined in the settings::
+
+            masks:
+                mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
+
+        """
+        masks = self.settings.get('masks', {})
+        if 'mask_tpl' in masks:
+            return masks['mask_tpl'] % id_
 
     def add_to_source(self, src, **kwargs):
         """Add stamp images to a source."""
