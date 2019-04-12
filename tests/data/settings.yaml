@@ -66,7 +66,7 @@ export:
   path: '{tmpdir}/export'
   redshifts:
     # Define redshift columns.
-    MUSE: AutoZ
+    MUSE: Z
     # MUSE: FinZ
   header_columns:
     # Maps keader keywords to column names

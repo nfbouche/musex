@@ -714,6 +714,10 @@ class InputCatalog(Catalog):
 
     catalog_type = 'input'
 
+    def __init__(self, name, db, **kwargs):
+        super().__init__(name, db, **kwargs)
+        self.version_meta = None
+
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
