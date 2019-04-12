@@ -678,11 +678,7 @@ class Catalog(BaseCatalog):
                 tbl.upsert({idname: s[idname], 'active': False,
                             'merged_in': newid}, [idname], ensure=False)
 
-        if self.idmap:
-            self.idmap.add_ids(newid, self.name)
-
         self.logger.info('sources %s have been merged in %s', idlist, newid)
-
         return newid
 
     def get_ids_merged_in(self, id_):
