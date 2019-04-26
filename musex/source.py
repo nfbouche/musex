@@ -83,8 +83,8 @@ def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
     src.default_size = size
     src.SIZE = size
 
-    for ds in datasets:
-        ds.add_to_source(src)
+    for ds, names in datasets.items():
+        ds.add_to_source(src, names=names)
 
     center = (src.DEC, src.RA)
 

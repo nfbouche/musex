@@ -22,6 +22,7 @@ datasets:
         file: '{datadir}/cat_origin_lines.fits'
         idname: 'num_line'
         src_idname: 'ID'
+    sources: '{datadir}/origin_sources/source-%05d.fits'
     masks:
       mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
       skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'

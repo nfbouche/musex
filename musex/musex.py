@@ -12,7 +12,7 @@ from mpdaf.log import setup_logging
 from mpdaf.obj import Image
 from mpdaf.sdetect import (Source, create_masks_from_segmap,
                            Catalog as MpdafCatalog)
-from mpdaf.tools import progressbar
+from mpdaf.tools import progressbar, isiter
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, MarzCatalog,
@@ -359,9 +359,10 @@ class MuseX:
             Version of the sources (SRC_V).
         apertures : list of float
             List of aperture radii for spectra extraction.
-        datasets : list of str
-            List of dataset names to use for the sources. By default all
-            datasets are used.
+        datasets : iterable or dict
+            List of dataset names to use for the sources, or dictionary with
+            dataset names associated to a list of tags to use. By default all
+            datasets are used, and all tags.
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
@@ -402,13 +403,16 @@ class MuseX:
         else:
             raise ValueError("'size' should be a float or list of floats")
 
-        use_datasets = [self.muse_dataset]
+        use_datasets = {self.muse_dataset: None}
         if datasets is not None:
-            if not isinstance(datasets, (list, tuple)):
-                datasets = [datasets]
-            use_datasets += [self.datasets[a] for a in datasets]
+            if isinstance(datasets, dict):
+                use_datasets.update({self.datasets[name]: val
+                                     for name, val in datasets.items()})
+            elif isiter(datasets):
+                use_datasets.update({self.datasets[name]: None
+                                     for name in datasets})
         else:
-            use_datasets += list(self.datasets.values())
+            use_datasets.update({ds: None for ds in self.datasets.values()})
 
         parent_cat = self.find_parent_cat(cat)
         idname, raname, decname = cat.idname, cat.raname, cat.decname

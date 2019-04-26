@@ -2,6 +2,7 @@ import logging
 import numpy as np
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
+from mpdaf.sdetect import Source
 from os.path import basename
 
 __all__ = ['DataSet', 'MuseDataSet']
@@ -21,7 +22,6 @@ class DataSet:
     def __init__(self, name, settings):
         self.name = name
         self.settings = settings
-        self.settings.setdefault('images', {})
         self.logger = logging.getLogger(__name__)
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
@@ -60,8 +60,14 @@ class DataSet:
         # with warnings.catch_warnings():
         #     warnings.simplefilter('ignore', AstropyWarning)
         # TODO ? strip header
-        return {k: Image(v, copy=False)
-                for k, v in self.settings['images'].items()}
+        conf = self.settings.get('images', {})
+        return {k: Image(v) for k, v in conf.items()}
+
+    @lazyproperty
+    def cubes(self):
+        """Return a dictionary with the cubes."""
+        conf = self.settings.get('cubes', {})
+        return {k: Cube(v) for k, v in conf.items()}
 
     def get_skymask_file(self, id_):
         """Return the sky mask, optionally for a given ID.
@@ -96,14 +102,51 @@ class DataSet:
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
 
-    def add_to_source(self, src, **kwargs):
+    @property
+    def src_path(self):
+        return self.settings.get('sources')
+
+    def get_source(self, id_):
+        if self.src_path:
+            return Source.from_file(self.src_path % id_)
+
+    def add_to_source(self, src, names=None, **kwargs):
         """Add stamp images to a source."""
+
+        debug = self.logger.debug
+        # Images
         for name, img in self.images.items():
             name = name.upper()
-            tagname = getattr(img, 'name', name)
+            # tagname = getattr(img, 'name', name)
+            if names is not None and name not in names:
+                continue
             order = 0 if name == 'SEGMAP' else 1
-            src.add_image(img, f'{self.prefix}_{tagname}', rotate=True,
+            debug('Adding image: %s_%s', self.prefix, name)
+            src.add_image(img, f'{self.prefix}_{name}', rotate=True,
                           order=order)
+
+        # Cubes
+        for name, cube in self.cubes.items():
+            name = name.upper()
+            if names is not None and name not in names:
+                continue
+            debug('Adding cube: %s_%s', self.prefix, name)
+            src.add_cube(cube, f'{self.prefix}_{name}')
+
+        # Sources
+        s = self.get_source(src.ID)
+        if s is not None:
+            for ext in ('images', 'spectra', 'cubes', 'tables'):
+                sdata = getattr(s, ext)
+                srcdata = getattr(src, ext)
+                for name, img in sdata.items():
+                    if names is not None and name not in names:
+                        continue
+                    if name in srcdata:
+                        debug('Not overriding %s from source %s', name, ext)
+                    else:
+                        debug('Adding source %s: %s', ext, name)
+                        srcdata[name] = img
 
 
 class MuseDataSet(DataSet):
@@ -116,11 +159,7 @@ class MuseDataSet(DataSet):
 
     def __init__(self, name, settings):
         super().__init__(name, settings)
-        margin = self.settings.get('margin')
-        if margin is None:
-            self.margin = 0  # default
-        else:
-            self.margin = margin
+        self.margin = self.settings.get('margin', 0)
 
     @lazyproperty
     def cube(self):
@@ -141,7 +180,7 @@ class MuseDataSet(DataSet):
         """The exposure map image."""
         return Image(self.settings['expima'], copy=False)
 
-    def add_to_source(self, src, **kwargs):
+    def add_to_source(self, src, names=None, **kwargs):
         """Add subcube and images to a source."""
         # set PA: FIXME - useful ?
         # src.set_pa(self.cube)
@@ -168,4 +207,4 @@ class MuseDataSet(DataSet):
                 # fieldmap arg not available in MPDAF 2.4
                 src.add_FSF(self.cube)
 
-        super().add_to_source(src, **kwargs)
+        super().add_to_source(src, names=names, **kwargs)
