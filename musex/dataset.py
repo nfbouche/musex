@@ -32,8 +32,10 @@ class DataSet:
             out += f'prefix={self.prefix}, '
         if self.version:
             out += f'version={self.version}, '
+        if self.linked_cat:
+            out += f'linked_cat={self.linked_cat}, '
         for k, v in self.settings.items():
-            if k not in ('version', 'prefix'):
+            if k not in ('version', 'prefix', 'linked_catalog'):
                 if isinstance(v, dict):
                     if len(v) > 0:
                         out += f'{len(v)} {k}, '
@@ -53,6 +55,11 @@ class DataSet:
         for slot, value in state.items():
             setattr(self, slot, value)
         self.logger = logging.getLogger(__name__)
+
+    @lazyproperty
+    def linked_cat(self):
+        """Return the linked catalog, if any."""
+        return self.settings.get('linked_catalog')
 
     @lazyproperty
     def images(self):

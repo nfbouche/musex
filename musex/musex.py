@@ -385,6 +385,7 @@ class MuseX:
 
         nrows = len(resultset)
         cat = resultset.catalog
+        parent_cat = self.find_parent_cat(cat)
 
         debug = self.logger.debug
         info = self.logger.info
@@ -412,9 +413,13 @@ class MuseX:
                 use_datasets.update({self.datasets[name]: None
                                      for name in datasets})
         else:
-            use_datasets.update({ds: None for ds in self.datasets.values()})
+            for ds in self.datasets.values():
+                if ds.linked_cat and ds.linked_cat != parent_cat:
+                    # if the dataset is linked to a catalog which is not the
+                    # one used here, skip it
+                    continue
+                use_datasets[ds] = None
 
-        parent_cat = self.find_parent_cat(cat)
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']
 
