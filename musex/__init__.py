@@ -9,9 +9,11 @@ from .version import __version__, __description__
 def _setup_logging():
     import logging
     import sys
-    from mpdaf.log import setup_logging
-    setup_logging('mpdaf', level=logging.INFO, stream=sys.stdout)
-    setup_logging(__name__, level=logging.DEBUG, stream=sys.stdout)
+    from mpdaf.log import setup_logging, clear_loggers
+    logging.getLogger('alembic').setLevel('WARNING')
+    clear_loggers('mpdaf')
+    setup_logging(name='', level='INFO', color=True, stream=sys.stdout,
+                  fmt='%(levelname)s %(message)s')
 
 
 _setup_logging()

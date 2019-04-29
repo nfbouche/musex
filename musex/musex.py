@@ -7,6 +7,7 @@ import sys
 import textwrap
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
+from contextlib import contextmanager
 from joblib import delayed, Parallel
 from mpdaf.log import setup_logging
 from mpdaf.obj import Image
@@ -179,6 +180,25 @@ class MuseX:
                     self.catalogs[name].cat2 = self.input_catalogs[cat2_name]
 
         self.logger.info("User catalogs loaded")
+
+    def set_loglevel(self, level):
+        """Set the logging level for the root logger."""
+        logger = logging.getLogger('')
+        level = level.upper()
+        logger.setLevel(level)
+        logger.handlers[0].setLevel(level)
+
+    @contextmanager
+    def use_loglevel(self, level):
+        """Context manager to set the logging level for the root logger."""
+        logger = logging.getLogger('')
+        level = level.upper()
+        oldlevel = logger.getEffectiveLevel()
+        logger.setLevel(level)
+        logger.handlers[0].setLevel(level)
+        yield
+        logger.setLevel(oldlevel)
+        logger.handlers[0].setLevel(oldlevel)
 
     def info(self, outstream=None):
         """Print all available information."""

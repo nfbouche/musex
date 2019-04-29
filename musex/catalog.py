@@ -40,6 +40,7 @@ def get_cat_name(res_or_cat):
 
 
 def get_result_table(res_or_cat):
+    """Helper function to get an Astropy Table from different objects."""
     if isinstance(res_or_cat, ResultSet):
         return res_or_cat.as_table()
     elif isinstance(res_or_cat, Catalog):
