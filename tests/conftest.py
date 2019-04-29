@@ -3,6 +3,7 @@ matplotlib.use('Agg')  # noqa
 
 import os
 import pytest
+import shutil
 
 from musex import MuseX
 
@@ -37,7 +38,9 @@ def settings_file(workdir):
 
 @pytest.fixture
 def mx(settings_file):
-    return MuseX(settings_file=settings_file, show_banner=False)
+    mx = MuseX(settings_file=settings_file, show_banner=False)
+    yield mx
+    shutil.rmtree(f'{mx.workdir}/export', ignore_errors=True)
 
 
 # def pytest_report_header(config):
