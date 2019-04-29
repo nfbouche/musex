@@ -221,7 +221,7 @@ class CrossMatch(BaseCatalog):
 
         return result
 
-    def fig_diagnostic(self):
+    def fig_diagnostic(self):  # pragma: no cover
         """Diagnostic figure for the cross-match."""
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 4))
 
