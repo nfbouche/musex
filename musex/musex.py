@@ -414,11 +414,13 @@ class MuseX:
                                      for name in datasets})
         else:
             for ds in self.datasets.values():
-                if ds.linked_cat and ds.linked_cat != parent_cat:
+                if ds.linked_cat and ds.linked_cat != parent_cat.name:
                     # if the dataset is linked to a catalog which is not the
                     # one used here, skip it
                     continue
                 use_datasets[ds] = None
+
+        info('Using datasets: %s', ','.join(ds.name for ds in use_datasets))
 
         idname, raname, decname = cat.idname, cat.raname, cat.decname
         author = self.conf['author']

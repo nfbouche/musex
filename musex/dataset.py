@@ -62,6 +62,11 @@ class DataSet:
         return self.settings.get('linked_catalog')
 
     @lazyproperty
+    def _src_conf(self):
+        """Return the source settings."""
+        return self.settings.get('sources', {})
+
+    @lazyproperty
     def images(self):
         """Return a dictionary with the images."""
         # with warnings.catch_warnings():
@@ -109,13 +114,10 @@ class DataSet:
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
 
-    @property
-    def src_path(self):
-        return self.settings.get('sources')
-
     def get_source(self, id_):
-        if self.src_path:
-            return Source.from_file(self.src_path % id_)
+        src_path = self._src_conf.get('source_tpl')
+        if src_path:
+            return Source.from_file(src_path % id_)
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add stamp images to a source."""
@@ -143,12 +145,18 @@ class DataSet:
         # Sources
         s = self.get_source(src.ID)
         if s is not None:
+            default_tags = self._src_conf.get('default_tags')
+            excluded_tags = self._src_conf.get('excluded_tags')
+
             for ext in ('images', 'spectra', 'cubes', 'tables'):
                 sdata = getattr(s, ext)
                 srcdata = getattr(src, ext)
                 for name, img in sdata.items():
-                    if names is not None and name not in names:
+                    if ((default_tags and name not in default_tags) or
+                            (excluded_tags and name in excluded_tags) or
+                            (names is not None and name not in names)):
                         continue
+
                     if name in srcdata:
                         debug('Not overriding %s from source %s', name, ext)
                     else:
