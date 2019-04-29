@@ -143,8 +143,22 @@ class DataSet:
             return src
 
     def add_to_source(self, src, names=None, **kwargs):
-        """Add stamp images to a source."""
+        """Add data to a source.
 
+        By default all data from the dataset is added to the Source. It is
+        possible to customize this by giving a list of ``names``, which must
+        match the names of cubes, images, or spectra that can be added. This
+        also apply to dataset containing sources, in which case the names must
+        match the input source data names.
+
+        Parameters
+        ----------
+        src : `mpdaf.sdetect.Source`
+            The Source to which data is added.
+        names : list of str, optional
+            A list of names used to select a subset of data (see above).
+
+        """
         debug = self.logger.debug
         # Images
         for name, img in self.images.items():
