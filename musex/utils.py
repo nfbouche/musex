@@ -11,6 +11,7 @@ from sqlalchemy import event, pool
 
 __all__ = ('load_db', 'load_yaml_config', 'table_to_odict', 'extract_subimage')
 
+
 def load_yaml_config(filename):
     """Load a YAML config file, with string substitution."""
     with open(filename, 'r') as f:

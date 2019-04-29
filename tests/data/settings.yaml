@@ -4,24 +4,37 @@ show_banner: true
 author: 'John Doe'
 
 datasets:
+
   test:
+    # small test dataset with images
     version: '1.0'
     prefix: TEST
     images:
       FAKE: '{datadir}/image.fits'
+
   photutils-hdfs:
+    # dataset linked to the photutils catalog, to provide associated masks
     prefix: PHU
+    linked_catalog: photutils
     masks:
       # mask_tpl, skymask_tpl, skymask
       skymask: '{tmpdir}/masks/hdfs/mask-sky.fits'
       mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
+
   origin:
+    # dataset linked to the origin catalog, to provide associated masks,
+    # sources, and lines catalog
     prefix: ORIG
+    linked_catalog: origin
     tables:
       lines:
         file: '{datadir}/cat_origin_lines.fits'
         idname: 'num_line'
         src_idname: 'ID'
+    sources:
+      # default_tags: [MUSE_TOT_SKYSUB, MUSE_WHITE_SKYSUB]
+      excluded_tags: [MUSE_CUBE, MUSE_WHITE]
+      source_tpl: '{datadir}/origin_sources/source-%05d.fits'
     masks:
       mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
       skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'

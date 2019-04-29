@@ -7,6 +7,7 @@ from astropy.table import Table
 from astropy.wcs import WCS
 from mpdaf.sdetect import Source
 from musex import Catalog, MuseX, masks
+from musex.catalog import get_cat_name, get_result_table
 from numpy.testing import assert_allclose, assert_array_equal
 
 CURDIR = os.path.abspath(os.path.dirname(__file__))
@@ -113,6 +114,12 @@ def test_catalog(mx):
     assert len(res) == 2
     assert res[0]['id'] == 1
 
+    res = phot.select_id(1)
+    assert res['id'] == 1
+    assert res['area'] == 79
+    phot.update_id(1, area=100)
+    assert phot.select_id(1)['area'] == 100
+
     # Test selection with a wcs
     res = phot.select(wcs=mx.muse_dataset.white.wcs, columns=[phot.idname],
                       margin=2/0.2)
@@ -123,6 +130,23 @@ def test_catalog(mx):
                       mask=np.ones(mx.muse_dataset.white.data.shape,
                                    dtype=bool))
     assert len(res) == 0
+
+
+def test_resultset(mx):
+    phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+    res = phot.select()
+
+    # test get_cat_name
+    assert get_cat_name('photutils') == 'photutils'
+    assert get_cat_name(phot) == 'photutils'
+    assert get_cat_name(res) == 'photutils'
+    assert get_cat_name(res.as_table()) == 'photutils'
+
+    # test get_result_table
+    assert len(get_result_table(phot)) == 13
+    assert len(get_result_table(res)) == 13
+    assert len(get_result_table(res.as_table())) == 13
 
 
 def test_user_catalog(mx):
@@ -188,7 +212,7 @@ def test_drop_user_catalog(mx):
     assert catname not in mx.catalogs
 
 
-def test_update_column(mx):
+def test_update_column(mx, caplog):
     # Test addition of a new column
     phot = mx.input_catalogs['photutils']
     phot.ingest_input_catalog()
@@ -205,6 +229,16 @@ def test_update_column(mx):
     res = mycat.select_ids([1, 2, 3])
     tbl = res.as_table()
     assert_array_equal(tbl['foobar'], [0, 1, 2])
+
+    # creation of new column with dash
+    with pytest.raises(ValueError):
+        mycat.insert([{'id': 402, 'foo-bar': 42}])
+
+    caplog.clear()
+    t = Table([[111], [42]], names=('id', 'with-dash'))
+    mycat.insert(t)
+    assert caplog.records[0].message == \
+        'The column with-dash was renamed to with_dash.'
 
 
 def test_update_rows(mx):
@@ -316,46 +350,42 @@ def test_merge_sources(mx):
 
 
 def test_export_marz(mx):
+    # setup
     phot = mx.input_catalogs['photutils']
     phot.ingest_input_catalog()
-
-    res = phot.select(phot.c[phot.idname] > 7,
-                      columns=[phot.idname, phot.raname, phot.decname])
+    res = phot.select(phot.c[phot.idname] > 11)
     mycat = mx.new_catalog_from_resultset('my_cat', res)
-    mx.new_catalog_from_resultset('my_cat2', res)
 
     maskdir = os.path.join(mx.workdir, 'masks', 'hdfs')
     mx.create_masks_from_segmap(phot, maskdir, skip_existing=True, margin=10)
 
-    refspec = ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'] * 4
+    refspec = ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB']
     mycat.update_column('refspec', refspec)
 
-    outdir = f'{mx.workdir}/export'
-    os.makedirs(outdir, exist_ok=True)
     mx.export_marz(mycat, export_sources=True, masks_dataset='photutils-hdfs')
 
     outdir = f'{mx.workdir}/export/hdfs/my_cat/marz'
     assert sorted(os.listdir(f'{outdir}')) == [
-        'marz-my_cat-hdfs.fits',
-        'source-00008.fits',
-        'source-00009.fits',
-        'source-00010.fits',
-        'source-00011.fits',
-        'source-00012.fits',
-        'source-00013.fits'
-    ]
+        'marz-my_cat-hdfs.fits', 'source-00012.fits', 'source-00013.fits']
 
     with fits.open(f'{outdir}/marz-my_cat-hdfs.fits') as hdul:
         assert [hdu.name for hdu in hdul] == [
             'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
         for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
-            assert hdul[name].shape == (6, 200)
+            assert hdul[name].shape == (2, 200)
         assert hdul['DETAILS'].data.dtype.names == (
             'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W',
             'REFSPEC')
-        assert_array_equal(hdul['DETAILS'].data['REFSPEC'], [
-            'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB', 'MUSE_PSF_SKYSUB',
-            'MUSE_TOT_SKYSUB', 'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
+        assert_array_equal(hdul['DETAILS'].data['REFSPEC'],
+                           ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
+
+
+def test_import_marz(mx):
+    # setup
+    phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+    res = phot.select(phot.c[phot.idname] > 11)
+    mycat = mx.new_catalog_from_resultset('my_cat', res)
 
     marzfile = os.path.join(DATADIR, 'marz-my-cat-hdfs_SCO.mz')
     with pytest.raises(ValueError):
@@ -363,106 +393,71 @@ def test_export_marz(mx):
 
     mx.import_marz(marzfile, mycat)
     assert len(mx.marzcat) == 3
-    mx.import_marz(marzfile, 'my_cat2')
-    assert len(mx.marzcat) == 6
 
     res = mx.marzcat.select_ids(8)
     assert res[0]['ID'] == 8
     assert res[0]['Type'] == 6
     assert res[0]['catalog'] == 'my_cat'
-    assert res[1]['catalog'] == 'my_cat2'
 
     # MarZ one solution per row catalog creation
     marz_sol = mx.new_catalog_from_resultset(
-        name="marzsol", resultset=mx.marzcat.select_flat(), primary_id="_id"
-    )
-    assert len(marz_sol) == 30
+        name="marzsol", resultset=mx.marzcat.select_flat(), primary_id="_id")
+    assert len(marz_sol) == 15
+
+    res = mx.marzcat.select_flat(limit_to_cat="my_cat", max_order=2)
     marz_sol = mx.new_catalog_from_resultset(
-        name="marzsol",
-        resultset=mx.marzcat.select_flat(limit_to_cat="my_cat", max_order=2),
-        primary_id="_id", drop_if_exists=True
-    )
+        name="marzsol", resultset=res, primary_id="_id", drop_if_exists=True)
     assert len(marz_sol) == 6
 
-    source_tpl = f"{mx.workdir}/export/hdfs/my_cat/marz/source-%05d.fits"
-    outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz2'
-    os.makedirs(outdir2, exist_ok=True)
-    mx.export_marz_from_sources(mycat, source_tpl,
-                                outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
-    with fits.open(f'{outdir2}/marz-my_cat-hdfs.fits') as hdul:
+
+def test_export_marz_from_sources(mx):
+    # setup
+    orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
+    res = orig.select(orig.c[orig.idname] > 2)
+    mycat = mx.new_catalog_from_resultset('my_oricat', res)
+
+    # FIXME: By default we use REFSPEC from the origin sources but it
+    # could be a good idea to test also that settings refspec works.
+    # Currently it doesn't.
+    # refspec = ['ORI_SPEC_1', 'ORI_SPEC_1']
+    # mycat.update_column('refspec', refspec)
+
+    mx.export_marz(mycat, sources_dataset='origin', skyspec='MUSE_SKY')
+
+    outdir = f'{mx.workdir}/export/hdfs/my_oricat/marz'
+    assert sorted(os.listdir(f'{outdir}')) == ['marz-my_oricat-hdfs.fits']
+
+    with fits.open(f'{outdir}/marz-my_oricat-hdfs.fits') as hdul:
         assert [hdu.name for hdu in hdul] == [
             'PRIMARY', 'WAVE', 'DATA', 'STAT', 'SKY', 'DETAILS']
         for name in ['WAVE', 'DATA', 'STAT', 'SKY']:
-            assert hdul[name].shape == (6, 200)
+            assert hdul[name].shape == (2, 200)
         assert hdul['DETAILS'].data.dtype.names == (
             'NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE', 'F775W', 'F125W',
             'REFSPEC')
-        assert_array_equal(
-            hdul['DETAILS'].data['REFSPEC'],
-            ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB', 'MUSE_PSF_SKYSUB',
-             'MUSE_TOT_SKYSUB', 'MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB'])
-
-    # Export of ORIGIN to Marz
-    orig = mx.input_catalogs['origin']
-    orig.ingest_input_catalog()
-    # We take one of the previously exported sources to use as ORIGIN source.
-    s = Source.from_file(source_tpl % 10)
-    # Source for ID 1 has no CAT3_TS information
-    s.write(source_tpl % 1)
-    # Source for ID 2 has a wrong CAT3_TS information
-    s.header['CAT3_TS'] = "FOO"
-    s.write(source_tpl % 2)
-    # Source for ID 3 has a good CAT3_TS information
-    s.header['CAT3_TS'] = "2019-04-12T18:05:59.435812"
-    s.write(source_tpl % 3)
-    outdir2 = f'{mx.workdir}/export/hdfs/my_cat/marz3'
-    os.makedirs(outdir2, exist_ok=True)
-    # Exporting from source 1 must fail because CAT3_TS is missing
-    with pytest.raises(KeyError):
-        mx.export_marz_from_sources(orig.select_ids([1]), source_tpl,
-                                    outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
-    # Exporting from source 2 must fail because CAT3_TS value is wrong
-    with pytest.raises(ValueError):
-        mx.export_marz_from_sources(orig.select_ids([2]), source_tpl,
-                                    outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
-    # Exporting from source 3 must succeed.
-    mx.export_marz_from_sources(orig.select_ids([3]), source_tpl,
-                                outfile=f"{outdir2}/marz-my_cat-hdfs.fits")
+        assert_array_equal(hdul['DETAILS'].data['REFSPEC'],
+                           ['ORI_CORR_3_SKYSUB', 'ORI_CORR_4_SKYSUB'])
 
 
 def test_export_sources(mx):
     phot = mx.input_catalogs['photutils']
     phot.ingest_input_catalog()
 
-    res = phot.select(phot.c[phot.idname] > 7)
+    res = phot.select((phot.c[phot.idname] > 7) & (phot.c[phot.idname] < 10))
     mycat = mx.new_catalog_from_resultset('my_cat', res)
 
     maskdir = os.path.join(mx.workdir, 'masks', 'hdfs')
     mx.create_masks_from_segmap(phot, maskdir, skip_existing=True, margin=10)
 
     outdir = f'{mx.workdir}/export'
-    os.makedirs(outdir, exist_ok=True)
-
     mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
-                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=3,
+                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
                       verbose=True, masks_dataset='photutils-hdfs')
 
     flist = os.listdir(outdir)
-    assert sorted(flist) == [
-        'hdfs',
-        'source-00008.fits',
-        'source-00008.pdf',
-        'source-00009.fits',
-        'source-00009.pdf',
-        'source-00010.fits',
-        'source-00010.pdf',
-        'source-00011.fits',
-        'source-00011.pdf',
-        'source-00012.fits',
-        'source-00012.pdf',
-        'source-00013.fits',
-        'source-00013.pdf'
-    ]
+    assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
+                             'source-00009.fits', 'source-00009.pdf']
 
     src = Source.from_file(f'{outdir}/source-00008.fits')
     assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
@@ -504,6 +499,74 @@ NSKYMSK =                  467 / Size of MASK_SKY in spaxels
 FSKYMSK =                74.72 / Relative Size of MASK_SKY in %
 NOBJMSK =                   25 / Size of MASK_OBJ in spaxels
 FOBJMSK =                  4.0 / Relative Size of MASK_OBJ in %
+AUTHOR  = 'MPDAF   '           / Origin of the file
+FORMAT  = '0.6     '           / Version of the Source format
+"""
+
+    cards = [fits.Card.fromstring(s) for s in ref_header.splitlines()]
+    hdr = src.header
+    for card in cards:
+        assert hdr[card.keyword] == card.value
+        assert hdr.comments[card.keyword] == card.comment
+
+
+def test_export_sources_origin(mx):
+    orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
+    res = orig.select(orig.c[orig.idname] > 2)
+    mycat = mx.new_catalog_from_resultset('my_oricat', res)
+
+    outdir = f'{mx.workdir}/export'
+    mx.export_sources(mycat, outdir=outdir, srcvers='0.1', apertures=None,
+                      verbose=True, masks_dataset='origin')
+
+    flist = os.listdir(outdir)
+    assert sorted(flist) == ['source-00003.fits', 'source-00004.fits']
+
+    src = Source.from_file(f'{outdir}/source-00003.fits')
+    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
+
+    # FIXME: why ORI_CAT and ORIG_CAT? ORI_CAT seems duplicate
+    assert list(src.tables.keys()) == ['ORI_CAT', 'ORI_LINES', 'NB_PAR',
+                                       'ORIG_CAT']
+    assert_array_equal(src.tables['ORIG_CAT']['ID'], [1, 3])
+
+    assert list(src.cubes.keys()) == ['MUSE_CUBE', 'ORI_CORREL']
+    assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
+
+    assert set(src.images.keys()) == {
+        'MASK_SKY', 'ORI_SEGMAP_LABEL', 'MUSE_EXPMAP', 'TEST_FAKE',
+        'ORI_MASK_SKY', 'ORI_MASK_OBJ', 'ORI_CORR_3', 'MASK_OBJ', 'NB_LINE_3',
+        'ORI_SEGMAP_MERGED', 'MUSE_WHITE', 'ORI_MAXMAP'}
+
+    assert list(src.spectra.keys()) == [
+        'MUSE_SKY', 'MUSE_TOT_SKYSUB', 'MUSE_WHITE_SKYSUB', 'MUSE_TOT',
+        'ORI_CORR', 'MUSE_PSF_SKYSUB', 'MUSE_PSF', 'ORI_SPEC_3',
+        'ORI_CORR_3_SKYSUB', 'ORI_CORR_3', 'MUSE_WHITE']
+
+    ref_header = """\
+ID      =                    3 / object ID %d
+RA      =    338.2311010253501 / RA u.degree %.7f
+DEC     =   -60.56595462398222 / DEC u.degree %.7f
+FROM    = 'MuseX   '           / detection software
+CUBE    = 'cube.fits'          / datacube
+CUBE_V  = '1.24    '           / version of the datacube
+SRC_V   = '0.1     '           / Source Version
+SIZE    =                    5
+EXPMEAN =                 52.0 / Mean value of EXPMAP
+EXPMIN  =                   52 / Minimum value of EXPMAP
+EXPMAX  =                   52 / Maximum value of EXPMAP
+FSFMODE = 'MOFFAT1 '
+FSF00BET=                  2.8
+FSF00FWA=                  0.8
+FSF00FWB=               -3E-05
+NSKYMSK =                  370 / Size of MASK_SKY in spaxels
+FSKYMSK =                 59.2 / Relative Size of MASK_SKY in %
+NOBJMSK =                   64 / Size of MASK_OBJ in spaxels
+FOBJMSK =                10.24 / Relative Size of MASK_OBJ in %
+CATALOG = 'origin  '
+REFSPEC = 'MUSE_TOT_SKYSUB'    / Name of reference spectra
+REFCAT  = 'ORIG_CAT'
 AUTHOR  = 'MPDAF   '           / Origin of the file
 FORMAT  = '0.6     '           / Version of the Source format
 """
