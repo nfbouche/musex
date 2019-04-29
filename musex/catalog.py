@@ -33,12 +33,21 @@ def get_cat_name(res_or_cat):
         return res_or_cat
     elif isinstance(res_or_cat, BaseCatalog):
         return res_or_cat.name
-    elif isinstance(res_or_cat, Table):
-        return res_or_cat.name
-    elif isinstance(res_or_cat, ResultSet):
+    elif isinstance(res_or_cat, (Table, ResultSet)):
         return res_or_cat.catalog.name
     else:
         raise ValueError('cat must be a Catalog instance or name')
+
+
+def get_result_table(res_or_cat):
+    if isinstance(res_or_cat, ResultSet):
+        return res_or_cat.as_table()
+    elif isinstance(res_or_cat, Catalog):
+        return res_or_cat.select().as_table()
+    elif isinstance(res_or_cat, Table):
+        return res_or_cat
+    else:
+        raise ValueError('invalid input for res_or_cat')
 
 
 class ResultSet(Sequence):

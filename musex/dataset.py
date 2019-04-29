@@ -114,10 +114,33 @@ class DataSet:
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
 
-    def get_source(self, id_):
+    def get_source(self, id_, check_keyword=None):
+        """Return a source.
+
+        Parameters
+        ----------
+        id_ : int or str
+            The ID of the source.
+        check_keyword : tuple, optional
+            If a tuple (keyword, value) is given, each source header will
+            be checked that it contains the keyword with the value. If the
+            keyword is not here, a KeyError will be raise, if the value is
+            not the expected one, a ValueError is raised.
+
+        """
+        # TODO: use @functools.lru_cache
         src_path = self._src_conf.get('source_tpl')
         if src_path:
-            return Source.from_file(src_path % id_)
+            src = Source.from_file(src_path % id_)
+            if check_keyword is not None:
+                key, val = check_keyword
+                try:
+                    if src.header[key] != val:
+                        raise ValueError("The source was not made from the "
+                                         f"good catalog: {key} = {val}")
+                except KeyError:
+                    raise KeyError(f"The source has no {key} keyword.")
+            return src
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add stamp images to a source."""

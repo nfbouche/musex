@@ -88,6 +88,7 @@ def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
 
     center = (src.DEC, src.RA)
 
+    # FIXME: masks could be added from sources
     if skyim is not None and maskim is not None:
         # FIXME: use Source.add_image instead ?
         src.images['MASK_SKY'] = extract_subimage(
@@ -132,21 +133,25 @@ def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
     return src
 
 
-def sources_to_marz(src_list, out_file, *, save_src_to=None,
-                    check_keyword=None):
+def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
+                    save_src_to=None, check_keyword=None):
     """Export a list of source to a MarZ input file.
 
     Parameters
     ----------
-    src_list : list of mpdaf.obj.Source
-        List or generator of mpdaf sources.
-    out_file : str
+    src_list : iterable of `mpdaf.sdetect.Source`
+        List of mpdaf sources.
+    outfile : str
         Filename for the FITS file to use as input to MarZ.
+    refspec : str, optional
+        The spectrum to use, defaults to ``src.REFSPEC``.
+    skyspec : str, optional
+        The sky spectrum to use, defaults to ``MUSE_SKY``.
     save_src_to : str, optional
         None or a template string that is formated with the source as `src` to
         get the name of the file to save the source to (for instance
         `/path/to/source-{src.ID:05d}.fits`).
-    check_keyword: tuple, optional
+    check_keyword : tuple, optional
         If a tuple (keyword, value) is given, each source header will be
         checked that it contains the keyword with the value. If the keyword is
         not here, a KeyError will be raise, if the value is not the expected
@@ -161,19 +166,20 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None,
 
     for src in src_list:
         if check_keyword is not None:
+            key, val = check_keyword
             try:
-                if src.header[check_keyword[0]] != check_keyword[1]:
+                if src.header[key] != val:
                     raise ValueError("The source was not made from the good "
-                                     "catalog: %s = %s", (check_keyword))
+                                     f"catalog: {key} = {val}")
             except KeyError:
-                raise KeyError("The source has no %s keyword.",
-                               check_keyword[0])
+                raise KeyError(f"The source has no {key} keyword.")
 
-        sp = src.spectra[src.REFSPEC]
+        refsp = refspec or src.REFSPEC
+        sp = src.spectra[refsp]
         wave.append(sp.wave.coord())
         data.append(sp.data.filled(np.nan))
         stat.append(sp.var.filled(np.nan))
-        sky.append(src.spectra['MUSE_SKY'].data.filled(np.nan))
+        sky.append(src.spectra[skyspec].data.filled(np.nan))
 
         # TODO: The following comments were in the list of source to MarZ code
         # when it was into the musex.export_marz method.
@@ -189,7 +195,7 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None,
         mag2 = -99
         meta.append(('%05d' % src.ID, src.RA, src.DEC, z,
                      src.header.get('CONFID', 0),
-                     src.header.get('TYPE', 0), mag1, mag2, src.REFSPEC))
+                     src.header.get('TYPE', 0), mag1, mag2, refsp))
 
         if save_src_to is not None:
             fname = save_src_to.format(src=src)
@@ -207,5 +213,5 @@ def sources_to_marz(src_list, out_file, *, save_src_to=None,
         fits.ImageHDU(name='SKY', data=np.vstack(sky)),
         fits.BinTableHDU(name='DETAILS', data=t)
     ])
-    logger.info('Writing %s', out_file)
-    hdulist.writeto(out_file, overwrite=True, output_verify='silentfix')
+    logger.info('Writing %s', outfile)
+    hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
