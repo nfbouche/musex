@@ -613,6 +613,7 @@ class MuseX:
         """
         cat = get_result_table(res_or_cat)
         cname = cat.catalog.name
+        parent_cat = self.find_parent_cat(cat.catalog)
         if outdir is None:
             outdir = f'{self.exportdir}/{cname}/marz'
         os.makedirs(outdir, exist_ok=True)
@@ -620,9 +621,9 @@ class MuseX:
             outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
 
         # Keyword to check in the sources for ORIGIN.
-        version_meta = cat.meta.get('version_meta', None)
+        version_meta = parent_cat.meta.get('version_meta', None)
         if version_meta is not None:
-            check_keyword = (version_meta, cat.meta[version_meta])
+            check_keyword = (version_meta, parent_cat.meta[version_meta])
         else:
             check_keyword = None
 
