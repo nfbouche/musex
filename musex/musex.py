@@ -319,7 +319,8 @@ class MuseX:
 
     def create_masks_from_segmap(self, cat, maskdir, limit=None, n_jobs=-1,
                                  skip_existing=True, margin=0,
-                                 mask_size=(20, 20), convolve_fwhm=0):
+                                 psf_threshold=0.5, mask_size=(20, 20),
+                                 convolve_fwhm=0):
         """Create binary masks from a segmentation map.
 
         Parameters
@@ -335,6 +336,8 @@ class MuseX:
         margin : float
             Margin from the edges (pixels), for the sources selection and the
             segmap alignment.
+        psf_threshold : float
+            Threshold applied to the PSF to get a binary image.
         mask_size : tuple
             Size of the source masks (arcsec).
         convolve_fwhm : float
@@ -355,12 +358,13 @@ class MuseX:
 
         os.makedirs(maskdir, exist_ok=True)
         create_masks_from_segmap(
-            cat.params['segmap'], tbl[:10], ref_image, n_jobs=n_jobs,
+            cat.params['segmap'], tbl, ref_image, n_jobs=n_jobs,
             skip_existing=skip_existing,
             masksky_name=f'{maskdir}/mask-sky.fits',
             maskobj_name=f'{maskdir}/mask-source-%05d.fits',
             idname=cat.idname, raname=cat.raname, decname=cat.decname,
-            margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm)
+            margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm,
+            psf_threshold=psf_threshold)
 
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
@@ -604,6 +608,12 @@ class MuseX:
             `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
         export_sources: bool
             If True, the source files are also exported.
+        datasets : iterable or dict
+            List of dataset names to use for the sources, or dictionary with
+            dataset names associated to a list of tags to use. By default all
+            datasets are used, and all tags.
+        sources_dataset : str
+            Name of the dataset from which the sources are taken.
         outdir: str
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
