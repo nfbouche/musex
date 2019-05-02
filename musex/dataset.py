@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 from mpdaf.sdetect import Source
@@ -25,6 +26,15 @@ class DataSet:
         self.logger = logging.getLogger(__name__)
         for key in ('prefix', 'version'):
             setattr(self, key, self.settings.get(key))
+
+        self.group_mapping = None
+        if 'group_mapping' in self._src_conf:
+            conf = self._src_conf['group_mapping']
+            tbl = Table.read(conf['catalog'])
+            self.group_mapping = Table(
+                [tbl[conf['idname']], tbl[conf['group_idname']]],
+                names=('id', 'group_id'))
+            self.group_mapping.add_index('id')
 
     def __repr__(self):
         out = f'<{self.__class__.__name__}('
@@ -131,7 +141,13 @@ class DataSet:
         # TODO: use @functools.lru_cache
         src_path = self._src_conf.get('source_tpl')
         if src_path:
-            src = Source.from_file(src_path % id_)
+            if self.group_mapping is not None:
+                gid = self.group_mapping.loc[id_]['group_id']
+                src = Source.from_file(src_path % gid)
+                src.REFSPEC = str(id_)
+            else:
+                src = Source.from_file(src_path % id_)
+
             if check_keyword is not None:
                 key, val = check_keyword
                 try:

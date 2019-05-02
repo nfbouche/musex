@@ -39,6 +39,17 @@ datasets:
       mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
       skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
+  odhin:
+    prefix: ODH
+    linked_catalog: odhin
+    sources:
+      source_tpl: '{datadir}/odhin/source-%05d.fits'
+      group_mapping:
+        # This allows to load a source transparently
+        catalog: '{datadir}/odhin/odhin_sources.fits'
+        idname: id
+        group_idname: group_id
+
 muse_datasets:
   default: hdfs
 
