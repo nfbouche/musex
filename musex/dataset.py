@@ -144,6 +144,7 @@ class DataSet:
             if self.group_mapping is not None:
                 gid = self.group_mapping.loc[id_]['group_id']
                 src = Source.from_file(src_path % gid)
+                src.ID = id_
                 src.REFSPEC = str(id_)
             else:
                 src = Source.from_file(src_path % id_)
