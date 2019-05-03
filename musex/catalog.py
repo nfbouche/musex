@@ -349,7 +349,9 @@ class BaseCatalog:
         else:
             columns = [self.table.table]
 
-        query = sql.select(columns=columns, whereclause=whereclause, **params)
+        wc = (sql.text(whereclause) if isinstance(whereclause, str)
+              else whereclause)
+        query = sql.select(columns=columns, whereclause=wc, **params)
         res = self.db.query(query)
         return ResultSet(res, whereclause=whereclause, catalog=self,
                          columns=query.columns)
