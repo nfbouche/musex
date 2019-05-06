@@ -9,7 +9,6 @@ from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
 from joblib import delayed, Parallel
-from mpdaf.log import setup_logging
 from mpdaf.obj import Image
 from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
 from mpdaf.tools import progressbar, isiter
@@ -484,7 +483,6 @@ class MuseX:
 
         if verbose is False:
             to_compute = progressbar(to_compute)
-            setup_logging('musex', level=logging.WARNING, stream=sys.stdout)
 
         sources = Parallel(n_jobs=n_jobs,
                            verbose=50 if verbose else 0)(to_compute)
@@ -540,11 +538,6 @@ class MuseX:
             debug('IMAGES: %s', ', '.join(src.images.keys()))
             debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
             yield src
-
-        if verbose is False:
-            # Reset logger
-            # TODO: find a better way to do this!
-            setup_logging('musex', level=logging.DEBUG, stream=sys.stdout)
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
