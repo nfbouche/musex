@@ -408,7 +408,6 @@ class MuseX:
         cat = resultset.catalog
         parent_cat = self.find_parent_cat(cat)
 
-        debug = self.logger.debug
         info = self.logger.info
 
         if isinstance(size, (float, int)):
@@ -479,6 +478,16 @@ class MuseX:
                     "'%s' column not found, though it is specified in the "
                     "settings file for the %s keyword", colname, key)
 
+        kw['catalogs'] = {}
+        parent_params = parent_cat.params.get('extract', {})
+        if 'prefix' in parent_params:
+            columns = parent_params.get('columns')
+            prefix = parent_params.get('prefix')
+            pcat = parent_cat.select(columns=columns).as_table()
+            pcat.meta.update(parent_params)
+            kw['header']['REFCAT'] = f"{prefix}_CAT"
+            kw['catalogs'][f"{prefix}_CAT"] = pcat
+
         author = self.conf['author']
         to_compute = []
         for res, src_size in zip(resultset, size):
@@ -506,14 +515,6 @@ class MuseX:
                 bar = progressbar(sources, total=nrows)
 
             for src, src_size in zip(sources, size):
-                info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
-
-                if 'parentcat' in content:
-                    parent_cat.add_to_source(
-                        src, **parent_cat.params['extract'])
-
-                debug('IMAGES: %s', ', '.join(src.images.keys()))
-                debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
                 yield src
 
                 if verbose is False:

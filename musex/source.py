@@ -1,3 +1,4 @@
+import inspect
 import logging
 import numpy as np
 import re
@@ -145,7 +146,7 @@ class SourceX(Source):
 def create_source(row, idname, raname, decname, size, refspec, history,
                   segmap=None, datasets=None, maskds=None, apertures=None,
                   header=None, header_columns=None, redshifts=None, mags=None,
-                  verbose=False, **kwargs):
+                  catalogs=None, verbose=False, **kwargs):
     logger = logging.getLogger(__name__)
     if not verbose:
         logging.getLogger('musex').setLevel('WARNING')
@@ -189,10 +190,30 @@ def create_source(row, idname, raname, decname, size, refspec, history,
         for args in history:
             src.add_history(*args)
 
+    if catalogs:
+        sig = inspect.signature(Source.add_table)
+        for name, cat in catalogs.items():
+            logger.debug('Add catalog %s', name)
+            kw = {k: v for k, v in cat.meta.items()
+                  if k in sig.parameters and k != 'name'}
+            src.add_table(cat, name, **kw)
+
+            if 'redshifts' in cat.meta:
+                crow = cat[cat[cat.meta['idname']] == src.ID]
+                src.add_z_from_settings(cat.meta['redshifts'], crow)
+
+            if 'mags' in cat.meta:
+                crow = cat[cat[cat.meta['idname']] == src.ID]
+                src.add_mag_from_settings(cat.meta['mags'], crow)
+
     # FIXME: masks could be added from sources
     if maskds is not None:
         src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
         src.extract_all_spectra(apertures=apertures)
+
+    logger.info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    logger.debug('IMAGES: %s', ', '.join(src.images.keys()))
+    logger.debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
 
     return src
 

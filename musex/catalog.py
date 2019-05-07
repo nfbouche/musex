@@ -572,31 +572,30 @@ class Catalog(BaseCatalog):
 
         return res
 
-    def add_to_source(self, src, redshifts=None, mags=None, **kwargs):
+    def add_to_source(self, src, columns=None, redshifts=None, mags=None,
+                      prefix=None, name='CAT', select_in='MUSE_WHITE'):
         """Add information to the Source object.
 
         FIXME: see how to improve conf here.
 
         """
         # Add catalog as a BinTableHDU
-        cat = self.select(columns=kwargs.get('columns')).as_table()
-        wcs = src.images[kwargs.get('select_in', 'MUSE_WHITE')].wcs
-        scat = cat.select(wcs, ra=self.raname, dec=self.decname, margin=0)
-        scat['DIST'] = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
-        # FIXME: is it the same ?
-        # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-        catname = f"{kwargs['prefix']}_{kwargs.get('name', 'CAT')}"
-        self.logger.debug('Adding catalog %s (%d rows)', catname, len(scat))
-        src.add_table(scat, catname)
+        cat = self.select(columns=columns).as_table()
+        prefix = prefix or self.name.upper()
+        catname = f"{prefix}_{name}"
+        src.add_table(cat, catname, select_in=select_in, ra=self.raname,
+                      dec=self.decname, margin=0, col_dist='DIST')
         src.REFCAT = catname
         cat = src.tables[catname]
+        self.logger.debug('Adding catalog %s (%d rows)', catname, len(cat))
+        # adding meta for column names
         cat.meta['name'] = self.name
         cat.meta['idname'] = self.idname
         cat.meta['raname'] = self.raname
         cat.meta['decname'] = self.decname
 
         # Add redshifts and magnitudes if requested
-        row = scat[scat[self.idname] == src.ID]
+        row = cat[cat[self.idname] == src.ID]
         if redshifts:
             src.add_z_from_settings(redshifts, row)
         if mags:
