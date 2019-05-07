@@ -15,6 +15,7 @@ from mpdaf.tools import isiter, progressbar
 from numpy import ma
 from sqlalchemy import sql
 
+from .source import add_mag, add_z
 from .utils import table_to_odict
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
@@ -567,7 +568,7 @@ class Catalog(BaseCatalog):
 
         return res
 
-    def add_to_source(self, src, row, **kwargs):
+    def add_to_source(self, src, redshifts=None, mags=None, **kwargs):
         """Add information to the Source object.
 
         FIXME: see how to improve conf here.
@@ -590,33 +591,12 @@ class Catalog(BaseCatalog):
         cat.meta['raname'] = self.raname
         cat.meta['decname'] = self.decname
 
-        # Add redshifts
-        for name, val in kwargs.get('redshifts', {}).items():
-            try:
-                if isinstance(val, str):
-                    z, errz = row[val], 0
-                else:
-                    z, errz = row[val[0]], (row[val[1]], row[val[2]])
-            except KeyError:
-                pass
-            else:
-                if z is not None and 0 <= z < 50:
-                    self.logger.debug('Add redshift %s=%.2f', name, z)
-                    src.add_z(name, z, errz=errz)
-
-        # Add magnitudes
-        for name, val in kwargs.get('mags', {}).items():
-            try:
-                if isinstance(val, str):
-                    mag, magerr = row[val], 0
-                else:
-                    mag, magerr = row[val[0]], row[val[1]]
-            except KeyError:
-                pass
-            else:
-                if mag is not None and 0 <= mag < 50:
-                    self.logger.debug('Add mag %s=%.2f', name, mag)
-                    src.add_mag(name, mag, magerr)
+        # Add redshifts and magnitudes if requested
+        row = scat[scat[self.idname] == src.ID]
+        if redshifts:
+            add_z(src, redshifts, row)
+        if mags:
+            add_mag(src, mags, row)
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""

@@ -1,15 +1,15 @@
 import importlib
 import itertools
 import logging
+import multiprocessing
 import numpy as np
 import os
-import re
 import sys
 import textwrap
+
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
-from joblib import delayed, Parallel
 from mpdaf.obj import Image
 from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
 from mpdaf.tools import progressbar, isiter
@@ -32,16 +32,6 @@ LOGO = r"""
   |_|  |_|\__,_|___/\___/_/\_\
 
 """
-
-# Default comments for FITS keywords
-HEADER_COMMENTS = dict(
-    CONFID='Z Confidence Flag',
-    BLEND='Blending flag',
-    DEFECT='Defect flag',
-    REVISIT='Reconciliation Revisit Flag',
-    TYPE='Object classification',
-    REFSPEC='Name of reference spectra',
-)
 
 
 def _create_catalogs_table(db):
@@ -69,6 +59,13 @@ def _create_catalogs_table(db):
     # and make sure that all columns exists
     table._sync_columns(row, True)
     return table
+
+
+def _worker_export(args):
+    try:
+        return create_source(*args)
+    except KeyboardInterrupt:
+        pass
 
 
 class MuseX:
@@ -458,16 +455,21 @@ class MuseX:
                     continue
                 use_datasets[ds] = None
 
-        info('Using datasets: %s', ','.join(ds.name for ds in use_datasets))
+        info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
-        idname, raname, decname = cat.idname, cat.raname, cat.decname
-        author = self.conf['author']
+        if masks_dataset is not None:
+            maskds = self.datasets[masks_dataset]
+            info('using mask datasets: %s', maskds)
+        else:
+            maskds = None
+            info('no masks specified, spectra will not be extracted')
 
         segmap = parent_cat.params.get('segmap')
-        if segmap:
-            segmap = Image(segmap)
+        if 'segmap' in content and segmap:
             segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+            segmap = (segmap_tag, Image(segmap))
 
+        mags = self.conf['export'].get('mags', {})
         redshifts = self.conf['export'].get('redshifts', {})
         header_columns = self.conf['export'].get('header_columns', {})
         for key, colname in header_columns.items():
@@ -476,84 +478,60 @@ class MuseX:
                     "'%s' column not found, though it is specified in the "
                     "settings file for the %s keyword", colname, key)
 
-        if masks_dataset is not None:
-            maskds = self.datasets[masks_dataset]
-        else:
-            info('no masks specified, spectra will not be extracted')
-            maskds = None
-
-        rows = [dict(zip(row.colnames, row.as_void().tolist()))
-                for row in resultset]
+        author = self.conf['author']
+        default_header = {
+            'SRC_V': (srcvers, 'Source Version'),
+            'CATALOG': os.path.basename(parent_cat.name),
+        }
         to_compute = []
-        for row, src_size in zip(rows, size):
-            id_ = row[idname]
-            if maskds:
-                skyim = maskds.get_skymask_file(id_)
-                maskim = maskds.get_objmask_file(id_)
-            else:
-                skyim, maskim = None, None
+        for res, src_size in zip(resultset, size):
+            row = dict(zip(res.colnames, res.as_void().tolist()))
 
-            args = (id_, row[raname], row[decname], src_size, skyim,
-                    maskim, use_datasets, apertures, verbose)
-            to_compute.append(delayed(create_source)(*args))
-
-        if verbose is False:
-            to_compute = progressbar(to_compute)
-
-        sources = Parallel(n_jobs=n_jobs,
-                           verbose=50 if verbose else 0)(to_compute)
-
-        if verbose is False:
-            rows = progressbar(rows)
-
-        for row, src, src_size in zip(rows, sources, size):
-            src.SRC_V = (srcvers, 'Source Version')
-            info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
-            src.CATALOG = os.path.basename(parent_cat.name)
-            # src.add_attr('FSFMSK', cat.meta['convolve_fwhm'],
-            #              'Mask Conv Gauss FWHM in arcsec')
-
-            # Add keywords from columns
-            for key, colname in header_columns.items():
-                if row.get(colname) is not None:
-                    if key == 'COMMENT':
-                        # truncate comment if too long
-                        com = re.sub(r'[^\s!-~]', '', row[colname])
-                        for txt in textwrap.wrap(com, 50):
-                            src.add_comment(txt, '')
-                    else:
-                        debug('Add %s=%r', key, row[colname])
-                        comment = HEADER_COMMENTS.get(key)
-                        src.header[key] = (row[colname], comment)
-
-            if src.header.get('REFSPEC') is None:
-                self.logger.warning(
-                    'REFSPEC column not found, using %s instead', refspec)
-                src.add_attr('REFSPEC', refspec,
-                             desc=HEADER_COMMENTS['REFSPEC'])
-
-            # Add reshifts
-            for key, colname in redshifts.items():
-                if row.get(colname) is not None:
-                    debug('Add redshift %s=%.2f', key, row[colname])
-                    src.add_z(key, row[colname])
-
+            history = []
             if 'history' in content:
-                for o in cat.get_log(src.ID):
-                    src.add_history(o['msg'], author=author, date=o['date'])
-                src.add_history('source created', author=author)
+                for o in cat.get_log(row[cat.idname]):
+                    history.append((o['msg'], author, o['date']))
+                history.append(('source created', author))
 
-            if 'segmap' in content and segmap:
-                src.SEGMAP = segmap_tag
-                src.add_image(segmap, segmap_tag, rotate=True, order=0)
+            to_compute.append((row, cat.idname, cat.raname, cat.decname,
+                               src_size, use_datasets, maskds, default_header,
+                               apertures, header_columns, refspec, redshifts,
+                               mags, segmap, history, verbose))
 
-            if 'parentcat' in content:
-                parent_cat.add_to_source(src, row,
-                                         **parent_cat.params['extract'])
+        nsources = len(resultset)
 
-            debug('IMAGES: %s', ', '.join(src.images.keys()))
-            debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
-            yield src
+        if n_jobs > 1:
+            # multiprocessing.log_to_stderr('DEBUG')
+            pool = multiprocessing.Pool(n_jobs, maxtasksperchild=100)
+            sources = pool.imap_unordered(_worker_export, to_compute,
+                                          chunksize=1)
+        else:
+            sources = (create_source(*args) for args in to_compute)
+
+        try:
+            if verbose is False:
+                bar = progressbar(sources, total=nsources)
+
+            for src, src_size in zip(sources, size):
+                info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+
+                if 'parentcat' in content:
+                    parent_cat.add_to_source(
+                        src, **parent_cat.params['extract'])
+
+                debug('IMAGES: %s', ', '.join(src.images.keys()))
+                debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
+                yield src
+
+                if verbose is False:
+                    bar.update()
+
+            if n_jobs > 1:
+                pool.close()
+                pool.join()
+        except KeyboardInterrupt:
+            if n_jobs > 1:
+                pool.terminate()
 
     def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):

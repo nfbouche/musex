@@ -1,11 +1,12 @@
 import logging
 import numpy as np
+import os
+
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 from mpdaf.sdetect import Source
-from os.path import basename
 
 __all__ = ['DataSet', 'MuseDataSet']
 
@@ -161,6 +162,10 @@ class DataSet:
         # TODO: use @functools.lru_cache
         src_path = self.get_source_file(id_)
         if src_path:
+            if not os.path.exists(src_path):
+                self.logger.debug('source not found in %s', src_path)
+                return
+
             src = Source.from_file(src_path)
             if self.group_mapping is not None:
                 src.ID = id_
@@ -286,7 +291,7 @@ class MuseDataSet(DataSet):
 
         src.add_cube(self.cube, f'{self.prefix}_CUBE',
                      size=src.SIZE, unit_wave=None, add_white=True)
-        src.CUBE = basename(self.settings['datacube'])
+        src.CUBE = os.path.basename(self.settings['datacube'])
         src.CUBE_V = self.version
 
         # add expmap image + average and dispersion value of expmap
@@ -298,7 +303,7 @@ class MuseDataSet(DataSet):
 
         # add fsf info
         if self.cube.primary_header.get('FSFMODE') == 'MOFFAT1':
-            self.logger.info('Adding FSF info from the datacube')
+            self.logger.debug('Adding FSF info from the MUSE datacube')
             try:
                 src.add_FSF(self.cube, fieldmap=self.settings.get('fieldmap'))
             except TypeError:
