@@ -62,108 +62,84 @@ class SourceX(Source):
     def to_pdf(self, filename, white, **kwargs):
         create_pdf(self, white, filename, **kwargs)
 
-# TODO: pdf filename with infos
-# if info:
-#     # f = os.path.splitext(os.path.basename(src.filename))[0]
-#     confid = str(src.CONFID) if hasattr(src, 'CONFID') else 'u'
-#     stype = str(src.TYPE) if hasattr(src, 'TYPE') else 'u'
-#     z = src.get_zmuse()
-#     if z is None:
-#         zval = 'uu'
-#     else:
-#         if z < 0:
-#             zval = '00'
-#         else:
-#             zval = '{:.1f}'.format(z)
-#             zval = zval[0] + zval[2]
-#     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
+    def add_z_from_settings(self, redshifts, row):
+        """Add redshifts from a row using the settings definition."""
+        for name, val in redshifts.items():
+            try:
+                if isinstance(val, str):
+                    z, errz = row[val], 0
+                else:
+                    z, errz = row[val[0]], (row[val[1]], row[val[2]])
+            except KeyError:
+                continue
 
-
-def add_z(src, redshifts, row):
-    """Add redshifts from a row using the settings definition."""
-    logger = logging.getLogger(__name__)
-    for name, val in redshifts.items():
-        try:
-            if isinstance(val, str):
-                z, errz = row[val], 0
-            else:
-                z, errz = row[val[0]], (row[val[1]], row[val[2]])
-        except KeyError:
-            pass
-        else:
             if z is not None and 0 <= z < 50:
-                logger.debug('Add redshift %s=%.2f (err=%r)', name, z, errz)
-                src.add_z(name, z, errz=errz)
+                self._logger.debug('Add redshift %s=%.2f (err=%r)',
+                                   name, z, errz)
+                self.add_z(name, z, errz=errz)
 
+    def add_mag_from_settings(self, mags, row):
+        """Add magnitudes from a row using the settings definition."""
+        for name, val in mags.items():
+            try:
+                if isinstance(val, str):
+                    mag, magerr = row[val], 0
+                else:
+                    mag, magerr = row[val[0]], row[val[1]]
+            except KeyError:
+                continue
 
-def add_mag(src, mags, row):
-    """Add magnitudes from a row using the settings definition."""
-    logger = logging.getLogger(__name__)
-    for name, val in mags.items():
-        try:
-            if isinstance(val, str):
-                mag, magerr = row[val], 0
-            else:
-                mag, magerr = row[val[0]], row[val[1]]
-        except KeyError:
-            pass
-        else:
             if mag is not None and 0 <= mag < 50:
-                logger.debug('Add mag %s=%.2f (err=%r)', name, mag, magerr)
-                src.add_mag(name, mag, magerr)
+                self._logger.debug('Add mag %s=%.2f (err=%r)',
+                                   name, mag, magerr)
+                self.add_mag(name, mag, magerr)
 
+    def add_header_from_settings(self, header_columns, row):
+        """Add keywords from a row using the settings definition."""
+        for key, colname in header_columns.items():
+            if row.get(colname) is not None:
+                if key == 'COMMENT':
+                    # truncate comment if too long
+                    com = re.sub(r'[^\s!-~]', '', row[colname])
+                    for txt in textwrap.wrap(com, 50):
+                        self.add_comment(txt, '')
+                else:
+                    self._logger.debug('Add %s=%r', key, row[colname])
+                    comment = HEADER_COMMENTS.get(key)
+                    self.header[key] = (row[colname], comment)
 
-def add_header_columns(src, header_columns, row):
-    """Add keywords from a row using the settings definition."""
-    logger = logging.getLogger(__name__)
-    for key, colname in header_columns.items():
-        if row.get(colname) is not None:
-            if key == 'COMMENT':
-                # truncate comment if too long
-                com = re.sub(r'[^\s!-~]', '', row[colname])
-                for txt in textwrap.wrap(com, 50):
-                    src.add_comment(txt, '')
-            else:
-                logger.debug('Add %s=%r', key, row[colname])
-                comment = HEADER_COMMENTS.get(key)
-                src.header[key] = (row[colname], comment)
+    def add_masks_from_dataset(self, maskds, center, size, minsize=0,
+                               nskywarn=(50, 5)):
+        skyim = maskds.get_skymask_file(self.ID)
+        maskim = maskds.get_objmask_file(self.ID)
 
+        # FIXME: use Source.add_image instead ?
+        self.images['MASK_SKY'] = extract_subimage(
+            skyim, center, (size, size), minsize=minsize)
 
-def add_masks(src, maskds, center, size, minsize=0, nskywarn=(50, 5)):
-    logger = logging.getLogger(__name__)
-    skyim = maskds.get_skymask_file(src.ID)
-    maskim = maskds.get_objmask_file(src.ID)
+        # FIXME: check that center is inside mask
+        # centerpix = maskim.wcs.sky2pix(center)[0]
+        # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
+        #       *centerpix.tolist())
+        self.images['MASK_OBJ'] = extract_subimage(
+            maskim, center, (size, size), minsize=minsize)
 
-    # FIXME: use Source.add_image instead ?
-    src.images['MASK_SKY'] = extract_subimage(
-        skyim, center, (size, size), minsize=minsize)
+        # compute surface of each masks and compare to field of view, save
+        # values in header
+        nsky = np.count_nonzero(self.images['MASK_SKY']._data)
+        nobj = np.count_nonzero(self.images['MASK_OBJ']._data)
+        fracsky = 100.0 * nsky / np.prod(self.images['MASK_OBJ'].shape)
+        fracobj = 100.0 * nobj / np.prod(self.images['MASK_OBJ'].shape)
+        min_nsky_abs, min_nsky_rel = nskywarn
+        if nsky < min_nsky_abs or fracsky < min_nsky_rel:
+            self._logger.warning('sky mask is too small. Size is %d spaxel '
+                                 'or %.1f %% of total area', nsky, fracsky)
 
-    # FIXME: check that center is inside mask
-    # centerpix = maskim.wcs.sky2pix(center)[0]
-    # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
-    #       *centerpix.tolist())
-    src.images['MASK_OBJ'] = extract_subimage(
-        maskim, center, (size, size), minsize=minsize)
-
-    # compute surface of each masks and compare to field of view, save
-    # values in header
-    nsky = np.count_nonzero(src.images['MASK_SKY']._data)
-    nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
-    nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
-    nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
-    min_nsky_abs, min_nsky_rel = nskywarn
-    if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
-        logger.warning('sky mask is too small. Size is %d spaxel '
-                       'or %.1f %% of total area', nsky, nfracsky)
-
-    src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-    src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
-    src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-    src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
-    # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
-    # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-    # return nobj, nfracobj, nsky, nfracobj
-    logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+        self.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+        self.add_attr('FSKYMSK', fracsky, 'Relative Size of MASK_SKY in %')
+        self.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+        self.add_attr('FOBJMSK', fracobj, 'Relative Size of MASK_OBJ in %')
+        self._logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', fracsky, fracobj)
 
 
 def create_source(row, idname, raname, decname, size, datasets, maskds,
@@ -186,17 +162,17 @@ def create_source(row, idname, raname, decname, size, datasets, maskds,
         ds.add_to_source(src, names=names)
 
     # Add keywords from columns
-    add_header_columns(src, header_columns, row)
+    src.add_header_from_settings(header_columns, row)
 
     if src.header.get('REFSPEC') is None:
         logger.warning('REFSPEC column not found, using %s instead', refspec)
         src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
 
     # Add redshifts
-    add_z(src, redshifts, row)
+    src.add_z_from_settings(redshifts, row)
 
     # Add magnitudes
-    add_mag(src, mags, row)
+    src.add_mag_from_settings(mags, row)
 
     if segmap:
         logger.debug('Add segmap %s', segmap[0])
@@ -209,7 +185,7 @@ def create_source(row, idname, raname, decname, size, datasets, maskds,
 
     # FIXME: masks could be added from sources
     if maskds is not None:
-        add_masks(src, maskds, (src.DEC, src.RA), size)
+        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
         src.extract_all_spectra(apertures=apertures)
 
     return src

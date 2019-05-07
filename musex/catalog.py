@@ -15,7 +15,6 @@ from mpdaf.tools import isiter, progressbar
 from numpy import ma
 from sqlalchemy import sql
 
-from .source import add_mag, add_z
 from .utils import table_to_odict
 
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
@@ -594,9 +593,9 @@ class Catalog(BaseCatalog):
         # Add redshifts and magnitudes if requested
         row = scat[scat[self.idname] == src.ID]
         if redshifts:
-            add_z(src, redshifts, row)
+            src.add_z_from_settings(redshifts, row)
         if mags:
-            add_mag(src, mags, row)
+            src.add_mag_from_settings(mags, row)
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""
