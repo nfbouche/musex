@@ -142,9 +142,10 @@ class SourceX(Source):
         self._logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', fracsky, fracobj)
 
 
-def create_source(row, idname, raname, decname, size, datasets, maskds,
-                  header, apertures, header_columns, refspec, redshifts,
-                  mags, segmap, history, verbose):
+def create_source(row, idname, raname, decname, size, refspec, history,
+                  segmap=None, datasets=None, maskds=None, apertures=None,
+                  header=None, header_columns=None, redshifts=None, mags=None,
+                  verbose=False, **kwargs):
     logger = logging.getLogger(__name__)
     if not verbose:
         logging.getLogger('musex').setLevel('WARNING')
@@ -155,24 +156,29 @@ def create_source(row, idname, raname, decname, size, datasets, maskds,
                             default_size=size)
     logger.debug('create source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
     src.SIZE = size
-    src.header.update(header)
+    if header:
+        src.header.update(header)
 
-    for ds, names in datasets.items():
-        logger.debug('Add dataset %s', ds.name)
-        ds.add_to_source(src, names=names)
+    if datasets:
+        for ds, names in datasets.items():
+            logger.debug('Add dataset %s', ds.name)
+            ds.add_to_source(src, names=names)
 
     # Add keywords from columns
-    src.add_header_from_settings(header_columns, row)
+    if header_columns:
+        src.add_header_from_settings(header_columns, row)
 
     if src.header.get('REFSPEC') is None:
         logger.warning('REFSPEC column not found, using %s instead', refspec)
         src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
 
     # Add redshifts
-    src.add_z_from_settings(redshifts, row)
+    if redshifts:
+        src.add_z_from_settings(redshifts, row)
 
     # Add magnitudes
-    src.add_mag_from_settings(mags, row)
+    if mags:
+        src.add_mag_from_settings(mags, row)
 
     if segmap:
         logger.debug('Add segmap %s', segmap[0])

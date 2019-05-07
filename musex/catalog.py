@@ -39,16 +39,21 @@ def get_cat_name(res_or_cat):
         raise ValueError('cat must be a Catalog instance or name')
 
 
-def get_result_table(res_or_cat):
+def get_result_table(res_or_cat, filter_active=False):
     """Helper function to get an Astropy Table from different objects."""
     if isinstance(res_or_cat, ResultSet):
-        return res_or_cat.as_table()
+        tbl = res_or_cat.as_table()
     elif isinstance(res_or_cat, Catalog):
-        return res_or_cat.select().as_table()
+        tbl = res_or_cat.select().as_table()
     elif isinstance(res_or_cat, Table):
-        return res_or_cat
+        tbl = res_or_cat
     else:
         raise ValueError('invalid input for res_or_cat')
+
+    if filter_active and 'active' in tbl.colnames:
+        tbl = tbl[tbl['active']]
+
+    return tbl
 
 
 class ResultSet(Sequence):

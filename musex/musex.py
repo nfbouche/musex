@@ -63,7 +63,7 @@ def _create_catalogs_table(db):
 
 def _worker_export(args):
     try:
-        return create_source(*args)
+        return create_source(*args[0], **args[1])
     except KeyboardInterrupt:
         pass
 
@@ -403,21 +403,7 @@ class MuseX:
             If missing, no spectra will be extracted from the source cube.
 
         """
-        if isinstance(res_or_cat, Catalog):
-            if only_active and 'active' in res_or_cat.c:
-                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
-            else:
-                resultset = res_or_cat.select()
-        elif isinstance(res_or_cat, (ResultSet, Table)):
-            resultset = res_or_cat
-        else:
-            raise ValueError('invalid input for res_or_cat')
-
-        if isinstance(resultset, ResultSet):
-            # To simplify things below, make sure we have a Table
-            # TODO: filter active sources
-            resultset = resultset.as_table()
-
+        resultset = get_result_table(res_or_cat, filter_active=only_active)
         nrows = len(resultset)
         cat = resultset.catalog
         parent_cat = self.find_parent_cat(cat)
@@ -457,21 +443,36 @@ class MuseX:
 
         info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
+        # keywords added to the source
+        header = {
+            'SRC_V': (srcvers, 'Source Version'),
+            'CATALOG': os.path.basename(parent_cat.name),
+        }
+
+        # export parameters (mags, redshits, header_columns, etc.)
+        kw = {
+            **self.conf['export'],
+            'apertures': apertures,     # list of apertures for spectra
+            'datasets': use_datasets,   # datasets to use
+            'header': header,           # additional keywords
+            'verbose': verbose,
+        }
+
+        # dataset for masks
         if masks_dataset is not None:
-            maskds = self.datasets[masks_dataset]
-            info('using mask datasets: %s', maskds)
+            kw['maskds'] = self.datasets[masks_dataset]
+            info('using mask datasets: %s', kw['maskds'])
         else:
-            maskds = None
             info('no masks specified, spectra will not be extracted')
 
+        # segmap from the parent cat
         segmap = parent_cat.params.get('segmap')
         if 'segmap' in content and segmap:
             segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
-            segmap = (segmap_tag, Image(segmap))
+            kw['segmap'] = (segmap_tag, Image(segmap))
 
-        mags = self.conf['export'].get('mags', {})
-        redshifts = self.conf['export'].get('redshifts', {})
-        header_columns = self.conf['export'].get('header_columns', {})
+        # check if header_columns are available in the resultset
+        header_columns = kw.get('header_columns', {})
         for key, colname in header_columns.items():
             if colname not in resultset.colnames:
                 self.logger.warning(
@@ -479,10 +480,6 @@ class MuseX:
                     "settings file for the %s keyword", colname, key)
 
         author = self.conf['author']
-        default_header = {
-            'SRC_V': (srcvers, 'Source Version'),
-            'CATALOG': os.path.basename(parent_cat.name),
-        }
         to_compute = []
         for res, src_size in zip(resultset, size):
             row = dict(zip(res.colnames, res.as_void().tolist()))
@@ -493,12 +490,8 @@ class MuseX:
                     history.append((o['msg'], author, o['date']))
                 history.append(('source created', author))
 
-            to_compute.append((row, cat.idname, cat.raname, cat.decname,
-                               src_size, use_datasets, maskds, default_header,
-                               apertures, header_columns, refspec, redshifts,
-                               mags, segmap, history, verbose))
-
-        nsources = len(resultset)
+            to_compute.append(((row, cat.idname, cat.raname, cat.decname,
+                                src_size, refspec, history), kw))
 
         if n_jobs > 1:
             # multiprocessing.log_to_stderr('DEBUG')
@@ -506,11 +499,11 @@ class MuseX:
             sources = pool.imap_unordered(_worker_export, to_compute,
                                           chunksize=1)
         else:
-            sources = (create_source(*args) for args in to_compute)
+            sources = (create_source(*args, **kw) for args, kw in to_compute)
 
         try:
             if verbose is False:
-                bar = progressbar(sources, total=nsources)
+                bar = progressbar(sources, total=nrows)
 
             for src, src_size in zip(sources, size):
                 info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
