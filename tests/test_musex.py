@@ -19,6 +19,10 @@ def test_settings(capsys, settings_file):
     assert mx.muse_dataset.name == 'hdfs'
     assert mx.conf['author'] == 'Me'
 
+    assert repr(mx.datasets['origin']) == (
+        '<DataSet(prefix=ORIG, detector=origin, linked_cat=origin, '
+        '1 detector, 1 tables, 2 sources, 2 masks)>')
+
     expected = """\
 muse_dataset   : hdfs
 datasets       : test, photutils-hdfs, origin

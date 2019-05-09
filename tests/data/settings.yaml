@@ -15,6 +15,7 @@ datasets:
   photutils-hdfs:
     # dataset linked to the photutils catalog, to provide associated masks
     prefix: PHU
+    detector: photutils
     linked_catalog: photutils
     masks:
       # mask_tpl, skymask_tpl, skymask
@@ -25,6 +26,7 @@ datasets:
     # dataset linked to the origin catalog, to provide associated masks,
     # sources, and lines catalog
     prefix: ORIG
+    detector: origin
     linked_catalog: origin
     tables:
       lines:

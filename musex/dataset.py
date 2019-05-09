@@ -24,7 +24,7 @@ class DataSet:
         self.name = name
         self.settings = settings
         self.logger = logging.getLogger(__name__)
-        for key in ('prefix', 'version'):
+        for key in ('prefix', 'version', 'detector'):
             setattr(self, key, self.settings.get(key))
 
         self.group_mapping = None
@@ -42,6 +42,8 @@ class DataSet:
             out += f'prefix={self.prefix}, '
         if self.version:
             out += f'version={self.version}, '
+        if self.detector:
+            out += f'detector={self.detector}, '
         if self.linked_cat:
             out += f'linked_cat={self.linked_cat}, '
         for k, v in self.settings.items():
