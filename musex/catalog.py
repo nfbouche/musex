@@ -293,7 +293,7 @@ class BaseCatalog:
             ``[idname, 'version']``.
 
         """
-        count = defaultdict(list)
+        count = defaultdict(int)
         rows = self._prepare_rows_for_insert(rows, version=version,
                                              show_progress=show_progress)
 
@@ -320,8 +320,13 @@ class BaseCatalog:
             for row in rows:
                 res = tbl.upsert(row, keys, ensure=False)
                 op = 'updated' if res is True else 'inserted'
-                count[op].append(res)
-                self.log(res, f'{op} from input catalog')
+                count[op] += 1
+                if res is True:
+                    # if row was updated we need to get its ID
+                    res = row.get(self.idname)
+                if res is not None:
+                    # log operation if we have an ID
+                    self.log(res, f'{op} from input catalog')
 
         if count['inserted']:
             self.update_meta(maxid=self.max(self.idname))
@@ -329,7 +334,7 @@ class BaseCatalog:
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
         self.logger.info('%d rows inserted, %s updated',
-                         len(count['inserted']), len(count['updated']))
+                         count['inserted'], count['updated'])
 
     def select(self, whereclause=None, columns=None, **params):
         """Select rows in the catalog.
