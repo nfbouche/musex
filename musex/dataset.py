@@ -126,6 +126,23 @@ class DataSet:
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
 
+    def get_source_file(self, id_):
+        """Return a source filename.
+
+        Parameters
+        ----------
+        id_ : int or str
+            The ID of the source.
+
+        """
+        src_path = self._src_conf.get('source_tpl')
+        if src_path:
+            if self.group_mapping is not None:
+                gid = self.group_mapping.loc[id_]['group_id']
+                return src_path % gid
+            else:
+                return src_path % id_
+
     def get_source(self, id_, check_keyword=None):
         """Return a source.
 
@@ -141,15 +158,14 @@ class DataSet:
 
         """
         # TODO: use @functools.lru_cache
-        src_path = self._src_conf.get('source_tpl')
+        src_path = self.get_source_file(id_)
         if src_path:
             if self.group_mapping is not None:
-                gid = self.group_mapping.loc[id_]['group_id']
-                src = Source.from_file(src_path % gid)
+                src = Source.from_file(src_path)
                 src.ID = id_
                 src.REFSPEC = str(id_)
             else:
-                src = Source.from_file(src_path % id_)
+                src = Source.from_file(src_path)
 
             if check_keyword is not None:
                 key, val = check_keyword
