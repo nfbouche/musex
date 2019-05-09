@@ -463,7 +463,7 @@ def test_export_sources(mx):
     assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
 
     assert list(src.tables.keys()) == ['PHU_CAT']
-    assert_array_equal(src.tables['PHU_CAT']['id'], [7, 8])
+    assert_array_equal(src.tables['PHU_CAT']['id'], [8, 7])
 
     assert list(src.cubes.keys()) == ['MUSE_CUBE']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
@@ -529,7 +529,7 @@ def test_export_sources_origin(mx):
     # FIXME: why ORI_CAT and ORIG_CAT? ORI_CAT seems duplicate
     assert list(src.tables.keys()) == ['ORI_CAT', 'ORI_LINES', 'NB_PAR',
                                        'ORIG_CAT']
-    assert_array_equal(src.tables['ORIG_CAT']['ID'], [1, 3])
+    assert_array_equal(src.tables['ORIG_CAT']['ID'], [3, 1])
 
     assert list(src.cubes.keys()) == ['MUSE_CUBE', 'ORI_CORREL']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
