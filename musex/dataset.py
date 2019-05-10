@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
@@ -174,6 +175,19 @@ class DataSet:
                 except KeyError:
                     raise KeyError(f"The source has no {key} keyword.")
             return src
+
+    def get_source_refspec(self, id_, check_keyword=None):
+        """Return the REFSPEC from a source.
+
+        Parameters
+        ----------
+        id_ : int or str
+            The ID of the source.
+
+        """
+        src_path = self.get_source_file(id_)
+        if src_path:
+            return fits.getval(src_path, 'REFSPEC')
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add data to a source.

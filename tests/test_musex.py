@@ -42,6 +42,8 @@ def test_dataset(mx):
     srcfile = dataset.get_source_file(3)
     assert srcfile.endswith('origin_sources/source-00003.fits')
 
+    assert dataset.get_source_refspec(3) == 'ORI_CORR_3_SKYSUB'
+
 
 def test_ingest_photutils(mx):
     assert list(mx.input_catalogs.keys()) == ['photutils', 'origin']
