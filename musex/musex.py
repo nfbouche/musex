@@ -490,14 +490,15 @@ class MuseX:
                     "settings file for the %s keyword", colname, key)
 
         kw['catalogs'] = {}
-        parent_params = parent_cat.params.get('extract', {})
-        if 'prefix' in parent_params:
-            columns = parent_params.get('columns')
-            prefix = parent_params.get('prefix')
-            pcat = parent_cat.select(columns=columns).as_table()
-            pcat.meta.update(parent_params)
-            kw['header']['REFCAT'] = f"{prefix}_CAT"
-            kw['catalogs'][f"{prefix}_CAT"] = pcat
+        if 'parentcat' in content:
+            parent_params = parent_cat.params.get('extract', {})
+            if 'prefix' in parent_params:
+                columns = parent_params.get('columns')
+                prefix = parent_params.get('prefix')
+                pcat = parent_cat.select(columns=columns).as_table()
+                pcat.meta.update(parent_params)
+                kw['header']['REFCAT'] = f"{prefix}_CAT"
+                kw['catalogs'][f"{prefix}_CAT"] = pcat
 
         if create_pdf:
             kw['pdfconf'] = self.conf['export'].get('pdf', {})
@@ -639,6 +640,7 @@ class MuseX:
                     # muse_dataset will be used, with spectra extracted
                     # from the cube.
                     datasets = []
+                    kwargs['content'] = []
 
             src_iter = self.to_sources(cat, datasets=datasets, **kwargs)
 
