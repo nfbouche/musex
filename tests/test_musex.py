@@ -21,8 +21,13 @@ def test_settings(capsys, settings_file):
 
     expected = """\
 muse_dataset   : hdfs
-datasets       : test, photutils-hdfs, origin
-input_catalogs : photutils, origin
+datasets       :
+    - test           : small test dataset with images
+    - photutils-hdfs : provide masks for the photutils catalog
+    - origin         : provide masks and sources for the origin catalog
+input_catalogs :
+    - photutils      : 0 rows
+    - origin         : 0 rows
 """
     captured = capsys.readouterr()
     assert expected in captured.out

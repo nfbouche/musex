@@ -1,4 +1,5 @@
 import importlib
+import itertools
 import logging
 import numpy as np
 import os
@@ -207,12 +208,27 @@ class MuseX:
         outstream.write(textwrap.dedent(f"""
             {__description__} - v{__version__}
 
+            database       : {self.db}
             settings file  : {self.settings_file}
             muse_dataset   : {self.muse_dataset.name}
-            datasets       : {', '.join(self.datasets.keys())}
-            input_catalogs : {', '.join(self.input_catalogs.keys())}
-            catalogs       : {', '.join(self.catalogs.keys())}
             """))
+
+        maxlen = max(map(len, itertools.chain(
+            self.datasets, self.input_catalogs, self.catalogs)))
+
+        outstream.write('datasets       :\n')
+        for name, ds in self.datasets.items():
+            desc = ds.description or ''
+            outstream.write(f"    - {name:{maxlen}s} : {desc}\n")
+
+        outstream.write('input_catalogs :\n')
+        for name, cat in self.input_catalogs.items():
+            outstream.write(f"    - {name:{maxlen}s} : {len(cat)} rows\n")
+
+        outstream.write('catalogs       :\n')
+        for name, cat in self.catalogs.items():
+            outstream.write(f"    - {name:{maxlen}s} : {len(cat)} rows\n")
+
         if self.id_mapping is not None:
             outstream.write(f"id_mapping     : {self.id_mapping.name}")
 

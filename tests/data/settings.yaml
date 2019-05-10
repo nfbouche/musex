@@ -6,14 +6,14 @@ author: 'John Doe'
 datasets:
 
   test:
-    # small test dataset with images
+    description: 'small test dataset with images'
     version: '1.0'
     prefix: TEST
     images:
       FAKE: '{datadir}/image.fits'
 
   photutils-hdfs:
-    # dataset linked to the photutils catalog, to provide associated masks
+    description: 'provide masks for the photutils catalog'
     prefix: PHU
     detector: photutils
     linked_catalog: photutils
@@ -23,8 +23,7 @@ datasets:
       mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
 
   origin:
-    # dataset linked to the origin catalog, to provide associated masks,
-    # sources, and lines catalog
+    description: 'provide masks and sources for the origin catalog'
     prefix: ORIG
     detector: origin
     linked_catalog: origin
