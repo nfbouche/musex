@@ -160,12 +160,10 @@ class DataSet:
         # TODO: use @functools.lru_cache
         src_path = self.get_source_file(id_)
         if src_path:
+            src = Source.from_file(src_path)
             if self.group_mapping is not None:
-                src = Source.from_file(src_path)
                 src.ID = id_
                 src.REFSPEC = str(id_)
-            else:
-                src = Source.from_file(src_path)
 
             if check_keyword is not None:
                 key, val = check_keyword
