@@ -28,15 +28,15 @@ def gen_crossmatch(name, db, cat1, cat2, radius=1.):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the CrossMatch catalog in the database.
-    db: `dataset.Database`
+    db : `dataset.Database`
         The database object to use.
-    cat1: `musex.catalog.Catalog`
+    cat1 : `musex.Catalog`
         The first catalog to cross-match.
-    cat2. `musex.catalog.Catalog`
+    cat2 : `musex.Catalog`
         The second catalog.
-    radius: float
+    radius : float
         The cross-match radius in  arc-seconds.
 
     Returns
@@ -176,10 +176,10 @@ class CrossMatch(BaseCatalog):
 
         Parameters
         ----------
-        min_matches: int
+        min_matches : int
             Only sources having this number of matches or more will be
             returned.
-        min_in_cat: int
+        min_in_cat : int
             If not None, should be 1 or 2 and the minimum number of matches
             will be looked for only in the given catalog.
         """

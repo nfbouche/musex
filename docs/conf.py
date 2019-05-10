@@ -90,6 +90,20 @@ automodsumm_inherited_members = True
 
 numpydoc_class_members_toctree = False
 numpydoc_show_class_members = False
+numpydoc_xref_param_type = True
+numpydoc_xref_ignore = {'type', 'optional', 'default', 'or', 'of', 'method'}
+numpydoc_xref_aliases = {
+    # python
+    'sequence': ':term:`python:sequence`',
+    'iterable': ':term:`python:iterable`',
+    'string': 'str',
+    # numpy
+    'array': 'numpy.ndarray',
+    'dtype': 'numpy.dtype',
+    'ndarray': 'numpy.ndarray',
+    'array-like': ':term:`numpy:array_like`',
+    'array_like': ':term:`numpy:array_like`',
+}
 # numpydoc_use_plots = True
 
 # Class documentation should contain *both* the class docstring and

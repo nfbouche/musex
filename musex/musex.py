@@ -16,7 +16,7 @@ from mpdaf.tools import progressbar, isiter
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, MarzCatalog,
-                      IdMapping, get_result_table)
+                      IdMapping, get_result_table, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import sources_to_marz, create_source
 from .utils import load_db, load_yaml_config, table_to_odict
@@ -76,11 +76,11 @@ class MuseX:
 
     Parameters
     ----------
-    settings_file: str
+    settings_file : str
         Path of the settings file.
-    muse_dataset: str
+    muse_dataset : str
         Name of the Muse dataset to work on.
-    id_mapping: str
+    id_mapping : str
         Name of a IdMapping catalog to use.
 
     """
@@ -258,15 +258,15 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the catalog.
-        idname: str
+        idname : str
             Name of the 'id' column.
-        raname: str
+        raname : str
             Name of the 'ra' column.
-        decname: str
+        decname : str
             Name of the 'dec' column.
-        drop_if_exists: bool
+        drop_if_exists : bool
             Drop the catalog if it already exists.
 
         """
@@ -290,14 +290,14 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the catalog.
-        resultset: `musex.ResultSet`
+        resultset : `musex.ResultSet`
             Result from a query.
-        primary_id: str
+        primary_id : str
             The primary id for the SQL table, must be a column name. Defaults
             to 'ID'.
-        drop_if_exists: bool
+        drop_if_exists : bool
             Drop the catalog if it already exists.
 
         """
@@ -399,6 +399,21 @@ class MuseX:
             List of dataset names to use for the sources, or dictionary with
             dataset names associated to a list of tags to use. By default all
             datasets are used, and all tags.
+        only_active : bool
+            If True the inactive sources, i.e. the sources that have been
+            merged into another, are filtered.
+        refspec : str
+            Name of the reference spectra. Used if refspec is not specified in
+            the catalog, and mapped to the REFSPEC keyword using the
+            ``header_columns`` block in the settings.
+        content : list of str
+            This allows to select specific kind of data that can be added to
+            the sources:
+
+            - 'parentcat' for the parent catalog.
+            - 'segmap' for the segmentation map.
+            - 'history' for the log of operations done on each source, which is
+              saved in HISTORY keywords.
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
@@ -559,10 +574,9 @@ class MuseX:
             Output file name. If None the default is `'source-{src.ID:05d}'`.
 
         """
-        cat = get_result_table(res_or_cat)
         if outdir is None:
-            outdir = f'{self.exportdir}/{cat.catalog.name}/sources'
-
+            catname = get_cat_name(res_or_cat)
+            outdir = f'{self.exportdir}/{catname}/sources'
         return list(self.to_sources(res_or_cat, outdir=outdir,
                                     outname=outname, **kwargs))
 
@@ -577,18 +591,14 @@ class MuseX:
         source, and each source must have a REFSPEC attribute designating the
         spectrum to use in MarZ.
 
-        If the catalog (or the resultset) comes from ODHIN, the `source_tpl`
-        points to the ODHIN group source and the catalog must contain
-        a `group_id` column.
-
         Parameters
         ----------
-        res_or_cat: `ResultSet` or `Catalog`
+        res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        outfile: str
+        outfile : str
             Output file. If None the default is
             `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
-        export_sources: bool
+        export_sources : bool
             If True, the source files are also exported.
         datasets : iterable or dict
             List of dataset names to use for the sources, or dictionary with
@@ -596,11 +606,13 @@ class MuseX:
             datasets are used, and all tags.
         sources_dataset : str
             Name of the dataset from which the sources are taken.
-        outdir: str
+        outdir : str
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
-        srcname: str
+        srcname : str
             Output file name. If None the default is `'source-{src.ID:05d}'`.
+        skyspec : str
+            The tag name to find the sky spectrum in the sources.
 
         """
         cat = get_result_table(res_or_cat)
@@ -651,9 +663,9 @@ class MuseX:
 
         Parameters
         ----------
-        catfile: str
+        catfile : str
             The catalog to import from Marz.
-        catalog: str or `Catalog`
+        catalog : str or `Catalog`
             The MuseX catalog to which the results are attached.
 
         """
@@ -683,13 +695,13 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the `musex.catalog.CrossMatch` catalog in the database.
-        cat1: `musex.catalog.Catalog`
+        cat1 : `musex.Catalog`
             The first catalog to cross-match.
-        cat2. `musex.catalog.Catalog`
+        cat2 : `musex.Catalog`
             The second catalog.
-        radius: float
+        radius : float
             The cross-match radius in arc-seconds.
 
         """

@@ -117,13 +117,13 @@ class BaseCatalog:
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the catalog and associated SQL table.
-    db: `dataset.Database`
+    db : `dataset.Database`
         The database object.
-    idname: str
+    idname : str
         Name of the 'id' column.
-    primary_id: str
+    primary_id : str
         The primary id for the SQL table, must be a column name. Defaults to
         ``idname``.
 
@@ -253,12 +253,12 @@ class BaseCatalog:
 
         Parameters
         ----------
-        rows: list of dict or `astropy.table.Table`
+        rows : list of dict or `astropy.table.Table`
             List of rows or Astropy Table to insert. Each row must be a dict
             with column names as keys.
-        version: str
+        version : str
             Version added to each row (if not available in the row values).
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
 
         """
@@ -285,14 +285,14 @@ class BaseCatalog:
 
         Parameters
         ----------
-        rows: list of dict or `astropy.table.Table`
+        rows : list of dict or `astropy.table.Table`
             List of rows or Astropy Table to insert. Each row must be a dict
             with column names as keys.
-        version: str
+        version : str
             Version added to each row (if not available in the row values).
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
-        keys: list of str
+        keys : list of str
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
@@ -346,9 +346,9 @@ class BaseCatalog:
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
         **params
             Additional parameters are passed to `sqlalchemy.sql.select`.
@@ -379,14 +379,14 @@ class BaseCatalog:
 
         Parameters
         ----------
-        idlist: int or list of int
+        idlist : int or list of int
             List of IDs.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        idcolumn: str
+        idcolumn : str
             Name of the column containing the IDs when not using the default
             column.
-        params: dict
+        params : dict
             Additional parameters are passed to `dataset.Database.query`.
 
         """
@@ -411,22 +411,22 @@ class BaseCatalog:
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        keys: list of tuple
+        keys : list of tuple
             List of keys to do the join for each catalog. If None, the IDs of
             each catalog are used (from the ``idname`` attribute). Otherwise it
             must be a list of tuples, where each tuple contains the key for
             self and the key for the other catalog.
-        use_labels: bool
+        use_labels : bool
             By default, all columns are selected which may gives name
             conflicts. So ``use_labels`` allows to rename the columns by
             prefixinf the name with the catalog name.
-        isouter: bool
+        isouter : bool
             If True, render a LEFT OUTER JOIN, instead of JOIN.
-        params: dict
+        params : dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
@@ -481,17 +481,17 @@ class Catalog(BaseCatalog):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the catalog and associated SQL table.
-    db: `dataset.Database`
+    db : `dataset.Database`
         The database object.
-    idname: str
+    idname : str
         Name of the 'id' column.
-    raname: str
+    raname : str
         Name of the 'ra' column.
-    decname: str
+    decname : str
         Name of the 'dec' column.
-    primary_id: str
+    primary_id : str
         The primary id for the SQL table, must be a column name.
 
     """
@@ -538,18 +538,18 @@ class Catalog(BaseCatalog):
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        wcs: `mpdaf.obj.WCS`
+        wcs : `mpdaf.obj.WCS`
             If present sources are selected inside the given WCS.
-        margin: float
+        margin : float
             Margin from the edges (pixels) for the WCS selection.
-        mask: array-like
+        mask : array-like
             If addition to the WCS, corresponding mask used to select sources
             (1 to mask).
-        params: dict
+        params : dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
@@ -618,15 +618,15 @@ class Catalog(BaseCatalog):
 
         Parameters
         ----------
-        idlist: list
+        idlist : list
             List of ids to merge.
-        id_: int
+        id_ : int
             The new ID for the merged source. If not given, it is automatically
             determined from the maxid and autoincremented.
-        dataset: `musex.Dataset`
+        dataset : `musex.Dataset`
             The associated dataset. To compute the masks this dataset must be
             given, and must be the same as the one used for `attach_dataset`.
-        weights_colname: str
+        weights_colname : str
             Name of a column to be used as weights.
 
         """
@@ -743,20 +743,20 @@ class InputCatalog(Catalog):
 
         Parameters
         ----------
-        catalog: str or `astropy.table.Table`
+        catalog : str or `astropy.table.Table`
             Table to insert.
-        limit: int
+        limit : int
             To limit the number of rows from the catalog.
-        upsert: bool
+        upsert : bool
             If True, existing rows with the same values for ``keys`` are
             updated.
-        keys: list of str
+        keys : list of str
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
-        version_meta: str, optional
+        version_meta : str, optional
             Keyword in the catalog file that is used to identify the version of
             the catalog. It is used for ORIGIN catalogs to check that the
             sources correspond to the catalog.
@@ -815,10 +815,10 @@ class MarzCatalog(InputCatalog):
         limit_to_cat : str, optional
             If provided, only the lines for the corresponding catalog are used
             in `marzcat`.
-        maximum_order: int, optional
+        maximum_order : int, optional
             Maximum order of the solutions to take; e.g. 2 will export only the
             first two solutions.
-        columns: list of str, optional
+        columns : list of str, optional
             Name of the columns in addition to `catalog`, `ID`, `RA`, `DEC`,
             and `QOP` to export.
 
