@@ -381,7 +381,8 @@ class MuseX:
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
-                   n_jobs=1, masks_dataset=None):
+                   n_jobs=1, masks_dataset=None, outdir=None, outname=None,
+                   create_pdf=False):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -401,14 +402,22 @@ class MuseX:
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
+        outdir : str
+            Output directory.
+        outname : str
+            Output file name.
+        create_pdf : bool
+            If True, create a pdf for each source.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
         nrows = len(resultset)
         cat = resultset.catalog
         parent_cat = self.find_parent_cat(cat)
-
         info = self.logger.info
+
+        if outdir is not None:
+            os.makedirs(outdir, exist_ok=True)
 
         if isinstance(size, (float, int)):
             info('Exporting %s sources with %s dataset, size=%.1f',
@@ -455,6 +464,8 @@ class MuseX:
             'datasets': use_datasets,   # datasets to use
             'header': header,           # additional keywords
             'verbose': verbose,
+            'outdir': outdir,           # output directory
+            'outname': outname,         # output filename
         }
 
         # dataset for masks
@@ -488,6 +499,9 @@ class MuseX:
             kw['header']['REFCAT'] = f"{prefix}_CAT"
             kw['catalogs'][f"{prefix}_CAT"] = pcat
 
+        if create_pdf:
+            kw['pdfconf'] = self.conf['export'].get('pdf', {})
+
         author = self.conf['author']
         to_compute = []
         for res, src_size in zip(resultset, size):
@@ -514,7 +528,7 @@ class MuseX:
             if verbose is False:
                 bar = progressbar(sources, total=nrows)
 
-            for src, src_size in zip(sources, size):
+            for src in sources:
                 yield src
 
                 if verbose is False:
@@ -527,7 +541,7 @@ class MuseX:
             if n_jobs > 1:
                 pool.terminate()
 
-    def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
+    def export_sources(self, res_or_cat, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
         """Save a catalog or selection to sources (SourceX).
 
@@ -535,35 +549,21 @@ class MuseX:
 
         Parameters
         ----------
-        res_or_cat: `ResultSet`, `Catalog`, `Table`
+        res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        create_pdf: bool
-            If True, create a pdf for each source.
-        outdir: str
+        outdir : str
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/sources'`.
-        outdir: str
-            Output directory. If None the default is `'source-{src.ID:05d}'`.
+        outname : str
+            Output file name. If None the default is `'source-{src.ID:05d}'`.
 
         """
         cat = get_result_table(res_or_cat)
         if outdir is None:
             outdir = f'{self.exportdir}/{cat.catalog.name}/sources'
-        os.makedirs(outdir, exist_ok=True)
 
-        pdfconf = self.conf['export'].get('pdf', {})
-        info = self.logger.info
-
-        for src in self.to_sources(res_or_cat, **kwargs):
-            outn = outname.format(src=src)
-            fname = f'{outdir}/{outn}.fits'
-            src.write(fname)
-            info('fits written to %s', fname)
-            if create_pdf:
-                fname = f'{outdir}/{outn}.pdf'
-                src.to_pdf(fname, self.muse_dataset.white,
-                           ima2=pdfconf.get('image'), mastercat=cat)
-                info('pdf written to %s', fname)
+        return list(self.to_sources(res_or_cat, outdir=outdir,
+                                    outname=outname, **kwargs))
 
     def export_marz(self, res_or_cat, outfile=None, export_sources=False,
                     datasets=None, sources_dataset=None, outdir=None,
@@ -599,7 +599,7 @@ class MuseX:
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
         srcname: str
-            Output directory. If None the default is `'source-{src.ID:05d}'`.
+            Output file name. If None the default is `'source-{src.ID:05d}'`.
 
         """
         cat = get_result_table(res_or_cat)
@@ -618,7 +618,6 @@ class MuseX:
         else:
             check_keyword = None
 
-        srcdir = None
         if sources_dataset:
             ds = self.datasets[sources_dataset]
 
@@ -631,20 +630,19 @@ class MuseX:
                 # If sources must be exported, we need to tell .to_sources
                 # what to put inside the sources (all datasets by default
                 # and the segmap)
-                content = ('segmap', 'parentcat')
-                srcdir = f'{outdir}/{srcname}.fits'
+                kwargs.setdefault('content', ('segmap', 'parentcat'))
+                kwargs['outdir'] = outdir
+                kwargs['outname'] = srcname
             else:
                 if datasets is None:
                     # skip using additional datasets. In this case the
                     # muse_dataset will be used, with spectra extracted
                     # from the cube.
                     datasets = []
-                content = tuple()
 
-            src_iter = self.to_sources(cat, datasets=datasets,
-                                       content=content, **kwargs)
+            src_iter = self.to_sources(cat, datasets=datasets, **kwargs)
 
-        sources_to_marz(src_iter, outfile, skyspec=skyspec, save_src_to=srcdir)
+        sources_to_marz(src_iter, outfile, skyspec=skyspec)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.

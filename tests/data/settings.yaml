@@ -103,4 +103,6 @@ export:
     REFSPEC: refspec
     COMMENT: Comment
   pdf:
-    image: TEST_FAKE
+    white: MUSE_WHITE
+    ima2: TEST_FAKE
+    mastercat: PHU_CAT

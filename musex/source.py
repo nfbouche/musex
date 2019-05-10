@@ -60,8 +60,8 @@ class SourceX(Source):
         except KeyError:
             self._logger.debug('Ref catalog "%s" not found', self.REFCAT)
 
-    def to_pdf(self, filename, white, **kwargs):
-        create_pdf(self, white, filename, **kwargs)
+    def to_pdf(self, filename, **kwargs):
+        create_pdf(self, filename, **kwargs)
 
     def add_z_from_settings(self, redshifts, row):
         """Add redshifts from a row using the settings definition."""
@@ -146,7 +146,8 @@ class SourceX(Source):
 def create_source(row, idname, raname, decname, size, refspec, history,
                   segmap=None, datasets=None, maskds=None, apertures=None,
                   header=None, header_columns=None, redshifts=None, mags=None,
-                  catalogs=None, verbose=False, **kwargs):
+                  catalogs=None, outdir=None, outname=None, pdfconf=None,
+                  verbose=False, **kwargs):
     logger = logging.getLogger(__name__)
     if not verbose:
         logging.getLogger('musex').setLevel('WARNING')
@@ -215,27 +216,34 @@ def create_source(row, idname, raname, decname, size, refspec, history,
     logger.debug('IMAGES: %s', ', '.join(src.images.keys()))
     logger.debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
 
-    return src
+    if outdir is not None and outname is not None:
+        outn = outname.format(src=src)
+        fname = f'{outdir}/{outn}.fits'
+        src.write(fname)
+        logger.info('fits written to %s', fname)
+        if pdfconf is not None:
+            fname = f'{outdir}/{outn}.pdf'
+            src.to_pdf(fname, **pdfconf)
+            logger.info('pdf written to %s', fname)
+        return fname
+    else:
+        return src
 
 
 def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
-                    save_src_to=None, check_keyword=None):
+                    check_keyword=None):
     """Export a list of source to a MarZ input file.
 
     Parameters
     ----------
-    src_list : iterable of `mpdaf.sdetect.Source`
-        List of mpdaf sources.
+    src_list : iterable of `mpdaf.sdetect.Source` or str
+        List of mpdaf sources (objects or filenames).
     outfile : str
         Filename for the FITS file to use as input to MarZ.
     refspec : str, optional
         The spectrum to use, defaults to ``src.REFSPEC``.
     skyspec : str, optional
         The sky spectrum to use, defaults to ``MUSE_SKY``.
-    save_src_to : str, optional
-        None or a template string that is formated with the source as `src` to
-        get the name of the file to save the source to (for instance
-        `/path/to/source-{src.ID:05d}.fits`).
     check_keyword : tuple, optional
         If a tuple (keyword, value) is given, each source header will be
         checked that it contains the keyword with the value. If the keyword is
@@ -244,12 +252,13 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
 
     """
     logger = logging.getLogger(__name__)
-    if save_src_to is not None:
-        logger.info('Saving sources to %s', save_src_to)
 
     wave, data, stat, sky, meta = [], [], [], [], []
 
     for src in src_list:
+        if isinstance(src, str):
+            src = Source.from_file(src)
+
         if check_keyword is not None:
             key, val = check_keyword
             try:
@@ -281,11 +290,6 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
         meta.append(('%05d' % src.ID, src.RA, src.DEC, z,
                      src.header.get('CONFID', 0),
                      src.header.get('TYPE', 0), mag1, mag2, refsp))
-
-        if save_src_to is not None:
-            fname = save_src_to.format(src=src)
-            src.write(fname)
-            logger.info('fits written to %s', fname)
 
     t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
                                 'F775W', 'F125W', 'REFSPEC'],
