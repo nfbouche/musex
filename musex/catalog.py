@@ -318,7 +318,7 @@ class BaseCatalog:
         with self.db as tx:
             tbl = tx[self.name]
             for row in rows:
-                res = tbl.upsert(row, keys, ensure=False)
+                res = tbl.upsert(row, keys)
                 op = 'updated' if res is True else 'inserted'
                 count[op] += 1
                 if res is True:
