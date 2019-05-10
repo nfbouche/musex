@@ -39,10 +39,13 @@ class SourceX(Source):
             return sel['Z'][0]
 
     def extract_all_spectra(self, cube=None, apertures=None):
-        self._logger.debug('Extract spectra for apertures %s', apertures)
         cube = cube or self.cubes['MUSE_CUBE']
         kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY',
                   apertures=apertures, unit_wave=None)
+        if apertures:
+            self._logger.debug('Extract spectra with apertures %s', apertures)
+        else:
+            self._logger.debug('Extract spectra')
 
         if 'FSFMODE' in self.header:
             a, b, beta, field = self.get_FSF()
@@ -148,7 +151,7 @@ def create_source(row, idname, raname, decname, size, refspec, history,
                   segmap=None, datasets=None, maskds=None, apertures=None,
                   header=None, header_columns=None, redshifts=None, mags=None,
                   catalogs=None, outdir=None, outname=None, pdfconf=None,
-                  verbose=False, **kwargs):
+                  verbose=False, user_func=None, **kwargs):
     logger = logging.getLogger(__name__)
     if not verbose:
         logging.getLogger('musex').setLevel('WARNING')
@@ -157,7 +160,7 @@ def create_source(row, idname, raname, decname, size, refspec, history,
 
     src = SourceX.from_data(row[idname], row[raname], row[decname], origin,
                             default_size=size)
-    logger.debug('create source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    logger.debug('Creating source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
     src.SIZE = size
     if header:
         src.header.update(header)
@@ -213,7 +216,12 @@ def create_source(row, idname, raname, decname, size, refspec, history,
         src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
         src.extract_all_spectra(apertures=apertures)
 
-    logger.info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    if user_func is not None:
+        logger.debug('Calling user function')
+        user_func(src)
+
+    logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
+                src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
     logger.debug('IMAGES: %s', ', '.join(src.images.keys()))
     logger.debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
 
@@ -224,11 +232,11 @@ def create_source(row, idname, raname, decname, size, refspec, history,
             warnings.filterwarnings("ignore", message='.*greater than 8.*',
                                     category=fits.verify.VerifyWarning)
             src.write(fname)
-        logger.info('fits written to %s', fname)
+        logger.info('FITS written to %s', fname)
         if pdfconf is not None:
             fname = f'{outdir}/{outn}.pdf'
             src.to_pdf(fname, **pdfconf)
-            logger.info('pdf written to %s', fname)
+            logger.info('PDF written to %s', fname)
         return fname
     else:
         return src

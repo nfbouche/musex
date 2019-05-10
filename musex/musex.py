@@ -382,7 +382,7 @@ class MuseX:
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
                    n_jobs=1, masks_dataset=None, outdir=None, outname=None,
-                   create_pdf=False):
+                   create_pdf=False, user_func=None):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -423,6 +423,9 @@ class MuseX:
             Output file name.
         create_pdf : bool
             If True, create a pdf for each source.
+        user_func : callable
+            User specified function that is called at the end of the source
+            creation process, with the source object as first argument.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
@@ -481,6 +484,7 @@ class MuseX:
             'verbose': verbose,
             'outdir': outdir,           # output directory
             'outname': outname,         # output filename
+            'user_func': user_func,     # user function
         }
 
         # dataset for masks
