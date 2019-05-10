@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import re
 import textwrap
+import warnings
 
 from astropy.io import fits
 from astropy.table import Table
@@ -219,7 +220,10 @@ def create_source(row, idname, raname, decname, size, refspec, history,
     if outdir is not None and outname is not None:
         outn = outname.format(src=src)
         fname = f'{outdir}/{outn}.fits'
-        src.write(fname)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message='.*greater than 8.*',
+                                    category=fits.verify.VerifyWarning)
+            src.write(fname)
         logger.info('fits written to %s', fname)
         if pdfconf is not None:
             fname = f'{outdir}/{outn}.pdf'
