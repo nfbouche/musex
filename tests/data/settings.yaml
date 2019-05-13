@@ -37,8 +37,10 @@ datasets:
       excluded_tags: [MUSE_CUBE, MUSE_WHITE]
       source_tpl: '{datadir}/origin_sources/source-%05d.fits'
     masks:
-      mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
-      skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
+      mask_srctag: ORI_MASK_OBJ
+      skymask_srctag: ORI_MASK_SKY
+      # mask_tpl: '{datadir}/origin_masks/source-mask-%05d.fits'
+      # skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
   # odhin:
   #   prefix: ODH

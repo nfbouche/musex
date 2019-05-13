@@ -108,12 +108,20 @@ class DataSet:
             masks:
                 skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
+        Or with the tag name to use an extension from the sources::
+
+            masks:
+                skymask_srctag: ORI_MASK_SKY
+
         """
         masks = self.settings.get('masks', {})
         if 'skymask_tpl' in masks:
             return masks['skymask_tpl'] % id_
         elif 'skymask' in masks:
             return masks['skymask']
+        elif 'skymask_srctag' in masks:
+            src = self.get_source(id_)
+            return src.images[masks['skymask_srctag']]
 
     def get_objmask_file(self, id_):
         """Return the source mask for a given ID.
@@ -123,10 +131,18 @@ class DataSet:
             masks:
                 mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
 
+        Or with the tag name to use an extension from the sources::
+
+            masks:
+                mask_srctag: ORI_MASK_OBJ
+
         """
         masks = self.settings.get('masks', {})
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
+        elif 'mask_srctag' in masks:
+            src = self.get_source(id_)
+            return src.images[masks['mask_srctag']]
 
     def get_source_file(self, id_):
         """Return a source filename.
