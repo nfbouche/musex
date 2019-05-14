@@ -29,15 +29,6 @@ class DataSet:
         for key in ('prefix', 'version', 'detector', 'description'):
             setattr(self, key, self.settings.get(key))
 
-        self.group_mapping = None
-        if 'group_mapping' in self._src_conf:
-            conf = self._src_conf['group_mapping']
-            tbl = Table.read(conf['catalog'])
-            self.group_mapping = Table(
-                [tbl[conf['idname']], tbl[conf['group_idname']]],
-                names=('id', 'group_id'))
-            self.group_mapping.add_index('id')
-
     def __repr__(self):
         out = f'<{self.__class__.__name__}('
         if self.prefix:
@@ -69,6 +60,16 @@ class DataSet:
         for slot, value in state.items():
             setattr(self, slot, value)
         self.logger = logging.getLogger(__name__)
+
+    @lazyproperty
+    def group_mapping(self):
+        if 'group_mapping' in self._src_conf:
+            conf = self._src_conf['group_mapping']
+            tbl = Table.read(conf['catalog'])
+            self.group_mapping = Table(
+                [tbl[conf['idname']], tbl[conf['group_idname']]],
+                names=('id', 'group_id'))
+            self.group_mapping.add_index('id')
 
     @lazyproperty
     def linked_cat(self):
