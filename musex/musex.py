@@ -109,9 +109,8 @@ class MuseX:
         # Load datasets
         self.datasets = load_datasets(self.conf)
         settings = self.conf['muse_datasets']
-        muse_dataset = muse_dataset or settings['default']
-        self.muse_dataset = MuseDataSet(muse_dataset,
-                                        settings=settings[muse_dataset])
+        self._muse_dataset = None
+        self.muse_dataset = muse_dataset or settings['default']
 
         # Load catalogs table
         self.catalogs_table = _create_catalogs_table(self.db)
@@ -228,6 +227,17 @@ class MuseX:
 
         if self.id_mapping is not None:
             outstream.write(f"id_mapping     : {self.id_mapping.name}")
+
+    @property
+    def muse_dataset(self):
+        return self._muse_dataset
+
+    @muse_dataset.setter
+    def muse_dataset(self, name):
+        conf = self.conf['muse_datasets']
+        if name not in conf:
+            raise ValueError('invalid dataset name')
+        self._muse_dataset = MuseDataSet(name, settings=conf[name])
 
     @property
     def exportdir(self):
