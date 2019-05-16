@@ -106,6 +106,8 @@ class ResultSet(Sequence):
         try:
             tbl.meta['raname'] = self.catalog.raname
             tbl.meta['decname'] = self.catalog.decname
+            tbl.meta['zname'] = self.catalog.zname
+            tbl.meta['zconfname'] = self.catalog.zconfname
         except AttributeError:
             pass
 
@@ -498,10 +500,14 @@ class Catalog(BaseCatalog):
         The database object.
     idname : str
         Name of the 'id' column.
-    raname : str
+    raname : str, optional
         Name of the 'ra' column.
-    decname : str
+    decname : str, optional
         Name of the 'dec' column.
+    zname : str, optional
+        Name of the 'z' column.
+    zconfname : str, optional
+        Name of the 'confid' column.
     primary_id : str
         The primary id for the SQL table, must be a column name.
 
@@ -510,11 +516,14 @@ class Catalog(BaseCatalog):
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname=None, decname=None,
-                 primary_id=None):
+                 zname=None, zconfname=None, primary_id=None):
         super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.raname = raname
         self.decname = decname
-        self.update_meta(raname=self.raname, decname=self.decname)
+        self.zname = zname
+        self.zconfname = zconfname
+        self.update_meta(raname=self.raname, decname=self.decname,
+                         zname=self.zname, zconfname=self.zconfname)
 
         # FIXME: sadly this doesn't work well currently, it is not taken into
         # account until an insert is done
@@ -529,10 +538,15 @@ class Catalog(BaseCatalog):
     @classmethod
     def from_parent_cat(cls, parent_cat, name, whereclause, primary_id=None):
         """Create a new `Catalog` from another one."""
-        cat = cls(name, parent_cat.db, primary_id=primary_id,
-                  idname=parent_cat.idname,
-                  raname=getattr(parent_cat, 'raname', None),
-                  decname=getattr(parent_cat, 'decname', None))
+        cat = cls(
+            name, parent_cat.db,
+            primary_id=primary_id,
+            idname=parent_cat.idname,
+            raname=getattr(parent_cat, 'raname', None),
+            decname=getattr(parent_cat, 'decname', None),
+            zname=getattr(parent_cat, 'zname', None),
+            zconfname=getattr(parent_cat, 'zconfname', None)
+        )
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one
             whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
@@ -728,7 +742,7 @@ class InputCatalog(Catalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname')
+        init_keys = ('idname', 'raname', 'decname', 'zname', 'zconfname')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
 
