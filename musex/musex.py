@@ -8,7 +8,7 @@ import sys
 import textwrap
 
 from astropy.table import Table
-from collections import OrderedDict, Sized, Iterable
+from collections import Sized, Iterable
 from contextlib import contextmanager
 from mpdaf.obj import Image
 from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
@@ -40,23 +40,23 @@ def _create_catalogs_table(db):
     if 'catalogs' in db:
         return db['catalogs']
 
-    row = OrderedDict([
-        ('name', ''),
-        ('creation_date', ''),
-        ('type', 'id'),
-        ('parent_cat', ''),
-        ('raname', 'RA'),
-        ('decname', 'DEC'),
-        ('idname', 'ID'),
-        ('maxid', 1),
-        ('query', ''),
-    ])
-
     # Create the table
     table = db.create_table('catalogs')
     # Force the creation of the SQLATable
     assert table.table is not None
+
     # and make sure that all columns exists
+    row = {
+        'name': '',
+        'creation_date': '',
+        'type': '',
+        'parent_cat': '',
+        'raname': '',
+        'decname': '',
+        'idname': '',
+        'maxid': 1,
+        'query': '',
+    }
     table._sync_columns(row, True)
     return table
 
@@ -262,7 +262,7 @@ class MuseX:
                 raise ValueError('parent catalog not found')
         return parent_cat
 
-    def new_catalog(self, name, idname='ID', raname='RA', decname='DEC',
+    def new_catalog(self, name, idname='ID', raname=None, decname=None,
                     drop_if_exists=False):
         """Create a new user catalog.
 
@@ -270,13 +270,13 @@ class MuseX:
         ----------
         name : str
             Name of the catalog.
-        idname : str
+        idname : str, optional
             Name of the 'id' column.
-        raname : str
+        raname : str, optional
             Name of the 'ra' column.
-        decname : str
+        decname : str, optional
             Name of the 'dec' column.
-        drop_if_exists : bool
+        drop_if_exists : bool, optional
             Drop the catalog if it already exists.
 
         """

@@ -509,7 +509,7 @@ class Catalog(BaseCatalog):
 
     catalog_type = 'user'
 
-    def __init__(self, name, db, idname='ID', raname='RA', decname='DEC',
+    def __init__(self, name, db, idname='ID', raname=None, decname=None,
                  primary_id=None):
         super().__init__(name, db, idname=idname, primary_id=primary_id)
         self.raname = raname

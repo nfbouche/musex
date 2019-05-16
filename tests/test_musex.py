@@ -212,6 +212,14 @@ def test_user_catalog_from_scratch(mx):
     assert cat.meta['type'] == 'user'
     assert cat.meta['maxid'] == 13
 
+    # make sure that it works without ra/dec columns
+    cat2 = mx.new_catalog('custom_cat2', idname='id')
+    cat2.insert([{'id': 2, 'foo': 'bar'}])
+    cat2.insert([{'id': 4, 'baz': True}])
+    assert len(cat2.table) == 2
+    assert cat2.meta['raname'] is None
+    assert cat2.meta['decname'] is None
+
 
 def test_drop_user_catalog(mx):
     phot = mx.input_catalogs['photutils']
