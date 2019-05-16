@@ -53,6 +53,8 @@ def _create_catalogs_table(db):
         'parent_cat': '',
         'raname': '',
         'decname': '',
+        'zname': '',
+        'zconfname': '',
         'idname': '',
         'maxid': 1,
         'query': '',
@@ -147,8 +149,13 @@ class MuseX:
         for row in self.catalogs_table.find(type='user'):
             name = row['name']
             self.catalogs[name] = Catalog(
-                name, self.db, idname=row['idname'],
-                raname=row['raname'], decname=row['decname'])
+                name, self.db,
+                idname=row['idname'],
+                raname=row['raname'],
+                decname=row['decname'],
+                zname=row['zname'],
+                zconfname=row['zconfname'],
+            )
             # Restore the associated line catalog.
             line_tablename = f'{name}_lines'
             line_meta = self.catalogs_table.find_one(name=line_tablename)
@@ -263,7 +270,7 @@ class MuseX:
         return parent_cat
 
     def new_catalog(self, name, idname='ID', raname=None, decname=None,
-                    drop_if_exists=False):
+                    zname=None, zconfname=None, drop_if_exists=False):
         """Create a new user catalog.
 
         Parameters
@@ -276,6 +283,10 @@ class MuseX:
             Name of the 'ra' column.
         decname : str, optional
             Name of the 'dec' column.
+        zname : str, optional
+            Name of the 'z' column.
+        zconfname : str, optional
+            Name of the 'confid' column.
         drop_if_exists : bool, optional
             Drop the catalog if it already exists.
 
@@ -291,7 +302,8 @@ class MuseX:
                 raise ValueError('table already exists')
 
         self.catalogs[name] = Catalog(name, self.db, idname=idname,
-                                      raname=raname, decname=decname)
+                                      raname=raname, decname=decname,
+                                      zname=zname, zconfname=zconfname)
         return self.catalogs[name]
 
     def new_catalog_from_resultset(self, name, resultset, primary_id=None,
