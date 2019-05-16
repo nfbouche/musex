@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 import os
@@ -164,18 +165,28 @@ class BaseCatalog:
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
-    @property
+    @lazyproperty
     def history(self):
         # Create the history table and its columns
         tbl = self.db.create_table('history', primary_id='_id')
         assert tbl.table is not None
-        tbl._sync_columns(dict(catalog='', id=0, date='', msg=''), True)
+        tbl._sync_columns(dict(catalog='', id=0, date='', msg='', data=''),
+                          True)
         return tbl
 
-    def log(self, id_, msg):
-        self.history.insert(dict(catalog=self.name, id=id_,
-                                 date=datetime.utcnow().isoformat(), msg=msg),
-                            ensure=False)
+    def log(self, id_, msg, row=None, **kwargs):
+        if row is not None:
+            row = json.dumps(row)
+
+        # Force the columns creation if additional columns are passed.
+        # Otherwise the automatic creation of columns is disabled to save some
+        # processing time.
+        ensure = bool(kwargs)
+
+        date = datetime.utcnow().isoformat()
+        self.history.insert(dict(catalog=self.name, id=id_, data=row,
+                                 date=date, msg=msg, **kwargs),
+                            ensure=ensure)
 
     def get_log(self, id_):
         return self.history.find(catalog=self.name, id=id_)
@@ -270,7 +281,7 @@ class BaseCatalog:
             tbl = tx[self.name]
             for row in rows:
                 ids.append(tbl.insert(row, ensure=False))
-                self.log(ids[-1], f'inserted from input catalog')
+                self.log(ids[-1], f'inserted from input catalog', row=row)
 
         if ids:
             self.update_meta(maxid=self.max(self.idname))
@@ -331,7 +342,7 @@ class BaseCatalog:
                     res = row.get(self.idname)
                 if res is not None:
                     # log operation if we have an ID
-                    self.log(res, f'{op} from input catalog')
+                    self.log(res, f'{op} from input catalog', row=row)
 
         if count['inserted']:
             self.update_meta(maxid=self.max(self.idname))

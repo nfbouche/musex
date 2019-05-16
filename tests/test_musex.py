@@ -64,6 +64,14 @@ def test_ingest_photutils(mx):
     tbl = phot.select().as_table()
     assert tbl[phot.idname].max() == 13
 
+    log = list(phot.get_log(3))
+    assert log[0]['id'] == 3
+    assert log[0]['catalog'] == 'photutils'
+    assert log[0]['msg'] == 'inserted from input catalog'
+    assert log[1]['catalog'] == 'photutils'
+    assert log[1]['msg'] == 'updated from input catalog'
+    assert '"eccentricity"' in log[1]['data']
+
 
 def test_ingest_origin(mx):
     assert list(mx.input_catalogs.keys()) == ['photutils', 'origin']
