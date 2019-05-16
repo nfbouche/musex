@@ -207,9 +207,9 @@ class DataSet:
             The ID of the source.
 
         """
-        src_path = self.get_source_file(id_)
-        if src_path:
-            return fits.getval(src_path, 'REFSPEC')
+        src = self.get_source(id_)
+        if src:
+            return src.REFSPEC
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add data to a source.
