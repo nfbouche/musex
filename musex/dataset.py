@@ -66,10 +66,11 @@ class DataSet:
         if 'group_mapping' in self._src_conf:
             conf = self._src_conf['group_mapping']
             tbl = Table.read(conf['catalog'])
-            self.group_mapping = Table(
+            group_mapping = Table(
                 [tbl[conf['idname']], tbl[conf['group_idname']]],
                 names=('id', 'group_id'))
-            self.group_mapping.add_index('id')
+            group_mapping.add_index('id')
+            return group_mapping
 
     @lazyproperty
     def linked_cat(self):
@@ -186,7 +187,8 @@ class DataSet:
             src = Source.from_file(src_path)
             if self.group_mapping is not None:
                 src.ID = id_
-                src.REFSPEC = str(id_)
+                src.REFSPEC = 'ODHIN_SPEC'
+                src.spectra['ODHIN_SPEC'] = src.spectra[str(id_)]
 
             if check_keyword is not None:
                 key, val = check_keyword
