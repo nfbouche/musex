@@ -1,5 +1,9 @@
+import inspect
 import logging
 import numpy as np
+import re
+import textwrap
+import warnings
 
 from astropy.io import fits
 from astropy.table import Table
@@ -11,6 +15,16 @@ from .utils import extract_subimage
 from .version import __version__
 
 __all__ = ('SourceX', 'create_source', 'sources_to_marz')
+
+# Default comments for FITS keywords
+HEADER_COMMENTS = dict(
+    CONFID='Z Confidence Flag',
+    BLEND='Blending flag',
+    DEFECT='Defect flag',
+    REVISIT='Reconciliation Revisit Flag',
+    TYPE='Object classification',
+    REFSPEC='Name of reference spectra',
+)
 
 
 class SourceX(Source):
@@ -25,10 +39,13 @@ class SourceX(Source):
             return sel['Z'][0]
 
     def extract_all_spectra(self, cube=None, apertures=None):
-        self._logger.debug('Extract spectra for apertures %s', apertures)
         cube = cube or self.cubes['MUSE_CUBE']
         kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY',
                   apertures=apertures, unit_wave=None)
+        if apertures:
+            self._logger.debug('Extract spectra with apertures %s', apertures)
+        else:
+            self._logger.debug('Extract spectra')
 
         if 'FSFMODE' in self.header:
             a, b, beta, field = self.get_FSF()
@@ -47,110 +64,198 @@ class SourceX(Source):
         except KeyError:
             self._logger.debug('Ref catalog "%s" not found', self.REFCAT)
 
-    def to_pdf(self, filename, white, **kwargs):
-        create_pdf(self, white, filename, **kwargs)
+    def to_pdf(self, filename, **kwargs):
+        create_pdf(self, filename, **kwargs)
 
-# TODO: pdf filename with infos
-# if info:
-#     # f = os.path.splitext(os.path.basename(src.filename))[0]
-#     confid = str(src.CONFID) if hasattr(src, 'CONFID') else 'u'
-#     stype = str(src.TYPE) if hasattr(src, 'TYPE') else 'u'
-#     z = src.get_zmuse()
-#     if z is None:
-#         zval = 'uu'
-#     else:
-#         if z < 0:
-#             zval = '00'
-#         else:
-#             zval = '{:.1f}'.format(z)
-#             zval = zval[0] + zval[2]
-#     # outfile = '{}_t{}_c{}_z{}.pdf'.format(f, stype, confid, zval)
+    def add_z_from_settings(self, redshifts, row):
+        """Add redshifts from a row using the settings definition."""
+        for name, val in redshifts.items():
+            try:
+                if isinstance(val, str):
+                    z, errz = row[val], 0
+                else:
+                    z, errz = row[val[0]], (row[val[1]], row[val[2]])
+            except KeyError:
+                continue
 
+            if z is not None and 0 <= z < 50:
+                self._logger.debug('Add redshift %s=%.2f (err=%r)',
+                                   name, z, errz)
+                self.add_z(name, z, errz=errz)
 
-def create_source(iden, ra, dec, size, skyim, maskim, datasets, apertures,
-                  verbose):
-    logger = logging.getLogger(__name__)
-    if not verbose:
-        logging.getLogger('musex').setLevel('WARNING')
+    def add_mag_from_settings(self, mags, row):
+        """Add magnitudes from a row using the settings definition."""
+        for name, val in mags.items():
+            try:
+                if isinstance(val, str):
+                    mag, magerr = row[val], 0
+                else:
+                    mag, magerr = row[val[0]], row[val[1]]
+            except KeyError:
+                continue
 
-    # minsize = min(*size) // 2
-    minsize = 0.
-    nskywarn = (50, 5)
-    origin = ('MuseX', __version__, '', '')
+            if mag is not None and 0 <= mag < 50:
+                self._logger.debug('Add mag %s=%.2f (err=%r)',
+                                   name, mag, magerr)
+                self.add_mag(name, mag, magerr)
 
-    src = SourceX.from_data(iden, ra, dec, origin)
-    logger.info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
-    src.default_size = size
-    src.SIZE = size
+    def add_header_from_settings(self, header_columns, row):
+        """Add keywords from a row using the settings definition."""
+        for key, colname in header_columns.items():
+            if row.get(colname) is not None:
+                if key == 'COMMENT':
+                    # truncate comment if too long
+                    com = re.sub(r'[^\s!-~]', '', row[colname])
+                    for txt in textwrap.wrap(com, 50):
+                        self.add_comment(txt, '')
+                else:
+                    self._logger.debug('Add %s=%r', key, row[colname])
+                    comment = HEADER_COMMENTS.get(key)
+                    self.header[key] = (row[colname], comment)
 
-    for ds, names in datasets.items():
-        ds.add_to_source(src, names=names)
+    def add_masks_from_dataset(self, maskds, center, size, minsize=0,
+                               nskywarn=(50, 5)):
+        skyim = maskds.get_skymask_file(self.ID)
+        maskim = maskds.get_objmask_file(self.ID)
 
-    center = (src.DEC, src.RA)
-
-    # FIXME: masks could be added from sources
-    if skyim is not None and maskim is not None:
         # FIXME: use Source.add_image instead ?
-        src.images['MASK_SKY'] = extract_subimage(
+        self.images['MASK_SKY'] = extract_subimage(
             skyim, center, (size, size), minsize=minsize)
 
         # FIXME: check that center is inside mask
         # centerpix = maskim.wcs.sky2pix(center)[0]
         # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
         #       *centerpix.tolist())
-        src.images['MASK_OBJ'] = extract_subimage(
+        self.images['MASK_OBJ'] = extract_subimage(
             maskim, center, (size, size), minsize=minsize)
 
         # compute surface of each masks and compare to field of view, save
         # values in header
-        nsky = np.count_nonzero(src.images['MASK_SKY']._data)
-        nobj = np.count_nonzero(src.images['MASK_OBJ']._data)
-        nfracsky = 100.0 * nsky / np.prod(src.images['MASK_OBJ'].shape)
-        nfracobj = 100.0 * nobj / np.prod(src.images['MASK_OBJ'].shape)
+        nsky = np.count_nonzero(self.images['MASK_SKY']._data)
+        nobj = np.count_nonzero(self.images['MASK_OBJ']._data)
+        fracsky = 100.0 * nsky / np.prod(self.images['MASK_OBJ'].shape)
+        fracobj = 100.0 * nobj / np.prod(self.images['MASK_OBJ'].shape)
         min_nsky_abs, min_nsky_rel = nskywarn
-        if nsky < min_nsky_abs or nfracsky < min_nsky_rel:
-            logger.warning('sky mask is too small. Size is %d spaxel '
-                           'or %.1f %% of total area', nsky, nfracsky)
+        if nsky < min_nsky_abs or fracsky < min_nsky_rel:
+            self._logger.warning('sky mask is too small. Size is %d spaxel '
+                                 'or %.1f %% of total area', nsky, fracsky)
 
-        src.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-        src.add_attr('FSKYMSK', nfracsky, 'Relative Size of MASK_SKY in %')
-        src.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-        src.add_attr('FOBJMSK', nfracobj, 'Relative Size of MASK_OBJ in %')
-        # src.add_attr('MASKT1', thres[0], 'Mask relative threshold T1')
-        # src.add_attr('MASKT2', thres[1], 'Mask relative threshold T2')
-        # return nobj, nfracobj, nsky, nfracobj
-        logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', nfracsky, nfracobj)
+        self.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
+        self.add_attr('FSKYMSK', fracsky, 'Relative Size of MASK_SKY in %')
+        self.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
+        self.add_attr('FOBJMSK', fracobj, 'Relative Size of MASK_OBJ in %')
+        self._logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', fracsky, fracobj)
 
+
+def create_source(row, idname, raname, decname, size, refspec, history,
+                  segmap=None, datasets=None, maskds=None, apertures=None,
+                  header=None, header_columns=None, redshifts=None, mags=None,
+                  catalogs=None, outdir=None, outname=None, pdfconf=None,
+                  verbose=False, user_func=None, **kwargs):
+    logger = logging.getLogger(__name__)
+    if not verbose:
+        logging.getLogger('musex').setLevel('WARNING')
+
+    origin = ('MuseX', __version__, '', '')
+
+    src = SourceX.from_data(row[idname], row[raname], row[decname], origin,
+                            default_size=size)
+    logger.debug('Creating source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    src.SIZE = size
+    if header:
+        src.header.update(header)
+
+    if datasets:
+        for ds, names in datasets.items():
+            logger.debug('Add dataset %s', ds.name)
+            ds.add_to_source(src, names=names)
+
+    # Add keywords from columns
+    if header_columns:
+        src.add_header_from_settings(header_columns, row)
+
+    if src.header.get('REFSPEC') is None:
+        logger.warning('REFSPEC column not found, using %s instead', refspec)
+        src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
+
+    # Add redshifts
+    if redshifts:
+        src.add_z_from_settings(redshifts, row)
+
+    # Add magnitudes
+    if mags:
+        src.add_mag_from_settings(mags, row)
+
+    if segmap:
+        logger.debug('Add segmap %s', segmap[0])
+        src.SEGMAP = segmap[0]
+        src.add_image(segmap[1], segmap[0], rotate=True, order=0)
+
+    if history:
+        for args in history:
+            src.add_history(*args)
+
+    if catalogs:
+        sig = inspect.signature(Source.add_table)
+        for name, cat in catalogs.items():
+            logger.debug('Add catalog %s', name)
+            kw = {k: v for k, v in cat.meta.items()
+                  if k in sig.parameters and k != 'name'}
+            src.add_table(cat, name, **kw)
+
+            if 'redshifts' in cat.meta:
+                crow = cat[cat[cat.meta['idname']] == src.ID]
+                src.add_z_from_settings(cat.meta['redshifts'], crow)
+
+            if 'mags' in cat.meta:
+                crow = cat[cat[cat.meta['idname']] == src.ID]
+                src.add_mag_from_settings(cat.meta['mags'], crow)
+
+    # FIXME: masks could be added from sources
+    if maskds is not None:
+        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
         src.extract_all_spectra(apertures=apertures)
 
-    # Joblib has a memmap reducer that does not work with astropy.io.fits
-    # memmaps. So here we copy the arrays to avoid relying the memmaps.
-    for name, im in src.images.items():
-        src.images[name] = im.copy()
-    for name, cube in src.cubes.items():
-        src.cubes[name] = cube.copy()
+    if user_func is not None:
+        logger.debug('Calling user function')
+        user_func(src)
 
-    return src
+    logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
+                src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
+    logger.debug('IMAGES: %s', ', '.join(src.images.keys()))
+    logger.debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
+
+    if outdir is not None and outname is not None:
+        outn = outname.format(src=src)
+        fname = f'{outdir}/{outn}.fits'
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message='.*greater than 8.*',
+                                    category=fits.verify.VerifyWarning)
+            src.write(fname)
+        logger.info('FITS written to %s', fname)
+        if pdfconf is not None:
+            fname = f'{outdir}/{outn}.pdf'
+            src.to_pdf(fname, **pdfconf)
+            logger.info('PDF written to %s', fname)
+        return fname
+    else:
+        return src
 
 
 def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
-                    save_src_to=None, check_keyword=None):
+                    check_keyword=None):
     """Export a list of source to a MarZ input file.
 
     Parameters
     ----------
-    src_list : iterable of `mpdaf.sdetect.Source`
-        List of mpdaf sources.
+    src_list : iterable of `mpdaf.sdetect.Source` or str
+        List of mpdaf sources (objects or filenames).
     outfile : str
         Filename for the FITS file to use as input to MarZ.
     refspec : str, optional
         The spectrum to use, defaults to ``src.REFSPEC``.
     skyspec : str, optional
         The sky spectrum to use, defaults to ``MUSE_SKY``.
-    save_src_to : str, optional
-        None or a template string that is formated with the source as `src` to
-        get the name of the file to save the source to (for instance
-        `/path/to/source-{src.ID:05d}.fits`).
     check_keyword : tuple, optional
         If a tuple (keyword, value) is given, each source header will be
         checked that it contains the keyword with the value. If the keyword is
@@ -159,12 +264,13 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
 
     """
     logger = logging.getLogger(__name__)
-    if save_src_to is not None:
-        logger.info('Saving sources to %s', save_src_to)
 
     wave, data, stat, sky, meta = [], [], [], [], []
 
     for src in src_list:
+        if isinstance(src, str):
+            src = Source.from_file(src)
+
         if check_keyword is not None:
             key, val = check_keyword
             try:
@@ -196,11 +302,6 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
         meta.append(('%05d' % src.ID, src.RA, src.DEC, z,
                      src.header.get('CONFID', 0),
                      src.header.get('TYPE', 0), mag1, mag2, refsp))
-
-        if save_src_to is not None:
-            fname = save_src_to.format(src=src)
-            src.write(fname)
-            logger.info('fits written to %s', fname)
 
     t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
                                 'F775W', 'F125W', 'REFSPEC'],

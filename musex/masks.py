@@ -48,16 +48,16 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
 
     Parameters
     ----------
-    ra: float
+    ra : float
         Right Ascension of the center of the result mask in decimal degrees.
-    dec: float
+    dec : float
         Declination of the center of the result mask in decimal degrees.
-    size: (int, int)
+    size : (int, int)
         Size of the mask (y size, x size) in pixels. The size of a pixel is
         the same as in the passed masks.
-     mask_list: List[astropy.io.fits.hdu.image.ImageHDU]
+    mask_list : list of `astropy.io.fits.ImageHDU`
         List of the masks to combine.
-    is_sky: bool
+    is_sky : bool
         Set to True when the masks are sky ones.
 
     Returns

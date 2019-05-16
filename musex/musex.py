@@ -1,22 +1,22 @@
 import importlib
 import itertools
 import logging
+import multiprocessing
 import numpy as np
 import os
-import re
 import sys
 import textwrap
+
 from astropy.table import Table
 from collections import OrderedDict, Sized, Iterable
 from contextlib import contextmanager
-from joblib import delayed, Parallel
 from mpdaf.obj import Image
 from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
 from mpdaf.tools import progressbar, isiter
 
 from .dataset import load_datasets, MuseDataSet
 from .catalog import (Catalog, InputCatalog, ResultSet, MarzCatalog,
-                      IdMapping, get_result_table)
+                      IdMapping, get_result_table, get_cat_name)
 from .crossmatching import CrossMatch, gen_crossmatch
 from .source import sources_to_marz, create_source
 from .utils import load_db, load_yaml_config, table_to_odict
@@ -32,16 +32,6 @@ LOGO = r"""
   |_|  |_|\__,_|___/\___/_/\_\
 
 """
-
-# Default comments for FITS keywords
-HEADER_COMMENTS = dict(
-    CONFID='Z Confidence Flag',
-    BLEND='Blending flag',
-    DEFECT='Defect flag',
-    REVISIT='Reconciliation Revisit Flag',
-    TYPE='Object classification',
-    REFSPEC='Name of reference spectra',
-)
 
 
 def _create_catalogs_table(db):
@@ -71,6 +61,13 @@ def _create_catalogs_table(db):
     return table
 
 
+def _worker_export(args):
+    try:
+        return create_source(*args[0], **args[1])
+    except KeyboardInterrupt:
+        pass
+
+
 class MuseX:
     """The main MuseX class.
 
@@ -79,11 +76,11 @@ class MuseX:
 
     Parameters
     ----------
-    settings_file: str
+    settings_file : str
         Path of the settings file.
-    muse_dataset: str
+    muse_dataset : str
         Name of the Muse dataset to work on.
-    id_mapping: str
+    id_mapping : str
         Name of a IdMapping catalog to use.
 
     """
@@ -112,9 +109,8 @@ class MuseX:
         # Load datasets
         self.datasets = load_datasets(self.conf)
         settings = self.conf['muse_datasets']
-        muse_dataset = muse_dataset or settings['default']
-        self.muse_dataset = MuseDataSet(muse_dataset,
-                                        settings=settings[muse_dataset])
+        self._muse_dataset = None
+        self.muse_dataset = muse_dataset or settings['default']
 
         # Load catalogs table
         self.catalogs_table = _create_catalogs_table(self.db)
@@ -233,6 +229,17 @@ class MuseX:
             outstream.write(f"id_mapping     : {self.id_mapping.name}")
 
     @property
+    def muse_dataset(self):
+        return self._muse_dataset
+
+    @muse_dataset.setter
+    def muse_dataset(self, name):
+        conf = self.conf['muse_datasets']
+        if name not in conf:
+            raise ValueError('invalid dataset name')
+        self._muse_dataset = MuseDataSet(name, settings=conf[name])
+
+    @property
     def exportdir(self):
         """The directory where files are exported."""
         exportdir = self.conf['export']['path']
@@ -261,15 +268,15 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the catalog.
-        idname: str
+        idname : str
             Name of the 'id' column.
-        raname: str
+        raname : str
             Name of the 'ra' column.
-        decname: str
+        decname : str
             Name of the 'dec' column.
-        drop_if_exists: bool
+        drop_if_exists : bool
             Drop the catalog if it already exists.
 
         """
@@ -293,14 +300,14 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the catalog.
-        resultset: `musex.ResultSet`
+        resultset : `musex.ResultSet`
             Result from a query.
-        primary_id: str
+        primary_id : str
             The primary id for the SQL table, must be a column name. Defaults
             to 'ID'.
-        drop_if_exists: bool
+        drop_if_exists : bool
             Drop the catalog if it already exists.
 
         """
@@ -384,7 +391,8 @@ class MuseX:
     def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
-                   n_jobs=1, masks_dataset=None):
+                   n_jobs=1, masks_dataset=None, outdir=None, outname=None,
+                   create_pdf=False, user_func=None):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -401,32 +409,43 @@ class MuseX:
             List of dataset names to use for the sources, or dictionary with
             dataset names associated to a list of tags to use. By default all
             datasets are used, and all tags.
+        only_active : bool
+            If True the inactive sources, i.e. the sources that have been
+            merged into another, are filtered.
+        refspec : str
+            Name of the reference spectra. Used if refspec is not specified in
+            the catalog, and mapped to the REFSPEC keyword using the
+            ``header_columns`` block in the settings.
+        content : list of str
+            This allows to select specific kind of data that can be added to
+            the sources:
+
+            - 'parentcat' for the parent catalog.
+            - 'segmap' for the segmentation map.
+            - 'history' for the log of operations done on each source, which is
+              saved in HISTORY keywords.
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
+        outdir : str
+            Output directory.
+        outname : str
+            Output file name.
+        create_pdf : bool
+            If True, create a pdf for each source.
+        user_func : callable
+            User specified function that is called at the end of the source
+            creation process, with the source object as first argument.
 
         """
-        if isinstance(res_or_cat, Catalog):
-            if only_active and 'active' in res_or_cat.c:
-                resultset = res_or_cat.select(res_or_cat.c.active.isnot(False))
-            else:
-                resultset = res_or_cat.select()
-        elif isinstance(res_or_cat, (ResultSet, Table)):
-            resultset = res_or_cat
-        else:
-            raise ValueError('invalid input for res_or_cat')
-
-        if isinstance(resultset, ResultSet):
-            # To simplify things below, make sure we have a Table
-            # TODO: filter active sources
-            resultset = resultset.as_table()
-
+        resultset = get_result_table(res_or_cat, filter_active=only_active)
         nrows = len(resultset)
         cat = resultset.catalog
         parent_cat = self.find_parent_cat(cat)
-
-        debug = self.logger.debug
         info = self.logger.info
+
+        if outdir is not None:
+            os.makedirs(outdir, exist_ok=True)
 
         if isinstance(size, (float, int)):
             info('Exporting %s sources with %s dataset, size=%.1f',
@@ -458,104 +477,101 @@ class MuseX:
                     continue
                 use_datasets[ds] = None
 
-        info('Using datasets: %s', ','.join(ds.name for ds in use_datasets))
+        info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
-        idname, raname, decname = cat.idname, cat.raname, cat.decname
-        author = self.conf['author']
+        # keywords added to the source
+        header = {
+            'SRC_V': (srcvers, 'Source Version'),
+            'CATALOG': os.path.basename(parent_cat.name),
+        }
 
+        # export parameters (mags, redshits, header_columns, etc.)
+        kw = {
+            **self.conf['export'],
+            'apertures': apertures,     # list of apertures for spectra
+            'datasets': use_datasets,   # datasets to use
+            'header': header,           # additional keywords
+            'verbose': verbose,
+            'outdir': outdir,           # output directory
+            'outname': outname,         # output filename
+            'user_func': user_func,     # user function
+        }
+
+        # dataset for masks
+        if masks_dataset is not None:
+            kw['maskds'] = self.datasets[masks_dataset]
+            info('using mask datasets: %s', kw['maskds'])
+        else:
+            info('no masks specified, spectra will not be extracted')
+
+        # segmap from the parent cat
         segmap = parent_cat.params.get('segmap')
-        if segmap:
-            segmap = Image(segmap)
+        if 'segmap' in content and segmap:
             segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+            kw['segmap'] = (segmap_tag, Image(segmap))
 
-        redshifts = self.conf['export'].get('redshifts', {})
-        header_columns = self.conf['export'].get('header_columns', {})
+        # check if header_columns are available in the resultset
+        header_columns = kw.get('header_columns', {})
         for key, colname in header_columns.items():
             if colname not in resultset.colnames:
                 self.logger.warning(
                     "'%s' column not found, though it is specified in the "
                     "settings file for the %s keyword", colname, key)
 
-        if masks_dataset is not None:
-            maskds = self.datasets[masks_dataset]
-        else:
-            info('no masks specified, spectra will not be extracted')
-            maskds = None
+        kw['catalogs'] = {}
+        if 'parentcat' in content:
+            parent_params = parent_cat.params.get('extract', {})
+            if 'prefix' in parent_params:
+                columns = parent_params.get('columns')
+                prefix = parent_params.get('prefix')
+                pcat = parent_cat.select(columns=columns).as_table()
+                pcat.meta.update(parent_params)
+                kw['header']['REFCAT'] = f"{prefix}_CAT"
+                kw['catalogs'][f"{prefix}_CAT"] = pcat
 
-        rows = [dict(zip(row.colnames, row.as_void().tolist()))
-                for row in resultset]
+        if create_pdf:
+            kw['pdfconf'] = self.conf['export'].get('pdf', {})
+
+        author = self.conf['author']
         to_compute = []
-        for row, src_size in zip(rows, size):
-            id_ = row[idname]
-            if maskds:
-                skyim = maskds.get_skymask_file(id_)
-                maskim = maskds.get_objmask_file(id_)
-            else:
-                skyim, maskim = None, None
+        for res, src_size in zip(resultset, size):
+            row = dict(zip(res.colnames, res.as_void().tolist()))
 
-            args = (id_, row[raname], row[decname], src_size, skyim,
-                    maskim, use_datasets, apertures, verbose)
-            to_compute.append(delayed(create_source)(*args))
-
-        if verbose is False:
-            to_compute = progressbar(to_compute)
-
-        sources = Parallel(n_jobs=n_jobs,
-                           verbose=50 if verbose else 0)(to_compute)
-
-        if verbose is False:
-            rows = progressbar(rows)
-
-        for row, src, src_size in zip(rows, sources, size):
-            src.SRC_V = (srcvers, 'Source Version')
-            info('source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
-            src.CATALOG = os.path.basename(parent_cat.name)
-            # src.add_attr('FSFMSK', cat.meta['convolve_fwhm'],
-            #              'Mask Conv Gauss FWHM in arcsec')
-
-            # Add keywords from columns
-            for key, colname in header_columns.items():
-                if row.get(colname) is not None:
-                    if key == 'COMMENT':
-                        # truncate comment if too long
-                        com = re.sub(r'[^\s!-~]', '', row[colname])
-                        for txt in textwrap.wrap(com, 50):
-                            src.add_comment(txt, '')
-                    else:
-                        debug('Add %s=%r', key, row[colname])
-                        comment = HEADER_COMMENTS.get(key)
-                        src.header[key] = (row[colname], comment)
-
-            if src.header.get('REFSPEC') is None:
-                self.logger.warning(
-                    'REFSPEC column not found, using %s instead', refspec)
-                src.add_attr('REFSPEC', refspec,
-                             desc=HEADER_COMMENTS['REFSPEC'])
-
-            # Add reshifts
-            for key, colname in redshifts.items():
-                if row.get(colname) is not None:
-                    debug('Add redshift %s=%.2f', key, row[colname])
-                    src.add_z(key, row[colname])
-
+            history = []
             if 'history' in content:
-                for o in cat.get_log(src.ID):
-                    src.add_history(o['msg'], author=author, date=o['date'])
-                src.add_history('source created', author=author)
+                for o in cat.get_log(row[cat.idname]):
+                    history.append((o['msg'], author, o['date']))
+                history.append(('source created', author))
 
-            if 'segmap' in content and segmap:
-                src.SEGMAP = segmap_tag
-                src.add_image(segmap, segmap_tag, rotate=True, order=0)
+            to_compute.append(((row, cat.idname, cat.raname, cat.decname,
+                                src_size, refspec, history), kw))
 
-            if 'parentcat' in content:
-                parent_cat.add_to_source(src, row,
-                                         **parent_cat.params['extract'])
+        if n_jobs > 1:
+            # multiprocessing.log_to_stderr('DEBUG')
+            pool = multiprocessing.Pool(n_jobs, maxtasksperchild=100)
+            sources = pool.imap_unordered(_worker_export, to_compute,
+                                          chunksize=1)
+        else:
+            sources = (create_source(*args, **kw) for args, kw in to_compute)
 
-            debug('IMAGES: %s', ', '.join(src.images.keys()))
-            debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
-            yield src
+        try:
+            if verbose is False:
+                bar = progressbar(sources, total=nrows)
 
-    def export_sources(self, res_or_cat, create_pdf=False, outdir=None,
+            for src in sources:
+                yield src
+
+                if verbose is False:
+                    bar.update()
+
+            if n_jobs > 1:
+                pool.close()
+                pool.join()
+        except KeyboardInterrupt:
+            if n_jobs > 1:
+                pool.terminate()
+
+    def export_sources(self, res_or_cat, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
         """Save a catalog or selection to sources (SourceX).
 
@@ -563,35 +579,20 @@ class MuseX:
 
         Parameters
         ----------
-        res_or_cat: `ResultSet`, `Catalog`, `Table`
+        res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        create_pdf: bool
-            If True, create a pdf for each source.
-        outdir: str
+        outdir : str
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/sources'`.
-        outdir: str
-            Output directory. If None the default is `'source-{src.ID:05d}'`.
+        outname : str
+            Output file name. If None the default is `'source-{src.ID:05d}'`.
 
         """
-        cat = get_result_table(res_or_cat)
         if outdir is None:
-            outdir = f'{self.exportdir}/{cat.catalog.name}/sources'
-        os.makedirs(outdir, exist_ok=True)
-
-        pdfconf = self.conf['export'].get('pdf', {})
-        info = self.logger.info
-
-        for src in self.to_sources(res_or_cat, **kwargs):
-            outn = outname.format(src=src)
-            fname = f'{outdir}/{outn}.fits'
-            src.write(fname)
-            info('fits written to %s', fname)
-            if create_pdf:
-                fname = f'{outdir}/{outn}.pdf'
-                src.to_pdf(fname, self.muse_dataset.white,
-                           ima2=pdfconf.get('image'), mastercat=cat)
-                info('pdf written to %s', fname)
+            catname = get_cat_name(res_or_cat)
+            outdir = f'{self.exportdir}/{catname}/sources'
+        return list(self.to_sources(res_or_cat, outdir=outdir,
+                                    outname=outname, **kwargs))
 
     def export_marz(self, res_or_cat, outfile=None, export_sources=False,
                     datasets=None, sources_dataset=None, outdir=None,
@@ -604,18 +605,14 @@ class MuseX:
         source, and each source must have a REFSPEC attribute designating the
         spectrum to use in MarZ.
 
-        If the catalog (or the resultset) comes from ODHIN, the `source_tpl`
-        points to the ODHIN group source and the catalog must contain
-        a `group_id` column.
-
         Parameters
         ----------
-        res_or_cat: `ResultSet` or `Catalog`
+        res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        outfile: str
+        outfile : str
             Output file. If None the default is
             `'{conf[export][path]}/marz-{cat.name}-{muse_dataset.name}.fits'`.
-        export_sources: bool
+        export_sources : bool
             If True, the source files are also exported.
         datasets : iterable or dict
             List of dataset names to use for the sources, or dictionary with
@@ -623,11 +620,13 @@ class MuseX:
             datasets are used, and all tags.
         sources_dataset : str
             Name of the dataset from which the sources are taken.
-        outdir: str
+        outdir : str
             Output directory. If None the default is
             `'{conf[export][path]}/{self.muse_dataset.name}/{cname}/marz'`.
-        srcname: str
-            Output directory. If None the default is `'source-{src.ID:05d}'`.
+        srcname : str
+            Output file name. If None the default is `'source-{src.ID:05d}'`.
+        skyspec : str
+            The tag name to find the sky spectrum in the sources.
 
         """
         cat = get_result_table(res_or_cat)
@@ -646,7 +645,6 @@ class MuseX:
         else:
             check_keyword = None
 
-        srcdir = None
         if sources_dataset:
             ds = self.datasets[sources_dataset]
 
@@ -659,29 +657,29 @@ class MuseX:
                 # If sources must be exported, we need to tell .to_sources
                 # what to put inside the sources (all datasets by default
                 # and the segmap)
-                content = ('segmap', 'parentcat')
-                srcdir = f'{outdir}/{srcname}.fits'
+                kwargs.setdefault('content', ('segmap', 'parentcat'))
+                kwargs['outdir'] = outdir
+                kwargs['outname'] = srcname
             else:
                 if datasets is None:
                     # skip using additional datasets. In this case the
                     # muse_dataset will be used, with spectra extracted
                     # from the cube.
                     datasets = []
-                content = tuple()
+                    kwargs['content'] = []
 
-            src_iter = self.to_sources(cat, datasets=datasets,
-                                       content=content, **kwargs)
+            src_iter = self.to_sources(cat, datasets=datasets, **kwargs)
 
-        sources_to_marz(src_iter, outfile, skyspec=skyspec, save_src_to=srcdir)
+        sources_to_marz(src_iter, outfile, skyspec=skyspec)
 
     def import_marz(self, catfile, catalog, **kwargs):
         """Import a MarZ catalog.
 
         Parameters
         ----------
-        catfile: str
+        catfile : str
             The catalog to import from Marz.
-        catalog: str or `Catalog`
+        catalog : str or `Catalog`
             The MuseX catalog to which the results are attached.
 
         """
@@ -711,13 +709,13 @@ class MuseX:
 
         Parameters
         ----------
-        name: str
+        name : str
             Name of the `musex.catalog.CrossMatch` catalog in the database.
-        cat1: `musex.catalog.Catalog`
+        cat1 : `musex.Catalog`
             The first catalog to cross-match.
-        cat2. `musex.catalog.Catalog`
+        cat2 : `musex.Catalog`
             The second catalog.
-        radius: float
+        radius : float
             The cross-match radius in arc-seconds.
 
         """

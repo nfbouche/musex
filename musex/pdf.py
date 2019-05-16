@@ -5,7 +5,6 @@ import os
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
-from mpdaf.obj import Image
 from mpdaf.sdetect import Catalog
 
 from .plots import (
@@ -40,18 +39,18 @@ def get_hstkeys(src, tags=HST_TAGS):
     return [tag for tag in tags if tag in src.images]
 
 
-def create_pdf(src, white, outfile, mastercat=None, debug=False,
+def create_pdf(src, outfile, mastercat=None, debug=False, white='MUSE_WHITE',
                ima2='HST_F775W'):
     logger = logging.getLogger(__name__)
 
     pdf_pages = PdfPages(outfile)
 
-    if isinstance(white, str):
-        white = Image(white)
+    white = src.images[white]
 
     if mastercat is not None:
         if isinstance(mastercat, str):
-            cat = Catalog.read(mastercat)
+            cat = src.tables[mastercat]
+            # cat = Catalog.read(mastercat)
         else:
             cat = Catalog(mastercat)
         # cat = cat[cat[args['colactive']]]  # filter out non-active src

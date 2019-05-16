@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 import os
@@ -39,16 +40,21 @@ def get_cat_name(res_or_cat):
         raise ValueError('cat must be a Catalog instance or name')
 
 
-def get_result_table(res_or_cat):
+def get_result_table(res_or_cat, filter_active=False):
     """Helper function to get an Astropy Table from different objects."""
     if isinstance(res_or_cat, ResultSet):
-        return res_or_cat.as_table()
+        tbl = res_or_cat.as_table()
     elif isinstance(res_or_cat, Catalog):
-        return res_or_cat.select().as_table()
+        tbl = res_or_cat.select().as_table()
     elif isinstance(res_or_cat, Table):
-        return res_or_cat
+        tbl = res_or_cat
     else:
         raise ValueError('invalid input for res_or_cat')
+
+    if filter_active and 'active' in tbl.colnames:
+        tbl = tbl[tbl['active']]
+
+    return tbl
 
 
 class ResultSet(Sequence):
@@ -112,13 +118,13 @@ class BaseCatalog:
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the catalog and associated SQL table.
-    db: `dataset.Database`
+    db : `dataset.Database`
         The database object.
-    idname: str
+    idname : str
         Name of the 'id' column.
-    primary_id: str
+    primary_id : str
         The primary id for the SQL table, must be a column name. Defaults to
         ``idname``.
 
@@ -159,18 +165,28 @@ class BaseCatalog:
     def __repr__(self):
         return f"<{self.__class__.__name__}('{self.name}', {len(self)} rows)>"
 
-    @property
+    @lazyproperty
     def history(self):
         # Create the history table and its columns
         tbl = self.db.create_table('history', primary_id='_id')
         assert tbl.table is not None
-        tbl._sync_columns(dict(catalog='', id=0, date='', msg=''), True)
+        tbl._sync_columns(dict(catalog='', id=0, date='', msg='', data=''),
+                          True)
         return tbl
 
-    def log(self, id_, msg):
-        self.history.insert(dict(catalog=self.name, id=id_,
-                                 date=datetime.utcnow().isoformat(), msg=msg),
-                            ensure=False)
+    def log(self, id_, msg, row=None, **kwargs):
+        if row is not None:
+            row = json.dumps(row)
+
+        # Force the columns creation if additional columns are passed.
+        # Otherwise the automatic creation of columns is disabled to save some
+        # processing time.
+        ensure = bool(kwargs)
+
+        date = datetime.utcnow().isoformat()
+        self.history.insert(dict(catalog=self.name, id=id_, data=row,
+                                 date=date, msg=msg, **kwargs),
+                            ensure=ensure)
 
     def get_log(self, id_):
         return self.history.find(catalog=self.name, id=id_)
@@ -248,12 +264,12 @@ class BaseCatalog:
 
         Parameters
         ----------
-        rows: list of dict or `astropy.table.Table`
+        rows : list of dict or `astropy.table.Table`
             List of rows or Astropy Table to insert. Each row must be a dict
             with column names as keys.
-        version: str
+        version : str
             Version added to each row (if not available in the row values).
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
 
         """
@@ -265,7 +281,7 @@ class BaseCatalog:
             tbl = tx[self.name]
             for row in rows:
                 ids.append(tbl.insert(row, ensure=False))
-                self.log(ids[-1], f'inserted from input catalog')
+                self.log(ids[-1], f'inserted from input catalog', row=row)
 
         if ids:
             self.update_meta(maxid=self.max(self.idname))
@@ -280,14 +296,14 @@ class BaseCatalog:
 
         Parameters
         ----------
-        rows: list of dict or `astropy.table.Table`
+        rows : list of dict or `astropy.table.Table`
             List of rows or Astropy Table to insert. Each row must be a dict
             with column names as keys.
-        version: str
+        version : str
             Version added to each row (if not available in the row values).
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
-        keys: list of str
+        keys : list of str
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
@@ -326,7 +342,7 @@ class BaseCatalog:
                     res = row.get(self.idname)
                 if res is not None:
                     # log operation if we have an ID
-                    self.log(res, f'{op} from input catalog')
+                    self.log(res, f'{op} from input catalog', row=row)
 
         if count['inserted']:
             self.update_meta(maxid=self.max(self.idname))
@@ -341,9 +357,9 @@ class BaseCatalog:
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
         **params
             Additional parameters are passed to `sqlalchemy.sql.select`.
@@ -374,14 +390,14 @@ class BaseCatalog:
 
         Parameters
         ----------
-        idlist: int or list of int
+        idlist : int or list of int
             List of IDs.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        idcolumn: str
+        idcolumn : str
             Name of the column containing the IDs when not using the default
             column.
-        params: dict
+        params : dict
             Additional parameters are passed to `dataset.Database.query`.
 
         """
@@ -406,22 +422,22 @@ class BaseCatalog:
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        keys: list of tuple
+        keys : list of tuple
             List of keys to do the join for each catalog. If None, the IDs of
             each catalog are used (from the ``idname`` attribute). Otherwise it
             must be a list of tuples, where each tuple contains the key for
             self and the key for the other catalog.
-        use_labels: bool
+        use_labels : bool
             By default, all columns are selected which may gives name
             conflicts. So ``use_labels`` allows to rename the columns by
             prefixinf the name with the catalog name.
-        isouter: bool
+        isouter : bool
             If True, render a LEFT OUTER JOIN, instead of JOIN.
-        params: dict
+        params : dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
@@ -476,17 +492,17 @@ class Catalog(BaseCatalog):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the catalog and associated SQL table.
-    db: `dataset.Database`
+    db : `dataset.Database`
         The database object.
-    idname: str
+    idname : str
         Name of the 'id' column.
-    raname: str
+    raname : str
         Name of the 'ra' column.
-    decname: str
+    decname : str
         Name of the 'dec' column.
-    primary_id: str
+    primary_id : str
         The primary id for the SQL table, must be a column name.
 
     """
@@ -533,18 +549,18 @@ class Catalog(BaseCatalog):
 
         Parameters
         ----------
-        whereclause:
+        whereclause :
             The SQLAlchemy selection clause.
-        columns: list of str
+        columns : list of str
             List of columns to retrieve (all columns if None).
-        wcs: `mpdaf.obj.WCS`
+        wcs : `mpdaf.obj.WCS`
             If present sources are selected inside the given WCS.
-        margin: float
+        margin : float
             Margin from the edges (pixels) for the WCS selection.
-        mask: array-like
+        mask : array-like
             If addition to the WCS, corresponding mask used to select sources
             (1 to mask).
-        params: dict
+        params : dict
             Additional parameters are passed to `sqlalchemy.sql.select`.
 
         """
@@ -567,56 +583,34 @@ class Catalog(BaseCatalog):
 
         return res
 
-    def add_to_source(self, src, row, **kwargs):
+    def add_to_source(self, src, columns=None, redshifts=None, mags=None,
+                      prefix=None, name='CAT', select_in='MUSE_WHITE'):
         """Add information to the Source object.
 
         FIXME: see how to improve conf here.
 
         """
         # Add catalog as a BinTableHDU
-        cat = self.select(columns=kwargs.get('columns')).as_table()
-        wcs = src.images[kwargs.get('select_in', 'MUSE_WHITE')].wcs
-        scat = cat.select(wcs, ra=self.raname, dec=self.decname, margin=0)
-        scat['DIST'] = scat.edgedist(wcs, ra=self.raname, dec=self.decname)
-        # FIXME: is it the same ?
-        # cat = in_catalog(cat, src.images['HST_F775W_E'], quiet=True)
-        catname = f"{kwargs['prefix']}_{kwargs.get('name', 'CAT')}"
-        self.logger.debug('Adding catalog %s (%d rows)', catname, len(scat))
-        src.add_table(scat, catname)
+        cat = self.select(columns=columns).as_table()
+        prefix = prefix or self.name.upper()
+        catname = f"{prefix}_{name}"
+        src.add_table(cat, catname, select_in=select_in, ra=self.raname,
+                      dec=self.decname, margin=0, col_dist='DIST')
         src.REFCAT = catname
         cat = src.tables[catname]
+        self.logger.debug('Adding catalog %s (%d rows)', catname, len(cat))
+        # adding meta for column names
         cat.meta['name'] = self.name
         cat.meta['idname'] = self.idname
         cat.meta['raname'] = self.raname
         cat.meta['decname'] = self.decname
 
-        # Add redshifts
-        for name, val in kwargs.get('redshifts', {}).items():
-            try:
-                if isinstance(val, str):
-                    z, errz = row[val], 0
-                else:
-                    z, errz = row[val[0]], (row[val[1]], row[val[2]])
-            except KeyError:
-                pass
-            else:
-                if z is not None and 0 <= z < 50:
-                    self.logger.debug('Add redshift %s=%.2f', name, z)
-                    src.add_z(name, z, errz=errz)
-
-        # Add magnitudes
-        for name, val in kwargs.get('mags', {}).items():
-            try:
-                if isinstance(val, str):
-                    mag, magerr = row[val], 0
-                else:
-                    mag, magerr = row[val[0]], row[val[1]]
-            except KeyError:
-                pass
-            else:
-                if mag is not None and 0 <= mag < 50:
-                    self.logger.debug('Add mag %s=%.2f', name, mag)
-                    src.add_mag(name, mag, magerr)
+        # Add redshifts and magnitudes if requested
+        row = cat[cat[self.idname] == src.ID]
+        if redshifts:
+            src.add_z_from_settings(redshifts, row)
+        if mags:
+            src.add_mag_from_settings(mags, row)
 
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""
@@ -635,15 +629,15 @@ class Catalog(BaseCatalog):
 
         Parameters
         ----------
-        idlist: list
+        idlist : list
             List of ids to merge.
-        id_: int
+        id_ : int
             The new ID for the merged source. If not given, it is automatically
             determined from the maxid and autoincremented.
-        dataset: `musex.Dataset`
+        dataset : `musex.Dataset`
             The associated dataset. To compute the masks this dataset must be
             given, and must be the same as the one used for `attach_dataset`.
-        weights_colname: str
+        weights_colname : str
             Name of a column to be used as weights.
 
         """
@@ -760,20 +754,20 @@ class InputCatalog(Catalog):
 
         Parameters
         ----------
-        catalog: str or `astropy.table.Table`
+        catalog : str or `astropy.table.Table`
             Table to insert.
-        limit: int
+        limit : int
             To limit the number of rows from the catalog.
-        upsert: bool
+        upsert : bool
             If True, existing rows with the same values for ``keys`` are
             updated.
-        keys: list of str
+        keys : list of str
             If rows with matching keys exist they will be updated, otherwise
             a new row is inserted in the table. Defaults to
             ``[idname, 'version']``.
-        show_progress: bool
+        show_progress : bool
             Show a progress bar.
-        version_meta: str, optional
+        version_meta : str, optional
             Keyword in the catalog file that is used to identify the version of
             the catalog. It is used for ORIGIN catalogs to check that the
             sources correspond to the catalog.
@@ -832,10 +826,10 @@ class MarzCatalog(InputCatalog):
         limit_to_cat : str, optional
             If provided, only the lines for the corresponding catalog are used
             in `marzcat`.
-        maximum_order: int, optional
+        maximum_order : int, optional
             Maximum order of the solutions to take; e.g. 2 will export only the
             first two solutions.
-        columns: list of str, optional
+        columns : list of str, optional
             Name of the columns in addition to `catalog`, `ID`, `RA`, `DEC`,
             and `QOP` to export.
 

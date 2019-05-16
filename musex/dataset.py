@@ -1,11 +1,12 @@
 import logging
 import numpy as np
+import os
+
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Image, Cube
 from mpdaf.sdetect import Source
-from os.path import basename
 
 __all__ = ['DataSet', 'MuseDataSet']
 
@@ -27,15 +28,6 @@ class DataSet:
         self.logger = logging.getLogger(__name__)
         for key in ('prefix', 'version', 'detector', 'description'):
             setattr(self, key, self.settings.get(key))
-
-        self.group_mapping = None
-        if 'group_mapping' in self._src_conf:
-            conf = self._src_conf['group_mapping']
-            tbl = Table.read(conf['catalog'])
-            self.group_mapping = Table(
-                [tbl[conf['idname']], tbl[conf['group_idname']]],
-                names=('id', 'group_id'))
-            self.group_mapping.add_index('id')
 
     def __repr__(self):
         out = f'<{self.__class__.__name__}('
@@ -68,6 +60,16 @@ class DataSet:
         for slot, value in state.items():
             setattr(self, slot, value)
         self.logger = logging.getLogger(__name__)
+
+    @lazyproperty
+    def group_mapping(self):
+        if 'group_mapping' in self._src_conf:
+            conf = self._src_conf['group_mapping']
+            tbl = Table.read(conf['catalog'])
+            self.group_mapping = Table(
+                [tbl[conf['idname']], tbl[conf['group_idname']]],
+                names=('id', 'group_id'))
+            self.group_mapping.add_index('id')
 
     @lazyproperty
     def linked_cat(self):
@@ -107,12 +109,20 @@ class DataSet:
             masks:
                 skymask_tpl: '{datadir}/origin_masks/sky-mask-%05d.fits'
 
+        Or with the tag name to use an extension from the sources::
+
+            masks:
+                skymask_srctag: ORI_MASK_SKY
+
         """
         masks = self.settings.get('masks', {})
         if 'skymask_tpl' in masks:
             return masks['skymask_tpl'] % id_
         elif 'skymask' in masks:
             return masks['skymask']
+        elif 'skymask_srctag' in masks:
+            src = self.get_source(id_)
+            return src.images[masks['skymask_srctag']]
 
     def get_objmask_file(self, id_):
         """Return the source mask for a given ID.
@@ -122,10 +132,18 @@ class DataSet:
             masks:
                 mask_tpl: '{tmpdir}/masks/hdfs/mask-source-%05d.fits'
 
+        Or with the tag name to use an extension from the sources::
+
+            masks:
+                mask_srctag: ORI_MASK_OBJ
+
         """
         masks = self.settings.get('masks', {})
         if 'mask_tpl' in masks:
             return masks['mask_tpl'] % id_
+        elif 'mask_srctag' in masks:
+            src = self.get_source(id_)
+            return src.images[masks['mask_srctag']]
 
     def get_source_file(self, id_):
         """Return a source filename.
@@ -161,6 +179,10 @@ class DataSet:
         # TODO: use @functools.lru_cache
         src_path = self.get_source_file(id_)
         if src_path:
+            if not os.path.exists(src_path):
+                self.logger.debug('source not found in %s', src_path)
+                return
+
             src = Source.from_file(src_path)
             if self.group_mapping is not None:
                 src.ID = id_
@@ -185,9 +207,9 @@ class DataSet:
             The ID of the source.
 
         """
-        src_path = self.get_source_file(id_)
-        if src_path:
-            return fits.getval(src_path, 'REFSPEC')
+        src = self.get_source(id_)
+        if src:
+            return src.REFSPEC
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add data to a source.
@@ -286,7 +308,7 @@ class MuseDataSet(DataSet):
 
         src.add_cube(self.cube, f'{self.prefix}_CUBE',
                      size=src.SIZE, unit_wave=None, add_white=True)
-        src.CUBE = basename(self.settings['datacube'])
+        src.CUBE = os.path.basename(self.settings['datacube'])
         src.CUBE_V = self.version
 
         # add expmap image + average and dispersion value of expmap
@@ -298,7 +320,7 @@ class MuseDataSet(DataSet):
 
         # add fsf info
         if self.cube.primary_header.get('FSFMODE') == 'MOFFAT1':
-            self.logger.info('Adding FSF info from the datacube')
+            self.logger.debug('Adding FSF info from the MUSE datacube')
             try:
                 src.add_FSF(self.cube, fieldmap=self.settings.get('fieldmap'))
             except TypeError:
