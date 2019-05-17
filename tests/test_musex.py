@@ -68,6 +68,7 @@ def test_ingest_photutils(mx):
     assert log[0]['id'] == 3
     assert log[0]['catalog'] == 'photutils'
     assert log[0]['msg'] == 'inserted from input catalog'
+    assert log[0]['author'] == 'John Doe'
     assert log[1]['catalog'] == 'photutils'
     assert log[1]['msg'] == 'updated from input catalog'
     assert '"eccentricity"' in log[1]['data']

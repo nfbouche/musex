@@ -120,7 +120,8 @@ class MuseX:
         self._load_user_catalogs()
 
         # Marz
-        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id')
+        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id',
+                                   author=self.conf['author'])
         # FIXME: handle properly version / revision
         self.marzcat.version = '1'
 
@@ -137,8 +138,10 @@ class MuseX:
                 cls = getattr(mod, class_)
             else:
                 cls = InputCatalog
-            self.input_catalogs[name] = cls.from_settings(name, self.db,
-                                                          **conf)
+
+            self.input_catalogs[name] = cls.from_settings(
+                name, self.db, author=self.conf['author'], **conf
+            )
         self.logger.info("Input catalogs loaded")
 
     def _load_user_catalogs(self):
@@ -155,6 +158,7 @@ class MuseX:
                 decname=row['decname'],
                 zname=row['zname'],
                 zconfname=row['zconfname'],
+                author=self.conf['author'],
             )
 
         # Cross-match catalogs
@@ -295,7 +299,8 @@ class MuseX:
 
         self.catalogs[name] = Catalog(name, self.db, idname=idname,
                                       raname=raname, decname=decname,
-                                      zname=zname, zconfname=zconfname)
+                                      zname=zname, zconfname=zconfname,
+                                      author=self.conf['author'])
         return self.catalogs[name]
 
     def new_catalog_from_resultset(self, name, resultset, primary_id=None,

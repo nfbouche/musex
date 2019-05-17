@@ -129,15 +129,19 @@ class BaseCatalog:
     primary_id : str
         The primary id for the SQL table, must be a column name. Defaults to
         ``idname``.
+    author : str
+        Name of the person making changes. This is stored in the history table,
+        and is taken from the settings file.
 
     """
 
     catalog_type = ''
 
-    def __init__(self, name, db, idname='ID', primary_id=None):
+    def __init__(self, name, db, idname='ID', primary_id=None, author=None):
         self.name = name
         self.db = db
         self.idname = idname
+        self.author = author
         self.logger = logging.getLogger(__name__)
 
         if not re.match(r'[0-9a-zA-Z_]+$', self.name):
@@ -172,8 +176,8 @@ class BaseCatalog:
         # Create the history table and its columns
         tbl = self.db.create_table('history', primary_id='_id')
         assert tbl.table is not None
-        tbl._sync_columns(dict(catalog='', id=0, date='', msg='', data=''),
-                          True)
+        tbl._sync_columns(dict(catalog='', id=0, date='', msg='', data='',
+                               author=''), True)
         return tbl
 
     def log(self, id_, msg, row=None, **kwargs):
@@ -190,8 +194,8 @@ class BaseCatalog:
         ensure = bool(kwargs)
 
         date = datetime.utcnow().isoformat()
-        self.history.insert(dict(catalog=self.name, id=id_, data=row,
-                                 date=date, msg=msg, **kwargs),
+        self.history.insert(dict(catalog=self.name, id=id_, author=self.author,
+                                 date=date, msg=msg, data=row, **kwargs),
                             ensure=ensure)
 
     def get_log(self, id_):
@@ -514,14 +518,18 @@ class Catalog(BaseCatalog):
         Name of the 'confid' column.
     primary_id : str
         The primary id for the SQL table, must be a column name.
+    author : str
+        Name of the person making changes. This is stored in the history table,
+        and is taken from the settings file.
 
     """
 
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname=None, decname=None,
-                 zname=None, zconfname=None, primary_id=None):
-        super().__init__(name, db, idname=idname, primary_id=primary_id)
+                 zname=None, zconfname=None, primary_id=None, author=None):
+        super().__init__(name, db, idname=idname, primary_id=primary_id,
+                         author=author)
         self.raname = raname
         self.decname = decname
         self.zname = zname
@@ -549,7 +557,8 @@ class Catalog(BaseCatalog):
             raname=getattr(parent_cat, 'raname', None),
             decname=getattr(parent_cat, 'decname', None),
             zname=getattr(parent_cat, 'zname', None),
-            zconfname=getattr(parent_cat, 'zconfname', None)
+            zconfname=getattr(parent_cat, 'zconfname', None),
+            author=parent_cat.author
         )
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one
@@ -746,7 +755,8 @@ class InputCatalog(Catalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname', 'zname', 'zconfname')
+        init_keys = ('idname', 'raname', 'decname', 'zname', 'zconfname',
+                     'author')
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
 
