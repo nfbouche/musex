@@ -178,7 +178,11 @@ class BaseCatalog:
 
     def log(self, id_, msg, row=None, **kwargs):
         if row is not None:
-            row = json.dumps(row)
+            try:
+                row = json.dumps(row)
+            except TypeError as e:
+                self.logger.debug('log error: %s', e)
+                row = None
 
         # Force the columns creation if additional columns are passed.
         # Otherwise the automatic creation of columns is disabled to save some
