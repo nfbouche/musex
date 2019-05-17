@@ -547,7 +547,7 @@ class MuseX:
         author = self.conf['author']
         to_compute = []
         for res, src_size in zip(resultset, size):
-            row = dict(zip(res.colnames, res.as_void().tolist()))
+            row = dict(zip(res.colnames, tuple(res)))
 
             history = []
             if 'history' in content:

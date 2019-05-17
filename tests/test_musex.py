@@ -204,15 +204,24 @@ def test_user_catalog(mx):
 
 
 def test_user_catalog_from_scratch(mx):
-    cat = mx.new_catalog('custom_cat', idname='id', raname='ra', decname='dec')
-    catfile = os.path.join(DATADIR, 'catalog.fits')
+    """
+    Test user catalogs: make sure that it works without ra/dec columns, and
+    than bytes data are decoded.
+    """
+    # From file
+    cat = mx.new_catalog('custom_cat', idname='id')
+    catfile = os.path.join(DATADIR, 'cat_comments.fits')
     tbl = Table.read(catfile)
     cat.insert(tbl)
     assert 'custom_cat' in mx.catalogs
     assert cat.meta['type'] == 'user'
-    assert cat.meta['maxid'] == 13
+    assert cat.meta['maxid'] == 4
+    rows = cat.select()
+    assert rows[0]['id'] == 1
+    assert rows[0]['comment'] == 'foo'
+    assert rows[-1]['comment'] == 'a long comment'
 
-    # make sure that it works without ra/dec columns
+    # From data
     cat2 = mx.new_catalog('custom_cat2', idname='id')
     cat2.insert([{'id': 2, 'foo': 'bar'}])
     cat2.insert([{'id': 4, 'baz': True}])

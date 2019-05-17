@@ -1,6 +1,7 @@
 import astropy.units as u
 import dataset
 import logging
+import numpy as np
 import os
 import yaml
 
@@ -66,8 +67,13 @@ def load_db(filename=None, db_env=None, **kwargs):
 def table_to_odict(table):
     """Convert a `astropy.table.Table` to a list of `OrderedDict`."""
     colnames = table.colnames
-    return [OrderedDict(zip(colnames, row))
-            for row in zip(*[c.tolist() for c in table.columns.values()])]
+    columns = []
+    for c in table.columns.values():
+        if c.dtype.kind == 'S':
+            c = np.chararray.decode(c)
+        columns.append(c.tolist())
+
+    return [OrderedDict(zip(colnames, row)) for row in zip(*columns)]
 
 
 def extract_subimage(im, center, size, minsize=None, unit_size=u.arcsec):
