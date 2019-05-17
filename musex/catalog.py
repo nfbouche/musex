@@ -145,9 +145,9 @@ class BaseCatalog:
                           '(a-zA-Z), digits (0-9) and underscore, otherwise '
                           'using it in a column name will fail', UserWarning)
 
-        # if self.name not in self.db:
-        #     self.logger.debug('create table %s (primary key: %s)',
-        #                       self.name, self.idname)
+        if self.name not in self.db:
+            self.logger.debug('create table %s (primary key: %s)',
+                              self.name, self.idname)
 
         # Get the reference to the db table, which is created if needed
         primary_id = primary_id or self.idname
