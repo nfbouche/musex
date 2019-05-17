@@ -156,14 +156,6 @@ class MuseX:
                 zname=row['zname'],
                 zconfname=row['zconfname'],
             )
-            # Restore the associated line catalog.
-            line_tablename = f'{name}_lines'
-            line_meta = self.catalogs_table.find_one(name=line_tablename)
-            if line_meta:
-                self.catalogs[name].create_lines(
-                    line_idname=line_meta['idname'],
-                    line_src_idname=line_meta['src_idname']
-                )
 
         # Cross-match catalogs
         for row in self.catalogs_table.find(type='cross-match'):
