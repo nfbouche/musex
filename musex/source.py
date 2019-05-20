@@ -163,6 +163,7 @@ def create_source(row, idname, raname, decname, size, refspec, history,
     logger.debug('Creating source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
     src.SIZE = size
     if header:
+        logger.debug('Add extra header %r', header)
         src.header.update(header)
 
     if datasets:
@@ -211,7 +212,6 @@ def create_source(row, idname, raname, decname, size, refspec, history,
                 crow = cat[cat[cat.meta['idname']] == src.ID]
                 src.add_mag_from_settings(cat.meta['mags'], crow)
 
-    # FIXME: masks could be added from sources
     if maskds is not None:
         src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
         src.extract_all_spectra(apertures=apertures)

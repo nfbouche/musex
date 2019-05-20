@@ -496,7 +496,8 @@ def test_export_sources(mx):
     outdir = f'{mx.workdir}/export'
     mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
                       apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
-                      verbose=True, masks_dataset='photutils-hdfs')
+                      verbose=True, masks_dataset='photutils-hdfs',
+                      extra_header={'FOO': 'BAR'})
 
     flist = os.listdir(outdir)
     assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
@@ -504,6 +505,7 @@ def test_export_sources(mx):
 
     src = Source.from_file(f'{outdir}/source-00008.fits')
     assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
+    assert src.FOO == 'BAR'
 
     assert list(src.tables.keys()) == ['PHU_CAT']
     assert_array_equal(src.tables['PHU_CAT']['id'], [8, 7])

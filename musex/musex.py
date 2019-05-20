@@ -398,7 +398,7 @@ class MuseX:
                    datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
                    content=('parentcat', 'segmap', 'history'), verbose=False,
                    n_jobs=1, masks_dataset=None, outdir=None, outname=None,
-                   create_pdf=False, user_func=None):
+                   create_pdf=False, user_func=None, extra_header=None):
         """Export a catalog or selection to sources (SourceX).
 
         Parameters
@@ -443,6 +443,8 @@ class MuseX:
             User specified function that is called at the end of the source
             creation process, with the source object as first argument, and the
             catalog row as second argument.
+        extra_header : dict
+            Dict with additional keywords/values to add to the Source header.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
@@ -491,6 +493,8 @@ class MuseX:
             'SRC_V': (srcvers, 'Source Version'),
             'CATALOG': os.path.basename(parent_cat.name),
         }
+        if extra_header:
+            header.update(extra_header)
 
         # export parameters (mags, redshits, header_columns, etc.)
         kw = {
