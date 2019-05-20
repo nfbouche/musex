@@ -218,7 +218,7 @@ def create_source(row, idname, raname, decname, size, refspec, history,
 
     if user_func is not None:
         logger.debug('Calling user function')
-        user_func(src)
+        user_func(src, row)
 
     logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
                 src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))

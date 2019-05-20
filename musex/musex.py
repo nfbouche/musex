@@ -444,7 +444,8 @@ class MuseX:
             If True, create a pdf for each source.
         user_func : callable
             User specified function that is called at the end of the source
-            creation process, with the source object as first argument.
+            creation process, with the source object as first argument, and the
+            catalog row as second argument.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
