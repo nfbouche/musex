@@ -557,9 +557,10 @@ class MuseX:
 
         if n_jobs > 1:
             # multiprocessing.log_to_stderr('DEBUG')
-            pool = multiprocessing.Pool(n_jobs, maxtasksperchild=100)
+            pool = multiprocessing.Pool(n_jobs, maxtasksperchild=50)
+            chunksize = min(20, nrows // n_jobs + 1)
             sources = pool.imap_unordered(_worker_export, to_compute,
-                                          chunksize=1)
+                                          chunksize=chunksize)
         else:
             sources = (create_source(*args, **kw) for args, kw in to_compute)
 
