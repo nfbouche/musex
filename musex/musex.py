@@ -158,6 +158,7 @@ class MuseX:
                 decname=row['decname'],
                 zname=row['zname'],
                 zconfname=row['zconfname'],
+                primary_id=row.get('primary_id'),
                 author=self.conf['author'],
             )
 
@@ -325,12 +326,8 @@ class MuseX:
                              'ResultSet or Table object')
 
         if name in self.db.tables:
-            if name in self.input_catalogs or name not in self.catalogs:
-                raise ValueError('a table with the same name already exists, '
-                                 'and cannot be dropped since it is not a '
-                                 'user catalog. Please choose another name.')
             if drop_if_exists:
-                self.db[name].drop()
+                self.delete_user_cat(name)
             else:
                 raise ValueError('table already exists')
 

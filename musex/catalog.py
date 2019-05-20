@@ -163,7 +163,7 @@ class BaseCatalog:
         if self.meta is None:
             self.update_meta(creation_date=datetime.utcnow().isoformat(),
                              type=self.catalog_type, parent_cat=None,
-                             idname=self.idname)
+                             idname=self.idname, primary_id=primary_id)
 
     def __len__(self):
         return len(self.table)
@@ -240,6 +240,7 @@ class BaseCatalog:
         """Drop the SQL table and its metadata."""
         self.table.drop()
         self.db['catalogs'].delete(name=self.name)
+        del self.table
 
     def _prepare_rows_for_insert(self, rows, version=None, show_progress=True):
         # Convert Astropy Table to a list of dict
