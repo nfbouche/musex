@@ -394,12 +394,33 @@ class MuseX:
             margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm,
             psf_threshold=psf_threshold)
 
-    def to_sources(self, res_or_cat, size=5, srcvers='', apertures=None,
-                   datasets=None, only_active=True, refspec='MUSE_TOT_SKYSUB',
-                   content=('parentcat', 'segmap', 'history'), verbose=False,
-                   n_jobs=1, masks_dataset=None, outdir=None, outname=None,
-                   create_pdf=False, user_func=None, extra_header=None):
+    def to_sources(
+            self,
+            res_or_cat,
+            apertures=None,
+            catalogs=None,
+            create_pdf=False,
+            datasets=None,
+            extra_header=None,
+            history=True,
+            masks_dataset=None,
+            n_jobs=1,
+            only_active=True,
+            outdir=None,
+            outname=None,
+            refspec='MUSE_TOT_SKYSUB',
+            segmap=False,
+            size=5,
+            srcvers='',
+            user_func=None,
+            verbose=False,
+    ):
         """Export a catalog or selection to sources (SourceX).
+
+        This is the main function to export sources, so it does a lot of
+        things to prepare all the data that will be added to the sources.
+        This function is a generator, so to get the sources you must iterate
+        on the result of the function.
 
         Parameters
         ----------
@@ -422,14 +443,11 @@ class MuseX:
             Name of the reference spectra. Used if refspec is not specified in
             the catalog, and mapped to the REFSPEC keyword using the
             ``header_columns`` block in the settings.
-        content : list of str
-            This allows to select specific kind of data that can be added to
-            the sources:
-
-            - 'parentcat' for the parent catalog.
-            - 'segmap' for the segmentation map.
-            - 'history' for the log of operations done on each source, which is
-              saved in HISTORY keywords.
+        segmap : bool
+            If True, add the segmentation map defined in the parent catalog.
+        history : bool
+            If True, add the log of operations done on each source, which is
+            saved in HISTORY keywords.
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
@@ -445,6 +463,9 @@ class MuseX:
             catalog row as second argument.
         extra_header : dict
             Dict with additional keywords/values to add to the Source header.
+        catalogs : list of `Catalog`
+            List of catalogs that will be added to the source as table
+            extension, with a selection done on the WCS.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
@@ -456,6 +477,7 @@ class MuseX:
         if outdir is not None:
             os.makedirs(outdir, exist_ok=True)
 
+        # make sure that size is a list with the same length as the catalog
         if isinstance(size, (float, int)):
             info('Exporting %s sources with %s dataset, size=%.1f',
                  nrows, self.muse_dataset.name, size)
@@ -470,6 +492,7 @@ class MuseX:
         else:
             raise ValueError("'size' should be a float or list of floats")
 
+        # compute the list of datasets to use
         use_datasets = {self.muse_dataset: None}
         if datasets is not None:
             if isinstance(datasets, dict):
@@ -516,10 +539,13 @@ class MuseX:
             info('no masks specified, spectra will not be extracted')
 
         # segmap from the parent cat
-        segmap = parent_cat.params.get('segmap')
-        if 'segmap' in content and segmap:
-            segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
-            kw['segmap'] = (segmap_tag, Image(segmap))
+        if segmap:
+            segmapfile = parent_cat.params.get('segmap')
+            if segmapfile is None:
+                info('could not find segmap from %s', parent_cat.name)
+            else:
+                segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+                kw['segmap'] = (segmap_tag, Image(segmapfile))
 
         # check if header_columns are available in the resultset
         header_columns = kw.get('header_columns', {})
@@ -529,34 +555,46 @@ class MuseX:
                     "'%s' column not found, though it is specified in the "
                     "settings file for the %s keyword", colname, key)
 
-        kw['catalogs'] = {}
-        if 'parentcat' in content:
+        # additional catalogs
+        if catalogs:
+            kw['catalogs'] = {}
+            # special treatment for the parent of the exported catalog
             parent_params = parent_cat.params.get('extract', {})
-            if 'prefix' in parent_params:
-                columns = parent_params.get('columns')
-                prefix = parent_params.get('prefix')
-                pcat = parent_cat.select(columns=columns).as_table()
-                pcat.meta.update(parent_params)
-                kw['header']['REFCAT'] = f"{prefix}_CAT"
-                kw['catalogs'][f"{prefix}_CAT"] = pcat
+            prefix = parent_params.get('prefix')
+            kw['header']['REFCAT'] = f"{prefix}_CAT"
+
+            for pcat in catalogs:
+                parent = self.find_parent_cat(pcat)
+                parent_params = parent.params.get('extract', {})
+                if 'prefix' in parent_params:
+                    columns = parent_params.get('columns')
+                    prefix = parent_params.get('prefix')
+                    pcat = parent.select(columns=columns).as_table()
+                    pcat.meta.update(parent_params)
+                    kw['catalogs'][f"{prefix}_CAT"] = pcat
 
         if create_pdf:
             kw['pdfconf'] = self.conf['export'].get('pdf', {})
 
         author = self.conf['author']
+
+        # build the list of sources to compute
         to_compute = []
         for res, src_size in zip(resultset, size):
             row = dict(zip(res.colnames, tuple(res)))
 
-            history = []
-            if 'history' in content:
-                for o in cat.get_log(row[cat.idname]):
-                    history.append((o['msg'], author, o['date']))
-                history.append(('source created', author))
+            if history:
+                hist_items = [(o['msg'], author, o['date'])
+                              for o in cat.get_log(row[cat.idname])]
+                hist_items.append(('source created', author))
+            else:
+                hist_items = None
 
             to_compute.append(((row, cat.idname, cat.raname, cat.decname,
-                                src_size, refspec, history), kw))
+                                src_size, refspec, hist_items), kw))
 
+        # create the sources, either with multiprocessing or directly with
+        # create_source
         if n_jobs > 1:
             # multiprocessing.log_to_stderr('DEBUG')
             pool = multiprocessing.Pool(n_jobs, maxtasksperchild=50)
@@ -669,7 +707,7 @@ class MuseX:
                 # If sources must be exported, we need to tell .to_sources
                 # what to put inside the sources (all datasets by default
                 # and the segmap)
-                kwargs.setdefault('content', ('segmap', 'parentcat'))
+                kwargs.setdefault('segmap', True)
                 kwargs['outdir'] = outdir
                 kwargs['outname'] = srcname
             else:
@@ -678,7 +716,8 @@ class MuseX:
                     # muse_dataset will be used, with spectra extracted
                     # from the cube.
                     datasets = []
-                    kwargs['content'] = []
+                    kwargs['history'] = False
+                    kwargs['segmap'] = False
 
             src_iter = self.to_sources(cat, datasets=datasets, **kwargs)
 
