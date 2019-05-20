@@ -699,3 +699,34 @@ def test_matching(mx):
     assert cross.cat1 is orig
     assert cross.cat2 is phot
     assert len(cross.matched_table_with_more_than(0)) == 2
+
+
+def test_export_multiple(mx):
+    orig = mx.input_catalogs['origin']
+    orig.ingest_input_catalog()
+
+    phot = mx.input_catalogs['photutils']
+    phot.ingest_input_catalog()
+
+    cross = mx.cross_match("cross_matching", orig, phot)
+    res = cross.select(whereclause='photutils_id > 0 AND origin_id > 0',
+                       columns=['ID', 'photutils_id', 'origin_id'])
+    mycat = mx.new_catalog('my_cat', idname='ID', raname='ra', decname='dec')
+    mycat.insert(res)
+
+    # get ra/dec from photutils
+    tbl = phot.select(phot.c.id == mycat.c.photutils_id,
+                      columns=['id', 'ra', 'dec']).as_table()
+    tbl.rename_column('id', 'photutils_id')
+    mycat.upsert(tbl, keys=['photutils_id'])
+
+    outdir = f'{mx.workdir}/export'
+    with mx.use_loglevel('DEBUG'):
+        mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
+                          verbose=True, datasets=['origin'])
+
+    flist = os.listdir(outdir)
+    assert sorted(flist) == ['source-00001.fits', 'source-00002.fits']
+
+    src = Source.from_file(f'{outdir}/source-00001.fits')
+    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'

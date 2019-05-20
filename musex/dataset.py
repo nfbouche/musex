@@ -213,7 +213,7 @@ class DataSet:
         if src:
             return src.REFSPEC
 
-    def add_to_source(self, src, names=None, **kwargs):
+    def add_to_source(self, src, names=None, srcid=None, **kwargs):
         """Add data to a source.
 
         By default all data from the dataset is added to the Source. It is
@@ -251,7 +251,7 @@ class DataSet:
             src.add_cube(cube, f'{self.prefix}_{name}')
 
         # Sources
-        s = self.get_source(src.ID)
+        s = self.get_source(srcid or src.ID)
         if s is not None:
             default_tags = self._src_conf.get('default_tags')
             excluded_tags = self._src_conf.get('excluded_tags')

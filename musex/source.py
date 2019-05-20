@@ -114,9 +114,9 @@ class SourceX(Source):
                     self.header[key] = (row[colname], comment)
 
     def add_masks_from_dataset(self, maskds, center, size, minsize=0,
-                               nskywarn=(50, 5)):
-        skyim = maskds.get_skymask_file(self.ID)
-        maskim = maskds.get_objmask_file(self.ID)
+                               nskywarn=(50, 5), srcid=None):
+        skyim = maskds.get_skymask_file(srcid or self.ID)
+        maskim = maskds.get_objmask_file(srcid or self.ID)
 
         # FIXME: use Source.add_image instead ?
         self.images['MASK_SKY'] = extract_subimage(
@@ -168,8 +168,12 @@ def create_source(row, idname, raname, decname, size, refspec, history,
 
     if datasets:
         for ds, names in datasets.items():
-            logger.debug('Add dataset %s', ds.name)
-            ds.add_to_source(src, names=names)
+            srcid = row.get(f'{ds.name}_id')
+            if srcid is not None:
+                logger.debug('Add dataset %s with id=%s', ds.name, srcid)
+            else:
+                logger.debug('Add dataset %s', ds.name)
+            ds.add_to_source(src, names=names, srcid=srcid)
 
     # Add keywords from columns
     if header_columns:
@@ -213,7 +217,14 @@ def create_source(row, idname, raname, decname, size, refspec, history,
                 src.add_mag_from_settings(cat.meta['mags'], crow)
 
     if maskds is not None:
-        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size)
+        srcid = row.get(f'{maskds.name}_id')
+        if srcid is not None:
+            logger.debug('Add mask from dataset %s with id=%s', maskds.name,
+                         srcid)
+        else:
+            logger.debug('Add mask from dataset %s', maskds.name)
+        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size,
+                                   srcid=srcid)
         src.extract_all_spectra(apertures=apertures)
 
     if user_func is not None:

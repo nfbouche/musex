@@ -413,8 +413,7 @@ class MuseX:
             size=5,
             srcvers='',
             user_func=None,
-            verbose=False,
-    ):
+            verbose=False):
         """Export a catalog or selection to sources (SourceX).
 
         This is the main function to export sources, so it does a lot of
@@ -471,8 +470,12 @@ class MuseX:
         resultset = get_result_table(res_or_cat, filter_active=only_active)
         nrows = len(resultset)
         cat = resultset.catalog
-        parent_cat = self.find_parent_cat(cat)
         info = self.logger.info
+
+        try:
+            parent_cat = self.find_parent_cat(cat)
+        except ValueError:
+            parent_cat = None
 
         if outdir is not None:
             os.makedirs(outdir, exist_ok=True)
@@ -503,7 +506,8 @@ class MuseX:
                                      for name in datasets})
         else:
             for ds in self.datasets.values():
-                if ds.linked_cat and ds.linked_cat != parent_cat.name:
+                if ds.linked_cat and parent_cat \
+                        and ds.linked_cat != parent_cat.name:
                     # if the dataset is linked to a catalog which is not the
                     # one used here, skip it
                     continue
@@ -512,10 +516,9 @@ class MuseX:
         info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
         # keywords added to the source
-        header = {
-            'SRC_V': (srcvers, 'Source Version'),
-            'CATALOG': os.path.basename(parent_cat.name),
-        }
+        header = {'SRC_V': (srcvers, 'Source Version')}
+        if parent_cat:
+            header['CATALOG'] = os.path.basename(parent_cat.name),
         if extra_header:
             header.update(extra_header)
 
@@ -539,7 +542,7 @@ class MuseX:
             info('no masks specified, spectra will not be extracted')
 
         # segmap from the parent cat
-        if segmap:
+        if segmap and parent_cat:
             segmapfile = parent_cat.params.get('segmap')
             if segmapfile is None:
                 info('could not find segmap from %s', parent_cat.name)
@@ -559,9 +562,10 @@ class MuseX:
         if catalogs:
             kw['catalogs'] = {}
             # special treatment for the parent of the exported catalog
-            parent_params = parent_cat.params.get('extract', {})
-            prefix = parent_params.get('prefix')
-            kw['header']['REFCAT'] = f"{prefix}_CAT"
+            if parent_cat:
+                parent_params = parent_cat.params.get('extract', {})
+                prefix = parent_params.get('prefix')
+                kw['header']['REFCAT'] = f"{prefix}_CAT"
 
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
