@@ -584,14 +584,16 @@ def test_export_sources_origin(mx):
     assert set(src.images.keys()) == {
         'MASK_SKY', 'ORIG_ORI_SEGMAP_LABEL', 'MUSE_EXPMAP', 'TEST_FAKE',
         'ORIG_ORI_MASK_SKY', 'ORIG_ORI_MASK_OBJ', 'ORIG_ORI_CORR_3',
-        'MASK_OBJ', 'NB_LINE_3', 'ORIG_ORI_SEGMAP_MERGED', 'MUSE_WHITE',
+        'MASK_OBJ', 'ORIG_NB_LINE_3', 'ORIG_ORI_SEGMAP_MERGED', 'MUSE_WHITE',
         'ORIG_ORI_MAXMAP'
     }
 
     assert list(src.spectra.keys()) == [
-        'MUSE_SKY', 'MUSE_TOT_SKYSUB', 'MUSE_WHITE_SKYSUB', 'MUSE_TOT',
-        'ORIG_ORI_CORR', 'MUSE_PSF_SKYSUB', 'MUSE_PSF', 'ORIG_ORI_SPEC_3',
-        'ORIG_ORI_CORR_3_SKYSUB', 'ORIG_ORI_CORR_3', 'MUSE_WHITE'
+        'ORIG_MUSE_SKY', 'ORIG_MUSE_TOT_SKYSUB', 'ORIG_MUSE_WHITE_SKYSUB',
+        'ORIG_MUSE_TOT', 'ORIG_ORI_CORR', 'ORIG_MUSE_PSF_SKYSUB',
+        'ORIG_MUSE_PSF', 'ORIG_ORI_SPEC_3', 'ORIG_ORI_CORR_3_SKYSUB',
+        'ORIG_ORI_CORR_3', 'MUSE_TOT', 'MUSE_WHITE', 'MUSE_PSF', 'MUSE_SKY',
+        'MUSE_TOT_SKYSUB', 'MUSE_WHITE_SKYSUB', 'MUSE_PSF_SKYSUB'
     ]
 
     ref_header = """\
