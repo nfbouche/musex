@@ -3,7 +3,6 @@
 import logging
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from astropy import units as u
 from astropy.coordinates import search_around_sky
@@ -224,6 +223,7 @@ class CrossMatch(BaseCatalog):
 
     def fig_diagnostic(self):  # pragma: no cover
         """Diagnostic figure for the cross-match."""
+        from matplotlib import pyplot as plt
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 4))
 
         table = self.select().as_table()
