@@ -1,10 +1,11 @@
 """Mask related tools."""
 import logging
 
+import numpy as np
+
 from astropy.io.fits import ImageHDU
 from astropy.nddata.utils import NoOverlapError, overlap_slices
 from astropy.wcs import WCS
-import numpy as np
 
 
 def _same_origin(m1, m2):

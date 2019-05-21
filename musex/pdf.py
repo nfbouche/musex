@@ -1,14 +1,16 @@
 import datetime
 import logging
-import matplotlib.pylab as plt
 import os
 
+import matplotlib.pylab as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
+
 from mpdaf.sdetect import Catalog
 
 from .plots import (
-    err_report, report_error,
+    err_report,
+    report_error,
     show_3dhst,
     show_comments,
     show_contspec,
@@ -27,7 +29,6 @@ from .plots import (
     show_white,
     show_zoomspec,
 )
-
 from .version import __version__
 
 HST_TAGS = ['HST_F225W', 'HST_F336W', 'HST_F435W', 'HST_F606W', 'HST_F775W',

@@ -1,9 +1,10 @@
 import inspect
 import logging
-import numpy as np
 import re
 import textwrap
 import warnings
+
+import numpy as np
 
 from astropy.io import fits
 from astropy.table import Table

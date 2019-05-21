@@ -1,6 +1,9 @@
-import numpy as np
 import os
+
+import numpy as np
 import pytest
+from numpy.testing import assert_allclose, assert_array_equal
+
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table
@@ -8,7 +11,6 @@ from astropy.wcs import WCS
 from mpdaf.sdetect import Source
 from musex import Catalog, MuseX, masks
 from musex.catalog import get_cat_name, get_result_table
-from numpy.testing import assert_allclose, assert_array_equal
 
 CURDIR = os.path.abspath(os.path.dirname(__file__))
 DATADIR = os.path.join(CURDIR, 'data')

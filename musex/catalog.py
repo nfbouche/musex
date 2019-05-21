@@ -1,20 +1,20 @@
 import json
 import logging
-import numpy as np
 import os
 import re
 import warnings
-
-from astropy.table import Table, vstack
-from astropy.utils.decorators import lazyproperty
-
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime
-from mpdaf.sdetect import Catalog as _Catalog
-from mpdaf.tools import isiter, progressbar
+
+import numpy as np
 from numpy import ma
 from sqlalchemy import sql
+
+from astropy.table import Table, vstack
+from astropy.utils.decorators import lazyproperty
+from mpdaf.sdetect import Catalog as _Catalog
+from mpdaf.tools import isiter, progressbar
 
 from .utils import table_to_odict
 

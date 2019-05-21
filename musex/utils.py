@@ -1,14 +1,15 @@
-import astropy.units as u
-import dataset
 import logging
-import numpy as np
 import os
-import yaml
-
 from collections import OrderedDict
-from mpdaf.obj import Image
-from sqlalchemy.engine import Engine
+
+import dataset
+import numpy as np
+import yaml
 from sqlalchemy import event, pool
+from sqlalchemy.engine import Engine
+
+import astropy.units as u
+from mpdaf.obj import Image
 
 __all__ = ('load_db', 'load_yaml_config', 'table_to_odict', 'extract_subimage')
 

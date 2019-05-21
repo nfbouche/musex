@@ -1,9 +1,10 @@
-import matplotlib
-matplotlib.use('Agg')  # noqa
+import matplotlib  # isort:skip
+matplotlib.use('Agg')  # noqa isort:skip
 
 import os
-import pytest
 import shutil
+
+import pytest
 
 from musex import MuseX
 

@@ -3,7 +3,7 @@ from .crossmatching import *
 from .dataset import *
 from .musex import *
 from .source import *
-from .version import __version__, __description__
+from .version import __description__, __version__
 
 
 def _setup_logging():

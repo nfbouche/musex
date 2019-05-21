@@ -2,25 +2,34 @@ import importlib
 import itertools
 import logging
 import multiprocessing
-import numpy as np
 import os
 import sys
 import textwrap
+from collections import Iterable, Sized
+from contextlib import contextmanager
+
+import numpy as np
 
 from astropy.table import Table
-from collections import Sized, Iterable
-from contextlib import contextmanager
 from mpdaf.obj import Image
-from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
-from mpdaf.tools import progressbar, isiter
+from mpdaf.sdetect import Catalog as MpdafCatalog
+from mpdaf.sdetect import create_masks_from_segmap
+from mpdaf.tools import isiter, progressbar
 
-from .dataset import load_datasets, MuseDataSet
-from .catalog import (Catalog, InputCatalog, ResultSet, MarzCatalog,
-                      IdMapping, get_result_table, get_cat_name)
+from .catalog import (
+    Catalog,
+    IdMapping,
+    InputCatalog,
+    MarzCatalog,
+    ResultSet,
+    get_cat_name,
+    get_result_table,
+)
 from .crossmatching import CrossMatch, gen_crossmatch
-from .source import sources_to_marz, create_source
+from .dataset import MuseDataSet, load_datasets
+from .source import create_source, sources_to_marz
 from .utils import load_db, load_yaml_config, table_to_odict
-from .version import __version__, __description__
+from .version import __description__, __version__
 
 __all__ = ['MuseX']
 

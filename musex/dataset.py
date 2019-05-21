@@ -1,11 +1,12 @@
 import logging
-import numpy as np
 import os
+
+import numpy as np
 
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
-from mpdaf.obj import Image, Cube
+from mpdaf.obj import Cube, Image
 from mpdaf.sdetect import Source
 
 __all__ = ['DataSet', 'MuseDataSet']

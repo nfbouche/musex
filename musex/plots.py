@@ -1,27 +1,27 @@
 # module for UDF source and catalog display
 # Taken from muse_analysis/udf/display.py
 
-import astropy.units as u
-import lineid_plot
 import logging
-import matplotlib as mpl
-import matplotlib.pylab as plt
-import numpy as np
 import warnings
-
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import wraps
 from itertools import cycle
 
-from astropy.convolution import convolve, Box1DKernel
+import lineid_plot
+import matplotlib as mpl
+import matplotlib.pylab as plt
+import numpy as np
+from lineid_plot import plot_line_ids
+from matplotlib.patches import Ellipse
+from matplotlib.ticker import AutoMinorLocator
+
+import astropy.units as u
+from astropy.convolution import Box1DKernel, convolve
 from astropy.io.votable import exceptions
 from astropy.stats import sigma_clipped_stats
 from astropy.table import Table
 from astropy.units import UnitsWarning
-from lineid_plot import plot_line_ids
-from matplotlib.patches import Ellipse
-from matplotlib.ticker import AutoMinorLocator
 from mpdaf.sdetect import get_emlines
 
 warnings.filterwarnings('ignore', category=UnitsWarning)

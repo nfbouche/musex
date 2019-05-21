@@ -2,12 +2,13 @@
 
 import logging
 
+import numpy as np
+from matplotlib import pyplot as plt
+
 from astropy import units as u
 from astropy.coordinates import search_around_sky
 from astropy.table import Table, join, vstack
 from astropy.visualization import hist
-from matplotlib import pyplot as plt
-import numpy as np
 
 from .catalog import BaseCatalog
 
