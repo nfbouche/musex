@@ -3,7 +3,6 @@ import os
 
 import numpy as np
 
-from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Cube, Image
@@ -232,6 +231,7 @@ class DataSet:
 
         """
         debug = self.logger.debug
+
         # Images
         for name, img in self.images.items():
             name = name.upper()
@@ -270,7 +270,7 @@ class DataSet:
                         debug('Not overriding %s from source %s', name, ext)
                     else:
                         debug('Adding source %s: %s', ext, name)
-                        srcdata[name] = img
+                        srcdata[f'{self.prefix}_{name}'] = img
 
 
 class MuseDataSet(DataSet):

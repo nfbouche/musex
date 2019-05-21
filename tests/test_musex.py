@@ -574,22 +574,25 @@ def test_export_sources_origin(mx):
     assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
 
     # FIXME: why ORI_CAT and ORIG_CAT? ORI_CAT seems duplicate
-    assert list(src.tables.keys()) == ['ORI_CAT', 'ORI_LINES', 'NB_PAR',
-                                       'ORIG_CAT']
+    assert list(src.tables.keys()) == ['ORIG_ORI_CAT', 'ORIG_ORI_LINES',
+                                       'ORIG_NB_PAR', 'ORIG_CAT']
     assert_array_equal(src.tables['ORIG_CAT']['ID'], [3, 1])
 
-    assert list(src.cubes.keys()) == ['MUSE_CUBE', 'ORI_CORREL']
+    assert list(src.cubes.keys()) == ['MUSE_CUBE', 'ORIG_ORI_CORREL']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
 
     assert set(src.images.keys()) == {
-        'MASK_SKY', 'ORI_SEGMAP_LABEL', 'MUSE_EXPMAP', 'TEST_FAKE',
-        'ORI_MASK_SKY', 'ORI_MASK_OBJ', 'ORI_CORR_3', 'MASK_OBJ', 'NB_LINE_3',
-        'ORI_SEGMAP_MERGED', 'MUSE_WHITE', 'ORI_MAXMAP'}
+        'MASK_SKY', 'ORIG_ORI_SEGMAP_LABEL', 'MUSE_EXPMAP', 'TEST_FAKE',
+        'ORIG_ORI_MASK_SKY', 'ORIG_ORI_MASK_OBJ', 'ORIG_ORI_CORR_3',
+        'MASK_OBJ', 'NB_LINE_3', 'ORIG_ORI_SEGMAP_MERGED', 'MUSE_WHITE',
+        'ORIG_ORI_MAXMAP'
+    }
 
     assert list(src.spectra.keys()) == [
         'MUSE_SKY', 'MUSE_TOT_SKYSUB', 'MUSE_WHITE_SKYSUB', 'MUSE_TOT',
-        'ORI_CORR', 'MUSE_PSF_SKYSUB', 'MUSE_PSF', 'ORI_SPEC_3',
-        'ORI_CORR_3_SKYSUB', 'ORI_CORR_3', 'MUSE_WHITE']
+        'ORIG_ORI_CORR', 'MUSE_PSF_SKYSUB', 'MUSE_PSF', 'ORIG_ORI_SPEC_3',
+        'ORIG_ORI_CORR_3_SKYSUB', 'ORIG_ORI_CORR_3', 'MUSE_WHITE'
+    ]
 
     ref_header = """\
 ID      =                    3 / object ID %d
