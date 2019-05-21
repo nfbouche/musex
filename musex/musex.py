@@ -403,6 +403,28 @@ class MuseX:
             margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm,
             psf_threshold=psf_threshold)
 
+    def _prepare_datasets(self, datasets, catname):
+        # compute the list of datasets to use
+        use_datasets = {self.muse_dataset: None}
+        if datasets is not None:
+            # if datasets is specified, use it:
+            # - of a dict, use tags specified in the dict
+            # - if a list of datasets, use all tags from these datasets
+            if isinstance(datasets, dict):
+                use_datasets.update({self.datasets[name]: val
+                                     for name, val in datasets.items()})
+            elif isiter(datasets):
+                use_datasets.update({self.datasets[name]: None
+                                     for name in datasets})
+        else:
+            # otherwise we use all datasets, except the ones linked to
+            # another catalog
+            for ds in self.datasets.values():
+                if ds.linked_cat and catname and ds.linked_cat != catname:
+                    continue
+                use_datasets[ds] = None
+        return use_datasets
+
     def to_sources(
             self,
             res_or_cat,
@@ -506,23 +528,8 @@ class MuseX:
             raise ValueError("'size' should be a float or list of floats")
 
         # compute the list of datasets to use
-        use_datasets = {self.muse_dataset: None}
-        if datasets is not None:
-            if isinstance(datasets, dict):
-                use_datasets.update({self.datasets[name]: val
-                                     for name, val in datasets.items()})
-            elif isiter(datasets):
-                use_datasets.update({self.datasets[name]: None
-                                     for name in datasets})
-        else:
-            for ds in self.datasets.values():
-                if ds.linked_cat and parent_cat \
-                        and ds.linked_cat != parent_cat.name:
-                    # if the dataset is linked to a catalog which is not the
-                    # one used here, skip it
-                    continue
-                use_datasets[ds] = None
-
+        parent_catname = parent_cat.name if parent_cat else None
+        use_datasets = self._prepare_datasets(datasets, parent_catname)
         info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
         # keywords added to the source
