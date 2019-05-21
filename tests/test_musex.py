@@ -496,15 +496,14 @@ def test_export_sources(mx):
     mx.create_masks_from_segmap(phot, maskdir, skip_existing=True, margin=10)
 
     outdir = f'{mx.workdir}/export'
-    mx.export_sources(mycat, outdir=outdir, create_pdf=True, srcvers='0.1',
+    mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
                       apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
                       verbose=True, masks_dataset='photutils-hdfs',
                       extra_header={'FOO': 'BAR'}, catalogs=[phot],
                       segmap=True)
 
     flist = os.listdir(outdir)
-    assert sorted(flist) == ['source-00008.fits', 'source-00008.pdf',
-                             'source-00009.fits', 'source-00009.pdf']
+    assert sorted(flist) == ['source-00008.fits', 'source-00009.fits']
 
     src = Source.from_file(f'{outdir}/source-00008.fits')
     assert src.REFSPEC == 'MUSE_PSF_SKYSUB'

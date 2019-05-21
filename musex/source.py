@@ -11,7 +11,6 @@ from astropy.table import Table
 from mpdaf.MUSE.PSF import create_psf_cube
 from mpdaf.sdetect import Source
 
-from .pdf import create_pdf
 from .utils import extract_subimage
 from .version import __version__
 
@@ -64,9 +63,6 @@ class SourceX(Source):
             return self.tables[self.REFCAT]
         except KeyError:
             self._logger.debug('Ref catalog "%s" not found', self.REFCAT)
-
-    def to_pdf(self, filename, **kwargs):
-        create_pdf(self, filename, **kwargs)
 
     def add_z_from_settings(self, redshifts, row):
         """Add redshifts from a row using the settings definition."""
@@ -151,7 +147,7 @@ class SourceX(Source):
 def create_source(row, idname, raname, decname, size, refspec, history,
                   segmap=None, datasets=None, maskds=None, apertures=None,
                   header=None, header_columns=None, redshifts=None, mags=None,
-                  catalogs=None, outdir=None, outname=None, pdfconf=None,
+                  catalogs=None, outdir=None, outname=None,
                   verbose=False, user_func=None, **kwargs):
     logger = logging.getLogger(__name__)
     if not verbose:
@@ -245,10 +241,6 @@ def create_source(row, idname, raname, decname, size, refspec, history,
                                     category=fits.verify.VerifyWarning)
             src.write(fname)
         logger.info('FITS written to %s', fname)
-        if pdfconf is not None:
-            fname = f'{outdir}/{outn}.pdf'
-            src.to_pdf(fname, **pdfconf)
-            logger.info('PDF written to %s', fname)
         return fname
     else:
         return src

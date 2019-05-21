@@ -104,7 +104,3 @@ export:
     TYPE: Type
     REFSPEC: refspec
     COMMENT: Comment
-  pdf:
-    white: MUSE_WHITE
-    ima2: TEST_FAKE
-    mastercat: PHU_CAT

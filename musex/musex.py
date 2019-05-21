@@ -408,7 +408,6 @@ class MuseX:
             res_or_cat,
             apertures=None,
             catalogs=None,
-            create_pdf=False,
             datasets=None,
             extra_header=None,
             history=True,
@@ -439,8 +438,6 @@ class MuseX:
         catalogs : list of `Catalog`
             List of catalogs that will be added to the source as table
             extension, with a selection done on the WCS.
-        create_pdf : bool
-            If True, create a pdf for each source.
         datasets : iterable or dict
             List of dataset names to use for the sources, or dictionary with
             dataset names associated to a list of tags to use. By default all
@@ -589,9 +586,6 @@ class MuseX:
                     pcat = parent.select(columns=columns).as_table()
                     pcat.meta.update(parent_params)
                     kw['catalogs'][f"{prefix}_CAT"] = pcat
-
-        if create_pdf:
-            kw['pdfconf'] = self.conf['export'].get('pdf', {})
 
         author = self.conf['author']
 

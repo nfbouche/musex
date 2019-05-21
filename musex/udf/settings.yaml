@@ -124,5 +124,3 @@ export:
     TYPE: Type
     REFSPEC: refspec
     COMMENT: Comment
-  pdf:
-    ima2: HST_F775W
