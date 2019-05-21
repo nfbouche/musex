@@ -425,46 +425,50 @@ class MuseX:
         ----------
         res_or_cat : `ResultSet`, `Catalog`, `Table`
             Either a result from a query or a catalog to export.
-        size : float or list of float
-            Size of the images (in arcseconds) added in the sources.
-        srcvers : str
-            Version of the sources (SRC_V).
         apertures : list of float
             List of aperture radii for spectra extraction.
+        catalogs : list of `Catalog`
+            List of catalogs that will be added to the source as table
+            extension, with a selection done on the WCS.
+        create_pdf : bool
+            If True, create a pdf for each source.
         datasets : iterable or dict
             List of dataset names to use for the sources, or dictionary with
             dataset names associated to a list of tags to use. By default all
             datasets are used, and all tags.
-        only_active : bool
-            If True the inactive sources, i.e. the sources that have been
-            merged into another, are filtered.
-        refspec : str
-            Name of the reference spectra. Used if refspec is not specified in
-            the catalog, and mapped to the REFSPEC keyword using the
-            ``header_columns`` block in the settings.
-        segmap : bool
-            If True, add the segmentation map defined in the parent catalog.
+        extra_header : dict
+            Dict with additional keywords/values to add to the Source header.
         history : bool
             If True, add the log of operations done on each source, which is
             saved in HISTORY keywords.
         masks_dataset : str
             Name of the dataset from which the source and sky masks are taken.
             If missing, no spectra will be extracted from the source cube.
+        n_jobs : int
+            Number of parallel processes.
+        only_active : bool
+            If True the inactive sources, i.e. the sources that have been
+            merged into another, are filtered.
         outdir : str
             Output directory.
         outname : str
             Output file name.
-        create_pdf : bool
-            If True, create a pdf for each source.
+        refspec : str
+            Name of the reference spectra. Used if refspec is not specified in
+            the catalog, and mapped to the REFSPEC keyword using the
+            ``header_columns`` block in the settings.
+        segmap : bool
+            If True, add the segmentation map defined in the parent catalog.
+        size : float or list of float
+            Size of the images (in arcseconds) added in the sources.
+        srcvers : str
+            Version of the sources (SRC_V).
         user_func : callable
             User specified function that is called at the end of the source
             creation process, with the source object as first argument, and the
             catalog row as second argument.
-        extra_header : dict
-            Dict with additional keywords/values to add to the Source header.
-        catalogs : list of `Catalog`
-            List of catalogs that will be added to the source as table
-            extension, with a selection done on the WCS.
+        verbose : bool
+            Verbose flag.
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
