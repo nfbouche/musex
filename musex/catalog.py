@@ -611,35 +611,6 @@ class Catalog(BaseCatalog):
 
         return res
 
-    def add_to_source(self, src, columns=None, redshifts=None, mags=None,
-                      prefix=None, name='CAT', select_in='MUSE_WHITE'):
-        """Add information to the Source object.
-
-        FIXME: see how to improve conf here.
-
-        """
-        # Add catalog as a BinTableHDU
-        cat = self.select(columns=columns).as_table()
-        prefix = prefix or self.name.upper()
-        catname = f"{prefix}_{name}"
-        src.add_table(cat, catname, select_in=select_in, ra=self.raname,
-                      dec=self.decname, margin=0, col_dist='DIST')
-        src.REFCAT = catname
-        cat = src.tables[catname]
-        self.logger.debug('Adding catalog %s (%d rows)', catname, len(cat))
-        # adding meta for column names
-        cat.meta['name'] = self.name
-        cat.meta['idname'] = self.idname
-        cat.meta['raname'] = self.raname
-        cat.meta['decname'] = self.decname
-
-        # Add redshifts and magnitudes if requested
-        row = cat[cat[self.idname] == src.ID]
-        if redshifts:
-            src.add_z_from_settings(redshifts, row)
-        if mags:
-            src.add_mag_from_settings(mags, row)
-
     def skycoord(self):
         """Return an `astropy.coordinates.SkyCoord` object."""
         columns = [self.idname, self.raname, self.decname]
