@@ -85,12 +85,17 @@ def test_ingest_origin(mx):
     assert orig.raname == 'ra'
     assert orig.decname == 'dec'
 
-    orig.ingest_input_catalog(limit=1)
-    assert len(orig.select()) == 1
+    orig.ingest_input_catalog()
+    assert len(orig.select()) == 4
+    assert orig.meta['status'] == 'inserted'
+
+    # Test that ingesting again does not crash
+    orig.ingest_input_catalog()
 
     orig.ingest_input_catalog(upsert=True)
     assert len(orig.select()) == 4
     assert orig.meta['maxid'] == 4
+    assert orig.meta['status'] == 'updated'
 
     tbl = orig.select().as_table()
     assert tbl[orig.idname].max() == 4

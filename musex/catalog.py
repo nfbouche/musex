@@ -788,18 +788,25 @@ class InputCatalog(Catalog):
             catalog = catalog[:limit]
 
         if upsert:
+            status = 'updated'
             self.upsert(catalog, version=self.version, keys=keys,
                         show_progress=show_progress)
         else:
+            if self.meta.get('status') is not None:
+                self.logger.warning('catalogue already ingested, use '
+                                    'upsert=True tp update')
+                return
+
+            status = 'inserted'
             self.insert(catalog, version=self.version,
                         show_progress=show_progress)
 
-        self.update_meta(creation_date=datetime.utcnow().isoformat(),
-                         type=self.catalog_type)
-
+        meta = {'creation_date': datetime.utcnow().isoformat(),
+                'type': self.catalog_type, 'status': status}
         if version_meta is not None:
-            self.update_meta(**{'version_meta': version_meta,
-                                version_meta: catalog.meta[version_meta]})
+            meta.update({'version_meta': version_meta,
+                         version_meta: catalog.meta[version_meta]})
+        self.update_meta(**meta)
 
 
 class MarzCatalog(InputCatalog):
