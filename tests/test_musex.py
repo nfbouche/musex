@@ -720,8 +720,10 @@ def test_export_multiple(mx):
     phot.ingest_input_catalog()
 
     cross = mx.cross_match("cross_matching", orig, phot)
-    res = cross.select(whereclause='photutils_id > 0 AND origin_id > 0',
-                       columns=['ID', 'photutils_id', 'origin_id'])
+    res = cross.select(
+        whereclause='photutils_id NOT NULL AND origin_id NOT NULL',
+        columns=['ID', 'photutils_id', 'origin_id']
+    )
     mycat = mx.new_catalog('my_cat', idname='ID', raname='ra', decname='dec')
     mycat.insert(res)
 

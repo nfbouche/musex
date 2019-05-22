@@ -3,6 +3,7 @@
 import logging
 
 import numpy as np
+from numpy import ma
 
 from astropy import units as u
 from astropy.coordinates import search_around_sky
@@ -78,58 +79,58 @@ def gen_crossmatch(name, db, cat1, cat2, radius=1.):
     nb_only2 = len(nomatch_ids_2)
     logger.info('%d sources only in %s.', nb_only2, cat2.name)
 
-    crossmatch_table = vstack(
-        [
-            Table(  # Source matching
-                data=[
-                    match_ids_1,
-                    nb_idx1,
-                    match_ids_2,
-                    nb_idx2,
-                    d2d.arcsec,
-                ],
-                names=[
-                    f'{cat1.name}_id',
-                    f'{cat1.name}_nbmatch',
-                    f'{cat2.name}_id',
-                    f'{cat2.name}_nbmatch',
-                    'distance',
-                ],
-            ),
-            Table(  # Only in catalog 1
-                data=[
-                    nomatch_ids_1,
-                    np.full(nb_only1, 0),
-                    np.full(nb_only1, _null_value(all_ids_2[0])),
-                    np.full(nb_only1, -9999),
-                    np.full(nb_only1, np.nan),
-                ],
-                names=[
-                    f'{cat1.name}_id',
-                    f'{cat1.name}_nbmatch',
-                    f'{cat2.name}_id',
-                    f'{cat2.name}_nbmatch',
-                    'distance',
-                ],
-            ),
-            Table(  # Only in catalog 2
-                data=[
-                    np.full(nb_only2, _null_value(all_ids_1[0])),
-                    np.full(nb_only2, -9999),
-                    nomatch_ids_2,
-                    np.full(nb_only2, 0),
-                    np.full(nb_only2, np.nan),
-                ],
-                names=[
-                    f'{cat1.name}_id',
-                    f'{cat1.name}_nbmatch',
-                    f'{cat2.name}_id',
-                    f'{cat2.name}_nbmatch',
-                    'distance',
-                ],
-            ),
-        ]
-    )
+    crossmatch_table = vstack([
+        Table(  # Source matching
+            data=[
+                match_ids_1,
+                nb_idx1,
+                match_ids_2,
+                nb_idx2,
+                d2d.arcsec,
+            ],
+            names=[
+                f'{cat1.name}_id',
+                f'{cat1.name}_nbmatch',
+                f'{cat2.name}_id',
+                f'{cat2.name}_nbmatch',
+                'distance',
+            ],
+        ),
+        Table(  # Only in catalog 1
+            data=[
+                nomatch_ids_1,
+                np.full(nb_only1, 0),
+                ma.masked_equal(np.full(nb_only1, _null_value(all_ids_2[0])),
+                                _null_value(all_ids_2[0])),
+                ma.masked_equal(np.full(nb_only1, -9999), -9999),
+                np.full(nb_only1, np.nan),
+            ],
+            names=[
+                f'{cat1.name}_id',
+                f'{cat1.name}_nbmatch',
+                f'{cat2.name}_id',
+                f'{cat2.name}_nbmatch',
+                'distance',
+            ],
+        ),
+        Table(  # Only in catalog 2
+            data=[
+                ma.masked_equal(np.full(nb_only2, _null_value(all_ids_1[0])),
+                                _null_value(all_ids_1[0])),
+                ma.masked_equal(np.full(nb_only2, -9999), -9999),
+                nomatch_ids_2,
+                np.full(nb_only2, 0),
+                np.full(nb_only2, np.nan),
+            ],
+            names=[
+                f'{cat1.name}_id',
+                f'{cat1.name}_nbmatch',
+                f'{cat2.name}_id',
+                f'{cat2.name}_nbmatch',
+                'distance',
+            ],
+        ),
+    ])
 
     # Add identifier to the cross-match table
     crossmatch_table['ID'] = np.arange(len(crossmatch_table)) + 1
