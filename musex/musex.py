@@ -2,6 +2,7 @@ import importlib
 import itertools
 import logging
 import multiprocessing
+import datetime
 import os
 import sys
 import textwrap
@@ -603,7 +604,7 @@ class MuseX:
             if history:
                 hist_items = [(o['msg'], author, o['date'])
                               for o in cat.get_log(row[cat.idname])]
-                hist_items.append(('source created', author))
+                hist_items.append(('source created', author, datetime.datetime.now().isoformat()))
             else:
                 hist_items = None
 
