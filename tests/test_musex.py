@@ -712,7 +712,10 @@ def test_matching(mx):
     assert len(cross.matched_table_with_more_than(0)) == 2
 
 
-def test_export_multiple(mx):
+def test_export_match(mx):
+    """Test export for a matched catalog, combining multiple datasets and
+    catalogs.
+    """
     orig = mx.input_catalogs['origin']
     orig.ingest_input_catalog()
 
@@ -721,7 +724,7 @@ def test_export_multiple(mx):
 
     cross = mx.cross_match("cross_matching", orig, phot)
     res = cross.select(
-        whereclause='photutils_id NOT NULL AND origin_id NOT NULL',
+        # whereclause='photutils_id NOT NULL AND origin_id NOT NULL',
         columns=['ID', 'photutils_id', 'origin_id']
     )
     mycat = mx.new_catalog('my_cat', idname='ID', raname='ra', decname='dec')
@@ -729,17 +732,36 @@ def test_export_multiple(mx):
 
     # get ra/dec from photutils
     tbl = phot.select(phot.c.id == mycat.c.photutils_id,
-                      columns=['id', 'ra', 'dec']).as_table()
+                      columns=['id', 'ra', 'dec', 'area']).as_table()
     tbl.rename_column('id', 'photutils_id')
     mycat.upsert(tbl, keys=['photutils_id'])
 
+    # get ra/dec from origin
+    tbl = orig.select(orig.c.ID == mycat.c.origin_id,
+                      columns=['ID', 'ra', 'dec', 'purity']).as_table()
+    tbl.rename_column('ID', 'origin_id')
+    mycat.upsert(tbl, keys=['origin_id'])
+
     outdir = f'{mx.workdir}/export'
     with mx.use_loglevel('DEBUG'):
-        mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
-                          verbose=True, datasets=['origin'])
+        mx.export_sources(mycat.select_ids([1, 3, 5]), outdir=outdir,
+                          srcvers='0.1', verbose=True, datasets=['origin'])
 
     flist = os.listdir(outdir)
-    assert sorted(flist) == ['source-00001.fits', 'source-00002.fits']
+    assert sorted(flist) == ['source-00001.fits', 'source-00003.fits',
+                             'source-00005.fits']
 
+    # source detected with both
     src = Source.from_file(f'{outdir}/source-00001.fits')
     assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
+    assert src.PURITY == 0
+
+    # origin only source
+    src = Source.from_file(f'{outdir}/source-00003.fits')
+    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
+    assert src.PURITY == 0
+
+    # photutils only source
+    src = Source.from_file(f'{outdir}/source-00005.fits')
+    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
+    assert 'PURITY' not in src.header

@@ -104,3 +104,4 @@ export:
     TYPE: Type
     REFSPEC: refspec
     COMMENT: Comment
+    PURITY: purity
