@@ -744,8 +744,13 @@ def test_export_match(mx):
 
     outdir = f'{mx.workdir}/export'
     with mx.use_loglevel('DEBUG'):
-        mx.export_sources(mycat.select_ids([1, 3, 5]), outdir=outdir,
-                          srcvers='0.1', verbose=True, datasets=['origin'])
+        mx.export_sources(
+            mycat.select_ids([1, 3, 5]),
+            outdir=outdir,
+            srcvers='0.1',
+            verbose=True,
+            datasets={'origin': ['ORI*', 'MUSE_CUBE', 'MUSE_WHITE']}
+        )
 
     flist = os.listdir(outdir)
     assert sorted(flist) == ['source-00001.fits', 'source-00003.fits',
@@ -755,6 +760,10 @@ def test_export_match(mx):
     src = Source.from_file(f'{outdir}/source-00001.fits')
     assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
     assert src.PURITY == 0
+    assert 'MUSE_CUBE' in src.cubes
+    assert 'MUSE_WHITE' in src.images
+    assert 'NB_LINE_1' not in src.images
+    assert 'ORI_SPEC_1' in src.spectra
 
     # origin only source
     src = Source.from_file(f'{outdir}/source-00003.fits')

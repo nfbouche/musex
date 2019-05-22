@@ -1,3 +1,5 @@
+import fnmatch
+import itertools
 import logging
 import os
 
@@ -17,6 +19,12 @@ def load_datasets(settings):
     for name, conf in settings['datasets'].items():
         datasets[name] = DataSet(name, settings=conf)
     return datasets
+
+
+def filter_tagnames(names, patterns):
+    """Return elements of names that match a pattern in patterns."""
+    return itertools.chain.from_iterable(
+        fnmatch.filter(names, pat) for pat in patterns)
 
 
 class DataSet:
@@ -231,25 +239,20 @@ class DataSet:
 
         """
         debug = self.logger.debug
+        if names is None:
+            names = '*'
 
         # Images
-        for name, img in self.images.items():
-            name = name.upper()
-            # tagname = getattr(img, 'name', name)
-            if names is not None and name not in names:
-                continue
+        for name in filter_tagnames(self.images, names):
             order = 0 if name == 'SEGMAP' else 1
             debug('Adding image: %s_%s', self.prefix, name)
-            src.add_image(img, f'{self.prefix}_{name}', rotate=True,
-                          order=order)
+            src.add_image(self.images[name], f'{self.prefix}_{name}',
+                          rotate=True, order=order)
 
         # Cubes
-        for name, cube in self.cubes.items():
-            name = name.upper()
-            if names is not None and name not in names:
-                continue
+        for name in filter_tagnames(self.cubes, names):
             debug('Adding cube: %s_%s', self.prefix, name)
-            src.add_cube(cube, f'{self.prefix}_{name}')
+            src.add_cube(self.cubes[name], f'{self.prefix}_{name}')
 
         # Sources
         s = self.get_source(srcid or src.ID)
@@ -260,17 +263,16 @@ class DataSet:
             for ext in ('images', 'spectra', 'cubes', 'tables'):
                 sdata = getattr(s, ext)
                 srcdata = getattr(src, ext)
-                for name, img in sdata.items():
+                for name in filter_tagnames(sdata, names):
                     if ((default_tags and name not in default_tags) or
-                            (excluded_tags and name in excluded_tags) or
-                            (names is not None and name not in names)):
+                            (excluded_tags and name in excluded_tags)):
                         continue
 
                     if name in srcdata:
                         debug('Not overriding %s from source %s', name, ext)
                     else:
                         debug('Adding source %s: %s', ext, name)
-                        srcdata[f'{self.prefix}_{name}'] = img
+                        srcdata[f'{self.prefix}_{name}'] = sdata[name]
 
 
 class MuseDataSet(DataSet):
