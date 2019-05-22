@@ -100,6 +100,9 @@ class SourceX(Source):
         """Add keywords from a row using the settings definition."""
         for key, colname in header_columns.items():
             if row.get(colname) is not None:
+                if np.ma.is_masked(row[colname]):
+                    continue
+
                 if key == 'COMMENT':
                     # truncate comment if too long
                     com = re.sub(r'[^\s!-~]', '', row[colname])
