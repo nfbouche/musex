@@ -551,13 +551,6 @@ class MuseX:
             'user_func': user_func,     # user function
         }
 
-        # dataset for masks
-        if masks_dataset is not None:
-            kw['maskds'] = self.datasets[masks_dataset]
-            info('using mask datasets: %s', kw['maskds'])
-        else:
-            info('no masks specified, spectra will not be extracted')
-
         # segmap from the parent cat
         if segmap and parent_cat:
             segmapfile = parent_cat.params.get('segmap')
@@ -601,6 +594,14 @@ class MuseX:
         for res, src_size in zip(resultset, size):
             row = dict(zip(res.colnames, tuple(res)))
 
+            # dataset for masks
+            if 'mask_dataset' in row:
+                maskds = self.datasets[row['mask_dataset']]
+            elif masks_dataset is not None:
+                maskds = self.datasets[masks_dataset]
+            else:
+                maskds = None
+
             if history:
                 hist_items = [(o['msg'], author, o['date'])
                               for o in cat.get_log(row[cat.idname])]
@@ -609,7 +610,7 @@ class MuseX:
                 hist_items = None
 
             to_compute.append(((row, cat.idname, cat.raname, cat.decname,
-                                src_size, refspec, hist_items), kw))
+                                src_size, refspec, hist_items, maskds), kw))
 
         # create the sources, either with multiprocessing or directly with
         # create_source

@@ -147,17 +147,21 @@ class SourceX(Source):
         self._logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', fracsky, fracobj)
 
 
-def create_source(row, idname, raname, decname, size, refspec, history,
-                  segmap=None, datasets=None, maskds=None, apertures=None,
-                  header=None, header_columns=None, redshifts=None, mags=None,
-                  catalogs=None, outdir=None, outname=None,
-                  user_func=None, **kwargs):
-    logger = logging.getLogger(__name__)
+def create_source(row, idname, raname, decname, size, refspec, history, maskds,
+                  segmap=None, datasets=None, apertures=None, header=None,
+                  header_columns=None, redshifts=None, mags=None, outdir=None,
+                  outname=None, catalogs=None, user_func=None, **kwargs):
+    """This is the main function to create a Source.
 
+    It takes all the possible input data as arguments, add to the source, and
+    call the user function at the end if provided.
+
+    """
     origin = ('MuseX', __version__, '', '')
-
     src = SourceX.from_data(row[idname], row[raname], row[decname], origin,
                             default_size=size)
+
+    logger = logging.getLogger(__name__)
     logger.debug('Creating source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
     src.SIZE = size
     if header:
@@ -167,7 +171,8 @@ def create_source(row, idname, raname, decname, size, refspec, history,
     if datasets:
         for ds, names in datasets.items():
             srcid = row.get(f'{ds.name}_id')
-            if srcid is not None:
+            if srcid is not None and srcid is not np.ma.masked:
+                srcid = int(srcid)
                 logger.debug('Add dataset %s with id=%s', ds.name, srcid)
             else:
                 logger.debug('Add dataset %s', ds.name)
@@ -221,7 +226,8 @@ def create_source(row, idname, raname, decname, size, refspec, history,
 
     if maskds is not None:
         srcid = row.get(f'{maskds.name}_id')
-        if srcid is not None:
+        if srcid is not None and srcid is not np.ma.masked:
+            srcid = int(srcid)
             logger.debug('Add mask from dataset %s with id=%s', maskds.name,
                          srcid)
         else:
@@ -229,10 +235,13 @@ def create_source(row, idname, raname, decname, size, refspec, history,
         src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size,
                                    srcid=srcid)
         src.extract_all_spectra(apertures=apertures)
+    else:
+        logger.debug('no masks specified, spectra will not be extracted')
 
     if user_func is not None:
         logger.debug('Calling user function')
-        user_func(src, row)
+        user_func(src, row, datasets=datasets, catalogs=catalogs,
+                  outdir=outdir, outname=outname)
 
     logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
                 src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))

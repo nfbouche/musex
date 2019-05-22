@@ -12,7 +12,7 @@ datasets:
     images:
       FAKE: '{datadir}/image.fits'
 
-  photutils-hdfs:
+  photutils_masks:
     description: 'provide masks for the photutils catalog'
     prefix: PHU
     detector: photutils

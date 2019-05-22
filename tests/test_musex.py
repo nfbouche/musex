@@ -25,7 +25,7 @@ def test_settings(capsys, settings_file):
 muse_dataset   : hdfs
 datasets       :
     - test           : small test dataset with images
-    - photutils-hdfs : provide masks for the photutils catalog
+    - photutils_masks : provide masks for the photutils catalog
     - origin         : provide masks and sources for the origin catalog
 input_catalogs :
     - photutils      : 0 rows
@@ -412,7 +412,7 @@ def test_export_marz(mx):
     refspec = ['MUSE_PSF_SKYSUB', 'MUSE_TOT_SKYSUB']
     mycat.update_column('refspec', refspec)
 
-    mx.export_marz(mycat, export_sources=True, masks_dataset='photutils-hdfs')
+    mx.export_marz(mycat, export_sources=True, masks_dataset='photutils_masks')
 
     outdir = f'{mx.workdir}/export/hdfs/my_cat/marz'
     assert sorted(os.listdir(f'{outdir}')) == [
@@ -503,7 +503,7 @@ def test_export_sources(mx):
     outdir = f'{mx.workdir}/export'
     mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
                       apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
-                      verbose=True, masks_dataset='photutils-hdfs',
+                      verbose=True, masks_dataset='photutils_masks',
                       extra_header={'FOO': 'BAR'}, catalogs=[phot],
                       segmap=True)
 
@@ -742,10 +742,24 @@ def test_export_match(mx):
     tbl.rename_column('ID', 'origin_id')
     mycat.upsert(tbl, keys=['origin_id'])
 
+    # add mask dataset
+    maskds = ['origin' if row['origin_id'] else 'photutils_masks'
+              for row in mycat.select()]
+    mycat.update_column('mask_dataset', maskds)
+
+    # we need to photutils id for the photutils_masks as well...
+    tbl = mycat.select(columns=['photutils_id']).as_table()
+    tbl['photutils_masks_id'] = tbl['photutils_id']
+    mycat.upsert(tbl, keys=['photutils_id'])
+
+    # and create the masks
+    maskdir = os.path.join(mx.workdir, 'masks', 'hdfs')
+    mx.create_masks_from_segmap(phot, maskdir, skip_existing=True, margin=10)
+
     outdir = f'{mx.workdir}/export'
     with mx.use_loglevel('DEBUG'):
         mx.export_sources(
-            mycat.select_ids([1, 3, 5]),
+            mycat.select_ids([1, 3, 6]),
             outdir=outdir,
             srcvers='0.1',
             verbose=True,
@@ -754,7 +768,7 @@ def test_export_match(mx):
 
     flist = os.listdir(outdir)
     assert sorted(flist) == ['source-00001.fits', 'source-00003.fits',
-                             'source-00005.fits']
+                             'source-00006.fits']
 
     # source detected with both
     src = Source.from_file(f'{outdir}/source-00001.fits')
@@ -762,8 +776,8 @@ def test_export_match(mx):
     assert src.PURITY == 0
     assert 'MUSE_CUBE' in src.cubes
     assert 'MUSE_WHITE' in src.images
-    assert 'NB_LINE_1' not in src.images
-    assert 'ORI_SPEC_1' in src.spectra
+    assert 'ORIG_NB_LINE_3' not in src.images   # 3 because ID=1 matches with
+    assert 'ORIG_ORI_SPEC_3' in src.spectra     # origin source #3
 
     # origin only source
     src = Source.from_file(f'{outdir}/source-00003.fits')
@@ -771,6 +785,6 @@ def test_export_match(mx):
     assert src.PURITY == 0
 
     # photutils only source
-    src = Source.from_file(f'{outdir}/source-00005.fits')
+    src = Source.from_file(f'{outdir}/source-00006.fits')
     assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
     assert 'PURITY' not in src.header
