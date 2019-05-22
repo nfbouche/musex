@@ -576,7 +576,7 @@ def test_export_sources_origin(mx):
     assert sorted(flist) == ['source-00003.fits', 'source-00004.fits']
 
     src = Source.from_file(f'{outdir}/source-00003.fits')
-    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
+    # assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
 
     # FIXME: why ORI_CAT and ORIG_CAT? ORI_CAT seems duplicate
     assert list(src.tables.keys()) == ['ORIG_ORI_CAT', 'ORIG_ORI_LINES',
@@ -622,7 +622,6 @@ FSKYMSK =                 59.2 / Relative Size of MASK_SKY in %
 NOBJMSK =                   64 / Size of MASK_OBJ in spaxels
 FOBJMSK =                10.24 / Relative Size of MASK_OBJ in %
 CATALOG = 'origin  '
-REFSPEC = 'MUSE_TOT_SKYSUB'    / Name of reference spectra
 REFCAT  = 'ORIG_CAT'
 AUTHOR  = 'MPDAF   '           / Origin of the file
 FORMAT  = '0.6     '           / Version of the Source format
@@ -772,19 +771,19 @@ def test_export_match(mx):
 
     # source detected with both
     src = Source.from_file(f'{outdir}/source-00001.fits')
-    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
     assert src.PURITY == 0
     assert 'MUSE_CUBE' in src.cubes
     assert 'MUSE_WHITE' in src.images
+    assert 'MUSE_PSF_SKYSUB' in src.spectra
     assert 'ORIG_NB_LINE_3' not in src.images   # 3 because ID=1 matches with
     assert 'ORIG_ORI_SPEC_3' in src.spectra     # origin source #3
 
     # origin only source
     src = Source.from_file(f'{outdir}/source-00003.fits')
-    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
     assert src.PURITY == 0
+    assert 'MUSE_PSF_SKYSUB' in src.spectra
 
     # photutils only source
     src = Source.from_file(f'{outdir}/source-00006.fits')
-    assert src.REFSPEC == 'MUSE_TOT_SKYSUB'
     assert 'PURITY' not in src.header
+    assert all('ORIG' not in name for name in src.spectra)

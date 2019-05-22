@@ -170,13 +170,16 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
 
     if datasets:
         for ds, names in datasets.items():
-            srcid = row.get(f'{ds.name}_id')
-            if srcid is not None and srcid is not np.ma.masked:
-                srcid = int(srcid)
-                logger.debug('Add dataset %s with id=%s', ds.name, srcid)
+            if f'{ds.name}_id' in row:
+                # Use the id given by the [dataset]_id column
+                srcid = row[f'{ds.name}_id']
+                if srcid is not None and srcid is not np.ma.masked:
+                    srcid = int(srcid)
+                    logger.debug('Add dataset %s with id=%s', ds.name, srcid)
+                    ds.add_to_source(src, names=names, srcid=srcid)
             else:
                 logger.debug('Add dataset %s', ds.name)
-            ds.add_to_source(src, names=names, srcid=srcid)
+                ds.add_to_source(src, names=names)
 
     # Add keywords from columns
     if header_columns:
