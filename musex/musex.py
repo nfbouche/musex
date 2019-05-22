@@ -545,7 +545,6 @@ class MuseX:
             'apertures': apertures,     # list of apertures for spectra
             'datasets': use_datasets,   # datasets to use
             'header': header,           # additional keywords
-            'verbose': verbose,
             'outdir': outdir,           # output directory
             'outname': outname,         # output filename
             'user_func': user_func,     # user function
@@ -624,6 +623,8 @@ class MuseX:
 
         try:
             if verbose is False:
+                ctx = self.use_loglevel('WARNING')
+                ctx.__enter__()
                 bar = progressbar(sources, total=nrows)
 
             for src in sources:
@@ -638,6 +639,9 @@ class MuseX:
         except KeyboardInterrupt:
             if n_jobs > 1:
                 pool.terminate()
+        finally:
+            if verbose is False:
+                ctx.__exit__(*sys.exc_info())
 
     def export_sources(self, res_or_cat, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):

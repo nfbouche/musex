@@ -151,10 +151,8 @@ def create_source(row, idname, raname, decname, size, refspec, history,
                   segmap=None, datasets=None, maskds=None, apertures=None,
                   header=None, header_columns=None, redshifts=None, mags=None,
                   catalogs=None, outdir=None, outname=None,
-                  verbose=False, user_func=None, **kwargs):
+                  user_func=None, **kwargs):
     logger = logging.getLogger(__name__)
-    if not verbose:
-        logging.getLogger('musex').setLevel('WARNING')
 
     origin = ('MuseX', __version__, '', '')
 
@@ -206,7 +204,12 @@ def create_source(row, idname, raname, decname, size, refspec, history,
             logger.debug('Add catalog %s', name)
             kw = {k: v for k, v in cat.meta.items()
                   if k in sig.parameters and k != 'name'}
-            src.add_table(cat, name, **kw)
+            catsrc = cat.copy()
+            for k, v in list(catsrc.meta.items()):
+                # delete meta items that cannot be stored in a FITS header
+                if isinstance(v, (list, dict)):
+                    del catsrc.meta[k]
+            src.add_table(catsrc, name, **kw)
 
             if 'redshifts' in cat.meta:
                 crow = cat[cat[cat.meta['idname']] == src.ID]
