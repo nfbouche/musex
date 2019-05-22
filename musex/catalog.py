@@ -199,7 +199,7 @@ class BaseCatalog:
                             ensure=ensure)
 
     def get_log(self, id_):
-        return self.history.find(catalog=self.name, id=id_)
+        return self.history.find(catalog=self.name, id=int(id_))
 
     def max(self, colname):
         """Return the maximum value of a column."""
