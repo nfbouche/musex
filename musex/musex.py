@@ -439,7 +439,7 @@ class MuseX:
             only_active=True,
             outdir=None,
             outname=None,
-            refspec='MUSE_TOT_SKYSUB',
+            refspec=None,
             segmap=False,
             size=5,
             srcvers='',

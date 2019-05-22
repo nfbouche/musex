@@ -183,8 +183,12 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
         src.add_header_from_settings(header_columns, row)
 
     if src.header.get('REFSPEC') is None:
-        logger.debug('REFSPEC column not found, using %s instead', refspec)
-        src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
+        if refspec is not None:
+            logger.debug('REFSPEC column not found, using the %s argument '
+                         'instead', refspec)
+            src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
+        else:
+            logger.debug(r'/!\ no value for REFSPEC')
 
     # Add redshifts
     if redshifts:

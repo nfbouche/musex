@@ -195,8 +195,7 @@ class DataSet:
             src = Source.from_file(src_path)
             if self.group_mapping is not None:
                 src.ID = id_
-                src.REFSPEC = 'ODHIN_SPEC'
-                src.spectra['ODHIN_SPEC'] = src.spectra[str(id_)]
+                src.REFSPEC = str(id_)
 
             if check_keyword is not None:
                 key, val = check_keyword
