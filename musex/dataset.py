@@ -238,17 +238,19 @@ class DataSet:
         """
         debug = self.logger.debug
         if names is None:
-            names = '*'
+            names = ['*']
+        if isinstance(names, (list, tuple)):
+            names = {k: names for k in ('images', 'spectra', 'cubes', 'tables')}
 
         # Images
-        for name in filter_tagnames(self.images, names):
+        for name in filter_tagnames(self.images, names['images']):
             order = 0 if name == 'SEGMAP' else 1
             tagname = f'{self.prefix}_{name}' if self.prefix else name
             debug('Adding image: %s', tagname)
             src.add_image(self.images[name], tagname, rotate=True, order=order)
 
         # Cubes
-        for name in filter_tagnames(self.cubes, names):
+        for name in filter_tagnames(self.cubes, names['cubes']):
             tagname = f'{self.prefix}_{name}' if self.prefix else name
             debug('Adding cube: %s', tagname)
             src.add_cube(self.cubes[name], tagname)
@@ -262,7 +264,7 @@ class DataSet:
             for ext in ('images', 'spectra', 'cubes', 'tables'):
                 sdata = getattr(s, ext)
                 srcdata = getattr(src, ext)
-                for name in filter_tagnames(sdata, names):
+                for name in filter_tagnames(sdata, names[ext]):
                     if ((default_tags and name not in default_tags) or
                             (excluded_tags and name in excluded_tags)):
                         continue
