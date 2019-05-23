@@ -276,7 +276,7 @@ class MuseX:
                 raise ValueError('parent catalog not found')
         return parent_cat
 
-    def new_catalog(self, name, idname='ID', raname=None, decname=None,
+    def new_catalog(self, name, idname='ID', primary_id=None, raname=None, decname=None,
                     zname=None, zconfname=None, drop_if_exists=False):
         """Create a new user catalog.
 
@@ -308,7 +308,8 @@ class MuseX:
             else:
                 raise ValueError('table already exists')
 
-        self.catalogs[name] = Catalog(name, self.db, idname=idname,
+        self.catalogs[name] = Catalog(name, self.db, idname=idname, 
+                                      primary_id=primary_id,
                                       raname=raname, decname=decname,
                                       zname=zname, zconfname=zconfname,
                                       author=self.conf['author'])
