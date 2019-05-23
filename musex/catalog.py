@@ -294,7 +294,7 @@ class BaseCatalog:
                 ids.append(tbl.insert(row, ensure=False))
                 self.log(ids[-1], f'inserted from input catalog', row=row)
 
-        if ids:
+        if ids and self.idname in self.table.columns:
             self.update_meta(maxid=self.max(self.idname))
 
         if not tbl.has_index(self.idname):
