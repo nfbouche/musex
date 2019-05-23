@@ -586,6 +586,9 @@ class MuseX:
 
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
+                if hasattr(parent, 'params'):
+                    parent_extract = parent.params.get('extract', {})
+                    parent_prefix = parent_extract.get('prefix')                
                 if parent_prefix:
                     columns = parent_extract.get('columns')
                     pcat = parent.select(columns=columns).as_table()
