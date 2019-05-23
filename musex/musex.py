@@ -344,7 +344,8 @@ class MuseX:
         parent_cat = resultset.catalog
         whereclause = resultset.whereclause
         self.catalogs[name] = cat = Catalog.from_parent_cat(
-            parent_cat, name, whereclause, primary_id=primary_id)
+            parent_cat, name, whereclause, primary_id=primary_id
+        )
 
         if isinstance(resultset, Table):
             resultset = table_to_odict(resultset)
@@ -387,8 +388,7 @@ class MuseX:
         tbl = MpdafCatalog.read(catfile)
         self.logger.info('read catalog %s with %d sources', catfile, len(tbl))
 
-        tbl = tbl.select(ref_image.wcs, ra=cat.raname, dec=cat.decname,
-                         margin=margin)
+        tbl = tbl.select(ref_image.wcs, ra=cat.raname, dec=cat.decname, margin=margin)
         self.logger.info('selected %d sources in dataset footprint', len(tbl))
 
         if limit:
@@ -505,10 +505,19 @@ class MuseX:
         cat = resultset.catalog
         info = self.logger.info
 
+        # find attributes of the parent catalog
+        parent_catname = None
+        parent_extract = None
+        parent_prefix = None
         try:
             parent_cat = self.find_parent_cat(cat)
         except ValueError:
             parent_cat = None
+        else:
+            parent_catname = parent_cat.name
+            if hasattr(parent_cat, 'params'):
+                parent_extract = parent_cat.params.get('extract', {})
+                parent_prefix = parent_extract.get('prefix')
 
         if outdir is not None:
             os.makedirs(outdir, exist_ok=True)
@@ -529,14 +538,13 @@ class MuseX:
             raise ValueError("'size' should be a float or list of floats")
 
         # compute the list of datasets to use
-        parent_catname = parent_cat.name if parent_cat else None
         use_datasets = self._prepare_datasets(datasets, parent_catname)
         info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
 
         # keywords added to the source
         header = {'SRC_V': (srcvers, 'Source Version')}
         if parent_cat:
-            header['CATALOG'] = os.path.basename(parent_cat.name),
+            header['CATALOG'] = os.path.basename(parent_catname),
         if extra_header:
             header.update(extra_header)
 
@@ -557,7 +565,7 @@ class MuseX:
             if segmapfile is None:
                 info('could not find segmap from %s', parent_cat.name)
             else:
-                segmap_tag = parent_cat.params['extract']['prefix'] + "_SEGMAP"
+                segmap_tag = parent_prefix + "_SEGMAP" if parent_prefix else "SEGMAP"
                 kw['segmap'] = (segmap_tag, Image(segmapfile))
 
         # check if header_columns are available in the resultset
@@ -573,19 +581,15 @@ class MuseX:
             kw['catalogs'] = {}
             # special treatment for the parent of the exported catalog
             if parent_cat:
-                parent_params = parent_cat.params.get('extract', {})
-                prefix = parent_params.get('prefix')
-                kw['header']['REFCAT'] = f"{prefix}_CAT"
+                kw['header']['REFCAT'] = f"{parent_prefix}_CAT"
 
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
-                parent_params = parent.params.get('extract', {})
-                if 'prefix' in parent_params:
-                    columns = parent_params.get('columns')
-                    prefix = parent_params.get('prefix')
+                if parent_prefix:
+                    columns = parent_extract.get('columns')
                     pcat = parent.select(columns=columns).as_table()
-                    pcat.meta.update(parent_params)
-                    kw['catalogs'][f"{prefix}_CAT"] = pcat
+                    pcat.meta.update(parent_extract)
+                    kw['catalogs'][f"{parent_prefix}_CAT"] = pcat
 
         author = self.conf['author']
 
@@ -605,7 +609,8 @@ class MuseX:
             if history:
                 hist_items = [(o['msg'], author, o['date'])
                               for o in cat.get_log(row[cat.idname])]
-                hist_items.append(('source created', author, datetime.datetime.now().isoformat()))
+                hist_items.append(('source created', author,
+                                   datetime.datetime.now().isoformat()))
             else:
                 hist_items = None
 

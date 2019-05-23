@@ -15,10 +15,8 @@ __all__ = ['DataSet', 'MuseDataSet']
 
 def load_datasets(settings):
     """Load all datasets defined in the settings."""
-    datasets = {}
-    for name, conf in settings['datasets'].items():
-        datasets[name] = DataSet(name, settings=conf)
-    return datasets
+    return {name: DataSet(name, settings=conf)
+            for name, conf in settings['datasets'].items()}
 
 
 def filter_tagnames(names, patterns):
@@ -76,7 +74,8 @@ class DataSet:
             tbl = Table.read(conf['catalog'])
             group_mapping = Table(
                 [tbl[conf['idname']], tbl[conf['group_idname']]],
-                names=('id', 'group_id'))
+                names=('id', 'group_id')
+            )
             group_mapping.add_index('id')
             return group_mapping
 
@@ -244,14 +243,15 @@ class DataSet:
         # Images
         for name in filter_tagnames(self.images, names):
             order = 0 if name == 'SEGMAP' else 1
-            debug('Adding image: %s_%s', self.prefix, name)
-            src.add_image(self.images[name], f'{self.prefix}_{name}',
-                          rotate=True, order=order)
+            tagname = f'{self.prefix}_{name}' if self.prefix else name
+            debug('Adding image: %s', tagname)
+            src.add_image(self.images[name], tagname, rotate=True, order=order)
 
         # Cubes
         for name in filter_tagnames(self.cubes, names):
-            debug('Adding cube: %s_%s', self.prefix, name)
-            src.add_cube(self.cubes[name], f'{self.prefix}_{name}')
+            tagname = f'{self.prefix}_{name}' if self.prefix else name
+            debug('Adding cube: %s', tagname)
+            src.add_cube(self.cubes[name], tagname)
 
         # Sources
         s = self.get_source(srcid or src.ID)
@@ -270,8 +270,9 @@ class DataSet:
                     if name in srcdata:
                         debug('Not overriding %s from source %s', name, ext)
                     else:
-                        debug('Adding source %s: %s', ext, name)
-                        srcdata[f'{self.prefix}_{name}'] = sdata[name]
+                        tagname = f'{self.prefix}_{name}' if self.prefix else name
+                        debug('Adding source %s: %s', ext, tagname)
+                        srcdata[tagname] = sdata[name]
 
 
 class MuseDataSet(DataSet):
