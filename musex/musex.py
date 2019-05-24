@@ -308,7 +308,7 @@ class MuseX:
             else:
                 raise ValueError('table already exists')
 
-        self.catalogs[name] = Catalog(name, self.db, idname=idname, 
+        self.catalogs[name] = Catalog(name, self.db, idname=idname,
                                       primary_id=primary_id,
                                       raname=raname, decname=decname,
                                       zname=zname, zconfname=zconfname,
@@ -561,7 +561,7 @@ class MuseX:
             'outdir': outdir,             # output directory
             'outname': outname,           # output filename
             'user_func': user_func,       # user function
-            'user_func_kw': user_func_kw, # user function dictionnary 
+            'user_func_kw': user_func_kw, # user function dictionnary
         }
 
         # segmap from the parent cat
@@ -591,13 +591,13 @@ class MuseX:
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
                 if hasattr(parent, 'params'):
-                    parent_extract = parent.params.get('extract', {})
-                    parent_prefix = parent_extract.get('prefix')                
-                if parent_prefix:
-                    columns = parent_extract.get('columns')
-                    pcat = parent.select(columns=columns).as_table()
-                    pcat.meta.update(parent_extract)
-                    kw['catalogs'][f"{parent_prefix}_CAT"] = pcat
+                    pcat_extract = parent.params.get('extract', {})
+                    pcat_prefix = pcat_extract.get('prefix')
+                    if pcat_prefix:
+                        columns = pcat_extract.get('columns')
+                        pcat = parent.select(columns=columns).as_table()
+                        pcat.meta.update(pcat_extract)
+                        kw['catalogs'][f"{pcat_prefix}_CAT"] = pcat
 
         author = self.conf['author']
 
