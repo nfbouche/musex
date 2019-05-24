@@ -445,6 +445,7 @@ class MuseX:
             size=5,
             srcvers='',
             user_func=None,
+            user_func_kw=None,
             verbose=False):
         """Export a catalog or selection to sources (SourceX).
 
@@ -497,6 +498,8 @@ class MuseX:
             User specified function that is called at the end of the source
             creation process, with the source object as first argument, and the
             catalog row as second argument.
+        user_func_kw : dict
+            Dict with additional keywords/values to pass to the user_func
         verbose : bool
             Verbose flag.
 
@@ -552,12 +555,13 @@ class MuseX:
         # export parameters (mags, redshits, header_columns, etc.)
         kw = {
             **self.conf['export'],
-            'apertures': apertures,     # list of apertures for spectra
-            'datasets': use_datasets,   # datasets to use
-            'header': header,           # additional keywords
-            'outdir': outdir,           # output directory
-            'outname': outname,         # output filename
-            'user_func': user_func,     # user function
+            'apertures': apertures,       # list of apertures for spectra
+            'datasets': use_datasets,     # datasets to use
+            'header': header,             # additional keywords
+            'outdir': outdir,             # output directory
+            'outname': outname,           # output filename
+            'user_func': user_func,       # user function
+            'user_func_kw': user_func_kw, # user function dictionnary 
         }
 
         # segmap from the parent cat

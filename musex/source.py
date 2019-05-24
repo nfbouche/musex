@@ -150,7 +150,7 @@ class SourceX(Source):
 def create_source(row, idname, raname, decname, size, refspec, history, maskds,
                   segmap=None, datasets=None, apertures=None, header=None,
                   header_columns=None, redshifts=None, mags=None, outdir=None,
-                  outname=None, catalogs=None, user_func=None, **kwargs):
+                  outname=None, catalogs=None, user_func=None, user_func_kw=None, **kwargs):
     """This is the main function to create a Source.
 
     It takes all the possible input data as arguments, add to the source, and
@@ -248,7 +248,7 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
     if user_func is not None:
         logger.debug('Calling user function')
         user_func(src, row, datasets=datasets, catalogs=catalogs,
-                  outdir=outdir, outname=outname)
+                  outdir=outdir, outname=outname, kw=user_func_kw)
 
     logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
                 src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
