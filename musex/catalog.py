@@ -445,7 +445,7 @@ class BaseCatalog:
         use_labels : bool
             By default, all columns are selected which may gives name
             conflicts. So ``use_labels`` allows to rename the columns by
-            prefixinf the name with the catalog name.
+            prefixing the name with the catalog name.
         isouter : bool
             If True, render a LEFT OUTER JOIN, instead of JOIN.
         params : dict
@@ -522,21 +522,30 @@ class Catalog(BaseCatalog):
     author : str
         Name of the person making changes. This is stored in the history table,
         and is taken from the settings file.
+    prefix : str
+        Prefix for the extension name in sources export.
 
     """
 
     catalog_type = 'user'
 
     def __init__(self, name, db, idname='ID', raname=None, decname=None,
-                 zname=None, zconfname=None, primary_id=None, author=None):
+                 zname=None, zconfname=None, primary_id=None, author=None,
+                 prefix=None):
         super().__init__(name, db, idname=idname, primary_id=primary_id,
                          author=author)
         self.raname = raname
         self.decname = decname
         self.zname = zname
         self.zconfname = zconfname
-        self.update_meta(raname=self.raname, decname=self.decname,
-                         zname=self.zname, zconfname=self.zconfname)
+        self.prefix = prefix
+        self.update_meta(
+            raname=self.raname,
+            decname=self.decname,
+            prefix=self.prefix,
+            zconfname=self.zconfname,
+            zname=self.zname,
+        )
 
         # FIXME: sadly this doesn't work well currently, it is not taken into
         # account until an insert is done
@@ -559,7 +568,8 @@ class Catalog(BaseCatalog):
             decname=getattr(parent_cat, 'decname', None),
             zname=getattr(parent_cat, 'zname', None),
             zconfname=getattr(parent_cat, 'zconfname', None),
-            author=parent_cat.author
+            author=parent_cat.author,
+            prefix=parent_cat.prefix,
         )
         if parent_cat.meta.get('query'):
             # Combine query string with the parent cat's one

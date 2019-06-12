@@ -230,12 +230,13 @@ def test_user_catalog_from_scratch(mx):
     assert rows[-1]['comment'] == 'a long comment'
 
     # From data
-    cat2 = mx.new_catalog('custom_cat2', idname='id')
+    cat2 = mx.new_catalog('custom_cat2', idname='id', prefix='CUST')
     cat2.insert([{'id': 2, 'foo': 'bar'}])
     cat2.insert([{'id': 4, 'baz': True}])
     assert len(cat2.table) == 2
     assert cat2.meta['raname'] is None
     assert cat2.meta['decname'] is None
+    assert cat2.meta['prefix'] == 'CUST'
 
 
 def test_drop_user_catalog(mx):
@@ -497,14 +498,20 @@ def test_export_sources(mx):
     res = phot.select((phot.c[phot.idname] > 7) & (phot.c[phot.idname] < 10))
     mycat = mx.new_catalog_from_resultset('my_cat', res)
 
+    # create masks
     maskdir = os.path.join(mx.workdir, 'masks', 'hdfs')
     mx.create_masks_from_segmap(phot, maskdir, skip_existing=True, margin=10)
+
+    # create a custom catalog to add to the sources
+    cat2 = mx.new_catalog('custom_cat', idname='id', prefix='CUST')
+    cat2.insert([{'id': 2, 'foo': 'bar'}])
+    cat2.insert([{'id': 4, 'baz': True}])
 
     outdir = f'{mx.workdir}/export'
     mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
                       apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
                       verbose=True, masks_dataset='photutils_masks',
-                      extra_header={'FOO': 'BAR'}, catalogs=[phot],
+                      extra_header={'FOO': 'BAR'}, catalogs=[phot, cat2],
                       segmap=True)
 
     flist = os.listdir(outdir)
@@ -514,8 +521,9 @@ def test_export_sources(mx):
     assert src.REFSPEC == 'MUSE_PSF_SKYSUB'
     assert src.FOO == 'BAR'
 
-    assert list(src.tables.keys()) == ['PHU_CAT']
-    assert_array_equal(src.tables['PHU_CAT']['id'], [8, 7])
+    assert list(src.tables.keys()) == ['PHU_CAT', 'CUST_CAT']
+    assert sorted(src.tables['PHU_CAT']['id']) == [7, 8]
+    assert sorted(src.tables['CUST_CAT']['id']) == [2, 4]
 
     assert list(src.cubes.keys()) == ['MUSE_CUBE']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)
@@ -581,7 +589,7 @@ def test_export_sources_origin(mx):
     # FIXME: why ORI_CAT and ORIG_CAT? ORI_CAT seems duplicate
     assert list(src.tables.keys()) == ['ORIG_ORI_CAT', 'ORIG_ORI_LINES',
                                        'ORIG_NB_PAR', 'ORIG_CAT']
-    assert_array_equal(src.tables['ORIG_CAT']['ID'], [3, 1])
+    assert sorted(src.tables['ORIG_CAT']['ID']) == [1, 3]
 
     assert list(src.cubes.keys()) == ['MUSE_CUBE', 'ORIG_ORI_CORREL']
     assert src.cubes['MUSE_CUBE'].shape == (200, 25, 25)

@@ -150,7 +150,8 @@ class SourceX(Source):
 def create_source(row, idname, raname, decname, size, refspec, history, maskds,
                   segmap=None, datasets=None, apertures=None, header=None,
                   header_columns=None, redshifts=None, mags=None, outdir=None,
-                  outname=None, catalogs=None, user_func=None, user_func_kw=None, **kwargs):
+                  outname=None, catalogs=None, user_func=None,
+                  user_func_kw=None, **kwargs):
     """This is the main function to create a Source.
 
     It takes all the possible input data as arguments, add to the source, and

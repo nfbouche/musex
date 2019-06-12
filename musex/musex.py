@@ -163,13 +163,14 @@ class MuseX:
             name = row['name']
             self.catalogs[name] = Catalog(
                 name, self.db,
-                idname=row['idname'],
-                raname=row['raname'],
-                decname=row['decname'],
-                zname=row['zname'],
-                zconfname=row['zconfname'],
-                primary_id=row.get('primary_id'),
                 author=self.conf['author'],
+                decname=row['decname'],
+                idname=row['idname'],
+                prefix=row.get('prefix'),
+                primary_id=row.get('primary_id'),
+                raname=row['raname'],
+                zconfname=row['zconfname'],
+                zname=row['zname'],
             )
 
         # Cross-match catalogs
@@ -277,7 +278,7 @@ class MuseX:
         return parent_cat
 
     def new_catalog(self, name, idname='ID', primary_id=None, raname=None, decname=None,
-                    zname=None, zconfname=None, drop_if_exists=False):
+                    zname=None, zconfname=None, drop_if_exists=False, prefix=None):
         """Create a new user catalog.
 
         Parameters
@@ -296,6 +297,8 @@ class MuseX:
             Name of the 'confid' column.
         drop_if_exists : bool, optional
             Drop the catalog if it already exists.
+        prefix : str
+            Prefix for the extension name in sources export.
 
         """
         if name in self.db.tables:
@@ -308,11 +311,17 @@ class MuseX:
             else:
                 raise ValueError('table already exists')
 
-        self.catalogs[name] = Catalog(name, self.db, idname=idname,
-                                      primary_id=primary_id,
-                                      raname=raname, decname=decname,
-                                      zname=zname, zconfname=zconfname,
-                                      author=self.conf['author'])
+        self.catalogs[name] = Catalog(
+            name, self.db,
+            author=self.conf['author'],
+            decname=decname,
+            idname=idname,
+            prefix=prefix,
+            primary_id=primary_id,
+            raname=raname,
+            zconfname=zconfname,
+            zname=zname,
+        )
         return self.catalogs[name]
 
     def new_catalog_from_resultset(self, name, resultset, primary_id=None,
@@ -555,13 +564,13 @@ class MuseX:
         # export parameters (mags, redshits, header_columns, etc.)
         kw = {
             **self.conf['export'],
-            'apertures': apertures,       # list of apertures for spectra
-            'datasets': use_datasets,     # datasets to use
-            'header': header,             # additional keywords
-            'outdir': outdir,             # output directory
-            'outname': outname,           # output filename
-            'user_func': user_func,       # user function
-            'user_func_kw': user_func_kw, # user function dictionnary
+            'apertures': apertures,        # list of apertures for spectra
+            'datasets': use_datasets,      # datasets to use
+            'header': header,              # additional keywords
+            'outdir': outdir,              # output directory
+            'outname': outname,            # output filename
+            'user_func': user_func,        # user function
+            'user_func_kw': user_func_kw,  # user function dictionnary
         }
 
         # segmap from the parent cat
@@ -590,14 +599,26 @@ class MuseX:
 
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
-                if hasattr(parent, 'params'):
+                prefix = None
+                columns = None
+                pcat_extract = None
+                if pcat.prefix is not None:
+                    prefix = pcat.prefix
+                elif hasattr(parent, 'params'):
                     pcat_extract = parent.params.get('extract', {})
-                    pcat_prefix = pcat_extract.get('prefix')
-                    if pcat_prefix:
-                        columns = pcat_extract.get('columns')
-                        pcat = parent.select(columns=columns).as_table()
+                    prefix = pcat_extract.get('prefix')
+                    columns = pcat_extract.get('columns')
+                else:
+                    self.logger.warning(
+                        'cannot export catalog %s without prefix information',
+                        pcat.name
+                    )
+
+                if prefix:
+                    pcat = parent.select(columns=columns).as_table()
+                    if pcat_extract is not None:
                         pcat.meta.update(pcat_extract)
-                        kw['catalogs'][f"{pcat_prefix}_CAT"] = pcat
+                    kw['catalogs'][f"{prefix}_CAT"] = pcat
 
         author = self.conf['author']
 
