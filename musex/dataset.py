@@ -165,7 +165,13 @@ class DataSet:
         src_path = self._src_conf.get('source_tpl')
         if src_path:
             if self.group_mapping is not None:
+                if id_ not in self.group_mapping['group_id']:
+                    self.logger.error('Group %s not found in group_mapping table', id_)
+                    return None
                 gid = self.group_mapping.loc[id_]['group_id']
+                if type(gid) is not np.int64:
+                    self.logger.error('Duplicate Group %s found in group_mapping table, return first found', id_)
+                    gid = gid[0]
                 return src_path % gid
             else:
                 return src_path % id_
