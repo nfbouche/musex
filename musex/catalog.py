@@ -180,7 +180,8 @@ class BaseCatalog:
                                author=''), True)
         return tbl
 
-    def log(self, id_, msg, row=None, **kwargs):
+    def log(self, id_, msg, row=None, pid=None, **kwargs):
+        """ if pid is set, the log is updated at the pid primary key"""
         if row is not None:
             try:
                 row = json.dumps(row)
@@ -194,9 +195,15 @@ class BaseCatalog:
         ensure = bool(kwargs)
 
         date = datetime.utcnow().isoformat()
-        self.history.insert(dict(catalog=self.name, id=id_, author=self.author,
-                                 date=date, msg=msg, data=row, **kwargs),
-                            ensure=ensure)
+        if pid is not None:
+            self.history.update(dict(catalog=self.name, _id=pid, author=self.author,
+                                                 date=date, msg=msg, data=row, **kwargs),
+                                keys=['_id'], ensure=ensure)            
+        else:
+            pid = self.history.insert(dict(catalog=self.name, id=id_, author=self.author,
+                                     date=date, msg=msg, data=row, **kwargs),
+                                ensure=ensure)
+        return pid
 
     def get_log(self, id_):
         return self.history.find(catalog=self.name, id=int(id_))
