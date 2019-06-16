@@ -222,6 +222,9 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
                 # delete meta items that cannot be stored in a FITS header
                 if isinstance(v, (list, dict)):
                     del catsrc.meta[k]
+            # set defaut value for select_in if not defined
+            kw.setdefault('select_in', 'MUSE_WHITE')
+            
             src.add_table(catsrc, name, col_dist='DIST', **kw)
 
             if 'redshifts' in cat.meta:
