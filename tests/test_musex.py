@@ -509,7 +509,7 @@ def test_export_sources(mx):
 
     outdir = f'{mx.workdir}/export'
     mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
-                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=1,
+                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
                       verbose=True, masks_dataset='photutils_masks',
                       extra_header={'FOO': 'BAR'}, catalogs=[phot, cat2],
                       segmap=True)

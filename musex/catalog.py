@@ -176,7 +176,8 @@ class BaseCatalog:
         # Create the history table and its columns
         tbl = self.db.create_table('history', primary_id='_id')
         assert tbl.table is not None
-        tbl._sync_columns(dict(catalog='', id=0, date='', msg='', data='',
+        date = datetime.utcnow()
+        tbl._sync_columns(dict(catalog='', id=0, date=date, msg='', data='',
                                author=''), True)
         return tbl
 
@@ -193,7 +194,7 @@ class BaseCatalog:
         # processing time.
         ensure = bool(kwargs)
 
-        date = datetime.utcnow().isoformat()
+        date = datetime.utcnow()
         self.history.insert(dict(catalog=self.name, id=id_, author=self.author,
                                  date=date, msg=msg, data=row, **kwargs),
                             ensure=ensure)
