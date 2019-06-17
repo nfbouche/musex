@@ -509,7 +509,7 @@ def test_export_sources(mx):
 
     outdir = f'{mx.workdir}/export'
     mx.export_sources(mycat, outdir=outdir, srcvers='0.1',
-                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=2,
+                      apertures=None, refspec='MUSE_PSF_SKYSUB', n_jobs=1,
                       verbose=True, masks_dataset='photutils_masks',
                       extra_header={'FOO': 'BAR'}, catalogs=[phot, cat2],
                       segmap=True)
@@ -549,7 +549,6 @@ SIZE    =                    5
 EXPMEAN =                 52.0 / Mean value of EXPMAP
 EXPMIN  =                   52 / Minimum value of EXPMAP
 EXPMAX  =                   52 / Maximum value of EXPMAP
-FSFMODE = 'MOFFAT1 '
 FSF00BET=                  2.8
 FSF00FWA=                  0.8
 FSF00FWB=               -3E-05
@@ -621,7 +620,6 @@ SIZE    =                    5
 EXPMEAN =                 52.0 / Mean value of EXPMAP
 EXPMIN  =                   52 / Minimum value of EXPMAP
 EXPMAX  =                   52 / Maximum value of EXPMAP
-FSFMODE = 'MOFFAT1 '
 FSF00BET=                  2.8
 FSF00FWA=                  0.8
 FSF00FWB=               -3E-05

@@ -169,8 +169,9 @@ class DataSet:
                     self.logger.error('Source %s not found in group_mapping table', id_)
                     return None
                 gid = self.group_mapping.loc[id_]['group_id']
-                if type(gid) is not np.int64:
-                    self.logger.error('Duplicate source %s found in group_mapping table, return first found', id_)
+                if not np.isscalar(gid):
+                    self.logger.error('Duplicate source %s found in '
+                                      'group_mapping table, return first found', id_)
                     gid = gid[0]
                 return src_path % gid
             else:
