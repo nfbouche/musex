@@ -615,6 +615,8 @@ class MuseX:
                     )
 
                 if prefix:
+                    self.logger.debug('Preparing catalog %s: %s_CAT',
+                                      pcat.name, prefix)
                     pcat = parent.select(columns=columns).as_table()
                     if pcat_extract is not None:
                         pcat.meta.update(pcat_extract)

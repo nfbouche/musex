@@ -262,8 +262,10 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
 
     logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
                 src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
-    logger.debug('IMAGES: %s', ', '.join(src.images.keys()))
-    logger.debug('SPECTRA: %s', ', '.join(src.spectra.keys()))
+    logger.debug('IMAGES: %s', ', '.join(sorted(src.images.keys())))
+    logger.debug('SPECTRA: %s', ', '.join(sorted(src.spectra.keys())))
+    if src.tables:
+        logger.debug('TABLES: %s', ', '.join(sorted(src.tables.keys())))
 
     if outdir is not None and outname is not None:
         outn = outname.format(src=src)
