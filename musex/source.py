@@ -228,8 +228,7 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
                 if 'MUSE_WHITE' in src.images:
                     kw.setdefault('select_in', 'MUSE_WHITE')
 
-                if 'DIST' in catsrc.colnames:
-                    kw.setdefault('col_dist', 'DIST')
+                kw.setdefault('col_dist', 'DIST')
 
             src.add_table(catsrc, name, **kw)
 
