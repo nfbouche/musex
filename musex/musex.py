@@ -660,16 +660,14 @@ class MuseX:
             sources = (create_source(*args, **kw) for args, kw in to_compute)
 
         try:
-            if verbose is False:
-                ctx = self.use_loglevel('WARNING')
-                ctx.__enter__()
-                bar = progressbar(sources, total=nrows)
+            if not verbose:
+                logger = logging.getLogger('')
+                oldlevel = logging.getLevelName(logger.getEffectiveLevel())
+                self.set_loglevel('WARNING')
+                sources = progressbar(sources, total=nrows)
 
             for src in sources:
                 yield src
-
-                if verbose is False:
-                    bar.update()
 
             if n_jobs > 1:
                 pool.close()
@@ -678,8 +676,8 @@ class MuseX:
             if n_jobs > 1:
                 pool.terminate()
         finally:
-            if verbose is False:
-                ctx.__exit__(*sys.exc_info())
+            if not verbose:
+                self.set_loglevel(oldlevel)
 
     def export_sources(self, res_or_cat, outdir=None,
                        outname='source-{src.ID:05d}', **kwargs):
