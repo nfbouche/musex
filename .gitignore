@@ -14,3 +14,4 @@ build/
 docs/api
 docs/_build
 htmlcov/
+pip-wheel-metadata/
