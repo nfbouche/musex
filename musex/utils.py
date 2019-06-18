@@ -30,8 +30,10 @@ def load_db(filename=None, db_env=None, **kwargs):
     if filename is not None:
         path = os.path.dirname(os.path.abspath(filename))
         if not os.path.isdir(path):
-            raise ValueError(f'database path "{path}/" does not exist, you '
-                             'should create it before running musered.')
+            raise ValueError(
+                f'database path "{path}/" does not exist, you '
+                'should create it before running musered.'
+            )
 
         # Use a NullPool by default, which is sqlalchemy's default but dataset
         # uses instead a StaticPool.
@@ -41,8 +43,9 @@ def load_db(filename=None, db_env=None, **kwargs):
     elif db_env is not None:
         url = os.environ.get(db_env)
     else:
-        raise ValueError('database url should be provided either with '
-                         'filename or with db_env')
+        raise ValueError(
+            'database url should be provided either with filename or with db_env'
+        )
 
     logger = logging.getLogger(__name__)
     debug = os.getenv('SQLDEBUG')
@@ -54,6 +57,7 @@ def load_db(filename=None, db_env=None, **kwargs):
     db = dataset.connect(url, **kwargs)
 
     if db.engine.driver == 'pysqlite':
+
         @event.listens_for(Engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()

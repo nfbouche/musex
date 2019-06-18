@@ -21,7 +21,7 @@ def _null_value(value):
     return NULL_VALUE[type(value)]
 
 
-def gen_crossmatch(name, db, cat1, cat2, radius=1.):
+def gen_crossmatch(name, db, cat1, cat2, radius=1.0):
     """Cross-match two catalogs.
 
     This function cross-match two catalogs and creates a CrossMatch catalog
@@ -79,58 +79,58 @@ def gen_crossmatch(name, db, cat1, cat2, radius=1.):
     nb_only2 = len(nomatch_ids_2)
     logger.info('%d sources only in %s.', nb_only2, cat2.name)
 
-    crossmatch_table = vstack([
-        Table(  # Source matching
-            data=[
-                match_ids_1,
-                nb_idx1,
-                match_ids_2,
-                nb_idx2,
-                d2d.arcsec,
-            ],
-            names=[
-                f'{cat1.name}_id',
-                f'{cat1.name}_nbmatch',
-                f'{cat2.name}_id',
-                f'{cat2.name}_nbmatch',
-                'distance',
-            ],
-        ),
-        Table(  # Only in catalog 1
-            data=[
-                nomatch_ids_1,
-                np.full(nb_only1, 0),
-                ma.masked_equal(np.full(nb_only1, _null_value(all_ids_2[0])),
-                                _null_value(all_ids_2[0])),
-                ma.masked_equal(np.full(nb_only1, -9999), -9999),
-                np.full(nb_only1, np.nan),
-            ],
-            names=[
-                f'{cat1.name}_id',
-                f'{cat1.name}_nbmatch',
-                f'{cat2.name}_id',
-                f'{cat2.name}_nbmatch',
-                'distance',
-            ],
-        ),
-        Table(  # Only in catalog 2
-            data=[
-                ma.masked_equal(np.full(nb_only2, _null_value(all_ids_1[0])),
-                                _null_value(all_ids_1[0])),
-                ma.masked_equal(np.full(nb_only2, -9999), -9999),
-                nomatch_ids_2,
-                np.full(nb_only2, 0),
-                np.full(nb_only2, np.nan),
-            ],
-            names=[
-                f'{cat1.name}_id',
-                f'{cat1.name}_nbmatch',
-                f'{cat2.name}_id',
-                f'{cat2.name}_nbmatch',
-                'distance',
-            ],
-        ),
-    ])
+    crossmatch_table = vstack(
+        [
+            Table(  # Source matching
+                data=[match_ids_1, nb_idx1, match_ids_2, nb_idx2, d2d.arcsec],
+                names=[
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
+                    'distance',
+                ],
+            ),
+            Table(  # Only in catalog 1
+                data=[
+                    nomatch_ids_1,
+                    np.full(nb_only1, 0),
+                    ma.masked_equal(
+                        np.full(nb_only1, _null_value(all_ids_2[0])),
+                        _null_value(all_ids_2[0]),
+                    ),
+                    ma.masked_equal(np.full(nb_only1, -9999), -9999),
+                    np.full(nb_only1, np.nan),
+                ],
+                names=[
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
+                    'distance',
+                ],
+            ),
+            Table(  # Only in catalog 2
+                data=[
+                    ma.masked_equal(
+                        np.full(nb_only2, _null_value(all_ids_1[0])),
+                        _null_value(all_ids_1[0]),
+                    ),
+                    ma.masked_equal(np.full(nb_only2, -9999), -9999),
+                    nomatch_ids_2,
+                    np.full(nb_only2, 0),
+                    np.full(nb_only2, np.nan),
+                ],
+                names=[
+                    f'{cat1.name}_id',
+                    f'{cat1.name}_nbmatch',
+                    f'{cat2.name}_id',
+                    f'{cat2.name}_nbmatch',
+                    'distance',
+                ],
+            ),
+        ]
+    )
 
     # Add identifier to the cross-match table
     crossmatch_table['ID'] = np.arange(len(crossmatch_table)) + 1
@@ -185,28 +185,28 @@ class CrossMatch(BaseCatalog):
             will be looked for only in the given catalog.
         """
         if min_in_cat == 1:
-            selection = self.select(
-                self.c[f'{self.cat1.name}_nbmatch'] > min_matches)
+            selection = self.select(self.c[f'{self.cat1.name}_nbmatch'] > min_matches)
         elif min_in_cat == 2:
-            selection = self.select(
-                self.c[f'{self.cat2.name}_nbmatch'] > min_matches)
+            selection = self.select(self.c[f'{self.cat2.name}_nbmatch'] > min_matches)
         else:
             selection = self.select(
-                (self.c[f'{self.cat1.name}_nbmatch'] > min_matches) |
-                (self.c[f'{self.cat2.name}_nbmatch'] > min_matches))
+                (self.c[f'{self.cat1.name}_nbmatch'] > min_matches)
+                | (self.c[f'{self.cat2.name}_nbmatch'] > min_matches)
+            )
 
         if len(selection) == 0:
-            self.logger.info("There are no sources with this number of "
-                             "matches.")
+            self.logger.info("There are no sources with this number of matches.")
             return None
 
         selection = selection.as_table()
 
         cat1 = self.cat1.select_ids(
-            np.unique(selection[f'{self.cat1.name}_id'])).as_table()
+            np.unique(selection[f'{self.cat1.name}_id'])
+        ).as_table()
         cat1.rename_column(self.cat1.idname, f'{self.cat1.name}_id')
         cat2 = self.cat2.select_ids(
-            np.unique(selection[f'{self.cat2.name}_id'])).as_table()
+            np.unique(selection[f'{self.cat2.name}_id'])
+        ).as_table()
         cat2.rename_column(self.cat2.idname, f'{self.cat2.name}_id')
 
         # clear meta (idname, raname, etc.) to avoid conflicts warnings and
@@ -215,16 +215,15 @@ class CrossMatch(BaseCatalog):
         cat2.meta.clear()
         selection.meta.clear()
 
-        result = join(cat1, selection, keys=f'{self.cat1.name}_id',
-                      join_type='outer')
-        result = join(result, cat2, keys=f'{self.cat2.name}_id',
-                      join_type='outer')
+        result = join(cat1, selection, keys=f'{self.cat1.name}_id', join_type='outer')
+        result = join(result, cat2, keys=f'{self.cat2.name}_id', join_type='outer')
 
         return result
 
     def fig_diagnostic(self):  # pragma: no cover
         """Diagnostic figure for the cross-match."""
         from matplotlib import pyplot as plt
+
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(10, 4))
 
         table = self.select().as_table()
@@ -246,37 +245,51 @@ class CrossMatch(BaseCatalog):
             rows_in_cat = table[table[f'{cat.name}_nbmatch'] >= 0]
             tot_sources = len(np.unique(rows_in_cat[f'{cat.name}_id']))
 
-            rows_with_match = rows_in_cat[
-                rows_in_cat[f'{cat.name}_nbmatch'] > 0]
+            rows_with_match = rows_in_cat[rows_in_cat[f'{cat.name}_nbmatch'] > 0]
             sources_with_match, nb_match = np.unique(
-                rows_with_match[f'{cat.name}_id'], return_counts=True)
+                rows_with_match[f'{cat.name}_id'], return_counts=True
+            )
             with_match = len(sources_with_match)
 
             matches, nb_sources = np.unique(nb_match, return_counts=True)
 
             return tot_sources, with_match, matches, nb_sources
 
-        tot_sources_1, with_match_1, matches_1, nb_sources_1 = _catalog_diag(
-            self.cat1)
-        tot_sources_2, with_match_2, matches_2, nb_sources_2 = _catalog_diag(
-            self.cat2)
+        tot_sources_1, with_match_1, matches_1, nb_sources_1 = _catalog_diag(self.cat1)
+        tot_sources_2, with_match_2, matches_2, nb_sources_2 = _catalog_diag(self.cat2)
 
         self.logger.info(
             "Catalog %s has %d sources, %d with at least one match (%.1f%%).",
-            self.cat1.name, tot_sources_1, with_match_1,
-            100 * with_match_1 / tot_sources_1)
+            self.cat1.name,
+            tot_sources_1,
+            with_match_1,
+            100 * with_match_1 / tot_sources_1,
+        )
 
         self.logger.info(
             "Catalog %s has %d sources, %d with at least one match (%.1f%%).",
-            self.cat2.name, tot_sources_2, with_match_2,
-            200 * with_match_2 / tot_sources_2)
+            self.cat2.name,
+            tot_sources_2,
+            with_match_2,
+            200 * with_match_2 / tot_sources_2,
+        )
 
         # Bar charts of number of matches
         width = 0.3  # Width of the bars
-        ax2.bar(matches_1-width/2, nb_sources_1, width=width, color='r',
-                label=self.cat1.name)
-        ax2.bar(matches_2+width/2, nb_sources_2, width=width, color='b',
-                label=self.cat2.name)
+        ax2.bar(
+            matches_1 - width / 2,
+            nb_sources_1,
+            width=width,
+            color='r',
+            label=self.cat1.name,
+        )
+        ax2.bar(
+            matches_2 + width / 2,
+            nb_sources_2,
+            width=width,
+            color='b',
+            label=self.cat2.name,
+        )
         ax2.set_xlabel("Number of matches")
         ax2.set_ylabel("Number of sources")
         ax2.legend(loc=0)

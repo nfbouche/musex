@@ -1,8 +1,8 @@
+import datetime
 import importlib
 import itertools
 import logging
 import multiprocessing
-import datetime
 import os
 import sys
 import textwrap
@@ -13,8 +13,7 @@ import numpy as np
 
 from astropy.table import Table
 from mpdaf.obj import Image
-from mpdaf.sdetect import Catalog as MpdafCatalog
-from mpdaf.sdetect import create_masks_from_segmap
+from mpdaf.sdetect import create_masks_from_segmap, Catalog as MpdafCatalog
 from mpdaf.tools import isiter, progressbar
 
 from .catalog import (
@@ -32,7 +31,7 @@ from .source import create_source, sources_to_marz
 from .utils import load_db, load_yaml_config, table_to_odict
 from .version import __description__, __version__
 
-__all__ = ['MuseX']
+__all__ = ["MuseX"]
 
 LOGO = r"""
   __  __               __  __
@@ -47,27 +46,27 @@ LOGO = r"""
 def _create_catalogs_table(db):
     """Create the 'catalogs' table which stores metadata about catalogs."""
     # Return the table if it exists
-    if 'catalogs' in db:
-        return db['catalogs']
+    if "catalogs" in db:
+        return db["catalogs"]
 
     # Create the table
-    table = db.create_table('catalogs')
+    table = db.create_table("catalogs")
     # Force the creation of the SQLATable
     assert table.table is not None
 
     # and make sure that all columns exists
     row = {
-        'name': '',
-        'creation_date': '',
-        'type': '',
-        'parent_cat': '',
-        'raname': '',
-        'decname': '',
-        'zname': '',
-        'zconfname': '',
-        'idname': '',
-        'maxid': 1,
-        'query': '',
+        "name": "",
+        "creation_date": "",
+        "type": "",
+        "parent_cat": "",
+        "raname": "",
+        "decname": "",
+        "zname": "",
+        "zconfname": "",
+        "idname": "",
+        "maxid": 1,
+        "query": "",
     }
     table._sync_columns(row, True)
     return table
@@ -97,32 +96,30 @@ class MuseX:
 
     """
 
-    def __init__(self, settings_file, muse_dataset=None, id_mapping=None,
-                 **kwargs):
+    def __init__(self, settings_file, muse_dataset=None, id_mapping=None, **kwargs):
         self.logger = logging.getLogger(__name__)
         self.settings_file = settings_file
         self.conf = load_yaml_config(settings_file)
         self.conf.update(kwargs)
-        self.workdir = self.conf['workdir']
-        self.conf.setdefault('export', {})
-        self.conf['export'].setdefault('path', f'{self.workdir}/export')
-        self.db = load_db(filename=self.conf.get('db'),
-                          db_env=self.conf.get('db_env'))
+        self.workdir = self.conf["workdir"]
+        self.conf.setdefault("export", {})
+        self.conf["export"].setdefault("path", f"{self.workdir}/export")
+        self.db = load_db(filename=self.conf.get("db"), db_env=self.conf.get("db_env"))
 
         # Creating the IdMapping object if required
         self.id_mapping = None
-        id_mapping = id_mapping or self.conf.get('idmapping')
+        id_mapping = id_mapping or self.conf.get("idmapping")
         if id_mapping:
             self.create_id_mapping(id_mapping)
 
         # Table to store history of operations
-        self.history = self.db.create_table('history', primary_id='_id')
+        self.history = self.db.create_table("history", primary_id="_id")
 
         # Load datasets
         self.datasets = load_datasets(self.conf)
-        settings = self.conf['muse_datasets']
+        settings = self.conf["muse_datasets"]
         self._muse_dataset = None
-        self.muse_dataset = muse_dataset or settings['default']
+        self.muse_dataset = muse_dataset or settings["default"]
 
         # Load catalogs table
         self.catalogs_table = _create_catalogs_table(self.db)
@@ -130,27 +127,28 @@ class MuseX:
         self._load_user_catalogs()
 
         # Marz
-        self.marzcat = MarzCatalog('marz', self.db, primary_id='_id',
-                                   author=self.conf['author'])
+        self.marzcat = MarzCatalog(
+            "marz", self.db, primary_id="_id", author=self.conf["author"]
+        )
         # FIXME: handle properly version / revision
-        self.marzcat.version = '1'
+        self.marzcat.version = "1"
 
-        if self.conf['show_banner']:
+        if self.conf["show_banner"]:
             self.info()
 
     def _load_input_catalogs(self):
         """Load input catalogs defined in the settings."""
         self.input_catalogs = {}
-        for name, conf in self.conf['catalogs'].items():
-            if 'class' in conf:
-                mod, class_ = conf['class'].rsplit('.', 1)
+        for name, conf in self.conf["catalogs"].items():
+            if "class" in conf:
+                mod, class_ = conf["class"].rsplit(".", 1)
                 mod = importlib.import_module(mod)
                 cls = getattr(mod, class_)
             else:
                 cls = InputCatalog
 
             self.input_catalogs[name] = cls.from_settings(
-                name, self.db, author=self.conf['author'], **conf
+                name, self.db, author=self.conf["author"], **conf
             )
         self.logger.info("Input catalogs loaded")
 
@@ -159,26 +157,27 @@ class MuseX:
         self.catalogs = {}
 
         # User catalogs
-        for row in self.catalogs_table.find(type='user'):
-            name = row['name']
+        for row in self.catalogs_table.find(type="user"):
+            name = row["name"]
             self.catalogs[name] = Catalog(
-                name, self.db,
-                author=self.conf['author'],
-                decname=row['decname'],
-                idname=row['idname'],
-                prefix=row.get('prefix'),
-                primary_id=row.get('primary_id'),
-                raname=row['raname'],
-                zconfname=row['zconfname'],
-                zname=row['zname'],
+                name,
+                self.db,
+                author=self.conf["author"],
+                decname=row["decname"],
+                idname=row["idname"],
+                prefix=row.get("prefix"),
+                primary_id=row.get("primary_id"),
+                raname=row["raname"],
+                zconfname=row["zconfname"],
+                zname=row["zname"],
             )
 
         # Cross-match catalogs
-        for row in self.catalogs_table.find(type='cross-match'):
-            name = row['name']
+        for row in self.catalogs_table.find(type="cross-match"):
+            name = row["name"]
             self.catalogs[name] = CrossMatch(name, self.db)
-            cat1_name = self.catalogs[name].meta.get('cat1_name')
-            cat2_name = self.catalogs[name].meta.get('cat2_name')
+            cat1_name = self.catalogs[name].meta.get("cat1_name")
+            cat2_name = self.catalogs[name].meta.get("cat2_name")
             if cat1_name is not None:
                 try:
                     self.catalogs[name].cat1 = self.catalogs[cat1_name]
@@ -194,7 +193,7 @@ class MuseX:
 
     def set_loglevel(self, level):
         """Set the logging level for the root logger."""
-        logger = logging.getLogger('')
+        logger = logging.getLogger("")
         level = level.upper()
         logger.setLevel(level)
         logger.handlers[0].setLevel(level)
@@ -202,7 +201,7 @@ class MuseX:
     @contextmanager
     def use_loglevel(self, level):
         """Context manager to set the logging level for the root logger."""
-        logger = logging.getLogger('')
+        logger = logging.getLogger("")
         level = level.upper()
         oldlevel = logger.getEffectiveLevel()
         logger.setLevel(level)
@@ -216,27 +215,32 @@ class MuseX:
         if outstream is None:
             outstream = sys.stdout
         outstream.write(LOGO)
-        outstream.write(textwrap.dedent(f"""
+        outstream.write(
+            textwrap.dedent(
+                f"""
             {__description__} - v{__version__}
 
             database       : {self.db}
             settings file  : {self.settings_file}
             muse_dataset   : {self.muse_dataset.name}
-            """))
+            """
+            )
+        )
 
-        maxlen = max(map(len, itertools.chain(
-            self.datasets, self.input_catalogs, self.catalogs)))
+        maxlen = max(
+            map(len, itertools.chain(self.datasets, self.input_catalogs, self.catalogs))
+        )
 
-        outstream.write('datasets       :\n')
+        outstream.write("datasets       :\n")
         for name, ds in self.datasets.items():
-            desc = ds.description or ''
+            desc = ds.description or ""
             outstream.write(f"    - {name:{maxlen}s} : {desc}\n")
 
-        outstream.write('input_catalogs :\n')
+        outstream.write("input_catalogs :\n")
         for name, cat in self.input_catalogs.items():
             outstream.write(f"    - {name:{maxlen}s} : {len(cat)} rows\n")
 
-        outstream.write('catalogs       :\n')
+        outstream.write("catalogs       :\n")
         for name, cat in self.catalogs.items():
             outstream.write(f"    - {name:{maxlen}s} : {len(cat)} rows\n")
 
@@ -249,22 +253,22 @@ class MuseX:
 
     @muse_dataset.setter
     def muse_dataset(self, name):
-        conf = self.conf['muse_datasets']
+        conf = self.conf["muse_datasets"]
         if name not in conf:
-            raise ValueError('invalid dataset name')
+            raise ValueError("invalid dataset name")
         self._muse_dataset = MuseDataSet(name, settings=conf[name])
 
     @property
     def exportdir(self):
         """The directory where files are exported."""
-        exportdir = self.conf['export']['path']
-        return f'{exportdir}/{self.muse_dataset.name}'
+        exportdir = self.conf["export"]["path"]
+        return f"{exportdir}/{self.muse_dataset.name}"
 
     def find_parent_cat(self, cat):
         """Find the parent catalog of a given catalog."""
         current_cat = cat
         while True:
-            parent = current_cat.meta['parent_cat']
+            parent = current_cat.meta["parent_cat"]
             if parent is None:
                 parent_cat = current_cat
                 break
@@ -274,11 +278,21 @@ class MuseX:
             elif parent in self.catalogs:
                 current_cat = self.catalogs[parent]
             else:
-                raise ValueError('parent catalog not found')
+                raise ValueError("parent catalog not found")
         return parent_cat
 
-    def new_catalog(self, name, idname='ID', primary_id=None, raname=None, decname=None,
-                    zname=None, zconfname=None, drop_if_exists=False, prefix=None):
+    def new_catalog(
+        self,
+        name,
+        idname="ID",
+        primary_id=None,
+        raname=None,
+        decname=None,
+        zname=None,
+        zconfname=None,
+        drop_if_exists=False,
+        prefix=None,
+    ):
         """Create a new user catalog.
 
         Parameters
@@ -303,17 +317,20 @@ class MuseX:
         """
         if name in self.db.tables:
             if name in self.input_catalogs or name not in self.catalogs:
-                raise ValueError('a table with the same name already exists, '
-                                 'and cannot be dropped since it is not a '
-                                 'user catalog. Please choose another name.')
+                raise ValueError(
+                    "a table with the same name already exists, "
+                    "and cannot be dropped since it is not a "
+                    "user catalog. Please choose another name."
+                )
             if drop_if_exists:
                 self.db[name].drop()
             else:
-                raise ValueError('table already exists')
+                raise ValueError("table already exists")
 
         self.catalogs[name] = Catalog(
-            name, self.db,
-            author=self.conf['author'],
+            name,
+            self.db,
+            author=self.conf["author"],
             decname=decname,
             idname=idname,
             prefix=prefix,
@@ -324,8 +341,9 @@ class MuseX:
         )
         return self.catalogs[name]
 
-    def new_catalog_from_resultset(self, name, resultset, primary_id=None,
-                                   drop_if_exists=False):
+    def new_catalog_from_resultset(
+        self, name, resultset, primary_id=None, drop_if_exists=False
+    ):
         """Create a new user catalog from a query result.
 
         Parameters
@@ -342,14 +360,15 @@ class MuseX:
 
         """
         if not isinstance(resultset, (Table, ResultSet)):
-            raise ValueError('unknown input type, resultset must be a '
-                             'ResultSet or Table object')
+            raise ValueError(
+                "unknown input type, resultset must be a ResultSet or Table object"
+            )
 
         if name in self.db.tables:
             if drop_if_exists:
                 self.delete_user_cat(name)
             else:
-                raise ValueError('table already exists')
+                raise ValueError("table already exists")
 
         parent_cat = resultset.catalog
         whereclause = resultset.whereclause
@@ -366,10 +385,18 @@ class MuseX:
         """Create or get an IdMapping object."""
         self.id_mapping = IdMapping(name, self.db)
 
-    def create_masks_from_segmap(self, cat, maskdir, limit=None, n_jobs=-1,
-                                 skip_existing=True, margin=0,
-                                 psf_threshold=0.5, mask_size=(20, 20),
-                                 convolve_fwhm=0):
+    def create_masks_from_segmap(
+        self,
+        cat,
+        maskdir,
+        limit=None,
+        n_jobs=-1,
+        skip_existing=True,
+        margin=0,
+        psf_threshold=0.5,
+        mask_size=(20, 20),
+        convolve_fwhm=0,
+    ):
         """Create binary masks from a segmentation map.
 
         Parameters
@@ -394,25 +421,33 @@ class MuseX:
 
         """
         ref_image = self.muse_dataset.white
-        catfile = cat.params['catalog']
+        catfile = cat.params["catalog"]
         tbl = MpdafCatalog.read(catfile)
-        self.logger.info('read catalog %s with %d sources', catfile, len(tbl))
+        self.logger.info("read catalog %s with %d sources", catfile, len(tbl))
 
         tbl = tbl.select(ref_image.wcs, ra=cat.raname, dec=cat.decname, margin=margin)
-        self.logger.info('selected %d sources in dataset footprint', len(tbl))
+        self.logger.info("selected %d sources in dataset footprint", len(tbl))
 
         if limit:
             tbl = tbl[:limit]
 
         os.makedirs(maskdir, exist_ok=True)
         create_masks_from_segmap(
-            cat.params['segmap'], tbl, ref_image, n_jobs=n_jobs,
+            cat.params["segmap"],
+            tbl,
+            ref_image,
+            n_jobs=n_jobs,
             skip_existing=skip_existing,
-            masksky_name=f'{maskdir}/mask-sky.fits',
-            maskobj_name=f'{maskdir}/mask-source-%05d.fits',
-            idname=cat.idname, raname=cat.raname, decname=cat.decname,
-            margin=margin, mask_size=mask_size, convolve_fwhm=convolve_fwhm,
-            psf_threshold=psf_threshold)
+            masksky_name=f"{maskdir}/mask-sky.fits",
+            maskobj_name=f"{maskdir}/mask-source-%05d.fits",
+            idname=cat.idname,
+            raname=cat.raname,
+            decname=cat.decname,
+            margin=margin,
+            mask_size=mask_size,
+            convolve_fwhm=convolve_fwhm,
+            psf_threshold=psf_threshold,
+        )
 
     def _prepare_datasets(self, datasets, catname):
         # compute the list of datasets to use
@@ -422,11 +457,11 @@ class MuseX:
             # - of a dict, use tags specified in the dict
             # - if a list of datasets, use all tags from these datasets
             if isinstance(datasets, dict):
-                use_datasets.update({self.datasets[name]: val
-                                     for name, val in datasets.items()})
+                use_datasets.update(
+                    {self.datasets[name]: val for name, val in datasets.items()}
+                )
             elif isiter(datasets):
-                use_datasets.update({self.datasets[name]: None
-                                     for name in datasets})
+                use_datasets.update({self.datasets[name]: None for name in datasets})
         else:
             # otherwise we use all datasets, except the ones linked to
             # another catalog
@@ -437,25 +472,26 @@ class MuseX:
         return use_datasets
 
     def to_sources(
-            self,
-            res_or_cat,
-            apertures=None,
-            catalogs=None,
-            datasets=None,
-            extra_header=None,
-            history=True,
-            masks_dataset=None,
-            n_jobs=1,
-            only_active=True,
-            outdir=None,
-            outname=None,
-            refspec=None,
-            segmap=False,
-            size=5,
-            srcvers='',
-            user_func=None,
-            user_func_kw=None,
-            verbose=False):
+        self,
+        res_or_cat,
+        apertures=None,
+        catalogs=None,
+        datasets=None,
+        extra_header=None,
+        history=True,
+        masks_dataset=None,
+        n_jobs=1,
+        only_active=True,
+        outdir=None,
+        outname=None,
+        refspec=None,
+        segmap=False,
+        size=5,
+        srcvers="",
+        user_func=None,
+        user_func_kw=None,
+        verbose=False,
+    ):
         """Export a catalog or selection to sources (SourceX).
 
         This is the main function to export sources, so it does a lot of
@@ -528,74 +564,79 @@ class MuseX:
             parent_cat = None
         else:
             parent_catname = parent_cat.name
-            if hasattr(parent_cat, 'params'):
-                parent_extract = parent_cat.params.get('extract', {})
-                parent_prefix = parent_extract.get('prefix')
+            if hasattr(parent_cat, "params"):
+                parent_extract = parent_cat.params.get("extract", {})
+                parent_prefix = parent_extract.get("prefix")
 
         if outdir is not None:
             os.makedirs(outdir, exist_ok=True)
 
         # make sure that size is a list with the same length as the catalog
         if isinstance(size, (float, int)):
-            info('Exporting %s sources with %s dataset, size=%.1f',
-                 nrows, self.muse_dataset.name, size)
+            msg = "Exporting %s sources with %s dataset, size=%.1f"
+            info(msg, nrows, self.muse_dataset.name, size)
             size = [size] * nrows
         elif isinstance(size, Iterable) and isinstance(size, Sized):
             if nrows != len(size):
-                raise ValueError(f"Length of res_or_cat ({nrows}) does not "
-                                 f"match length of size ({len(size)})")
+                raise ValueError(
+                    f"Length of res_or_cat ({nrows}) does not "
+                    f"match length of size ({len(size)})"
+                )
 
-            info('Exporting %s sources with %s dataset, %.1f<=size<=%.1f',
-                 nrows, self.muse_dataset.name, np.min(size), np.max(size))
+            msg = "Exporting %s sources with %s dataset, %.1f<=size<=%.1f"
+            info(msg, nrows, self.muse_dataset.name, np.min(size), np.max(size))
         else:
             raise ValueError("'size' should be a float or list of floats")
 
         # compute the list of datasets to use
         use_datasets = self._prepare_datasets(datasets, parent_catname)
-        info('using datasets: %s', ', '.join(ds.name for ds in use_datasets))
+        info("using datasets: %s", ", ".join(ds.name for ds in use_datasets))
 
         # keywords added to the source
-        header = {'SRC_V': (srcvers, 'Source Version')}
+        header = {"SRC_V": (srcvers, "Source Version")}
         if parent_cat:
-            header['CATALOG'] = os.path.basename(parent_catname),
+            header["CATALOG"] = (os.path.basename(parent_catname),)
         if extra_header:
             header.update(extra_header)
 
         # export parameters (mags, redshits, header_columns, etc.)
         kw = {
-            **self.conf['export'],
-            'apertures': apertures,        # list of apertures for spectra
-            'datasets': use_datasets,      # datasets to use
-            'header': header,              # additional keywords
-            'outdir': outdir,              # output directory
-            'outname': outname,            # output filename
-            'user_func': user_func,        # user function
-            'user_func_kw': user_func_kw,  # user function dictionnary
+            **self.conf["export"],
+            "apertures": apertures,  # list of apertures for spectra
+            "datasets": use_datasets,  # datasets to use
+            "header": header,  # additional keywords
+            "outdir": outdir,  # output directory
+            "outname": outname,  # output filename
+            "user_func": user_func,  # user function
+            "user_func_kw": user_func_kw,  # user function dictionnary
         }
 
         # segmap from the parent cat
         if segmap and parent_cat:
-            segmapfile = parent_cat.params.get('segmap')
+            segmapfile = parent_cat.params.get("segmap")
             if segmapfile is None:
-                info('could not find segmap from %s', parent_cat.name)
+                info("could not find segmap from %s", parent_cat.name)
             else:
                 segmap_tag = parent_prefix + "_SEGMAP" if parent_prefix else "SEGMAP"
-                kw['segmap'] = (segmap_tag, Image(segmapfile))
+                kw["segmap"] = (segmap_tag, Image(segmapfile))
 
         # check if header_columns are available in the resultset
-        header_columns = kw.get('header_columns', {})
+        header_columns = kw.get("header_columns", {})
         for key, colname in header_columns.items():
             if colname not in resultset.colnames:
                 self.logger.warning(
                     "'%s' column not found, though it is specified in the "
-                    "settings file for the %s keyword", colname, key)
+                    "settings file for the %s keyword",
+                    colname,
+                    key,
+                )
 
         # additional catalogs
         if catalogs:
-            kw['catalogs'] = {}
+            kw["catalogs"] = {}
             # special treatment for the parent of the exported catalog
             if parent_cat:
-                kw['header']['REFCAT'] = f"{parent_prefix}_CAT"
+                kw["header"]["REFCAT"] = f"{parent_prefix}_CAT"
 
             for pcat in catalogs:
                 parent = self.find_parent_cat(pcat)
@@ -604,25 +645,23 @@ class MuseX:
                 pcat_extract = None
                 if pcat.prefix is not None:
                     prefix = pcat.prefix
-                elif hasattr(parent, 'params'):
-                    pcat_extract = parent.params.get('extract', {})
-                    prefix = pcat_extract.get('prefix')
-                    columns = pcat_extract.get('columns')
+                elif hasattr(parent, "params"):
+                    pcat_extract = parent.params.get("extract", {})
+                    prefix = pcat_extract.get("prefix")
+                    columns = pcat_extract.get("columns")
                 else:
                     self.logger.warning(
-                        'cannot export catalog %s without prefix information',
-                        pcat.name
+                        "cannot export catalog %s without prefix information", pcat.name
                     )
 
                 if prefix:
-                    self.logger.debug('Preparing catalog %s: %s_CAT',
-                                      pcat.name, prefix)
+                    self.logger.debug("Preparing catalog %s: %s_CAT", pcat.name, prefix)
                     pcat = parent.select(columns=columns).as_table()
                     if pcat_extract is not None:
                         pcat.meta.update(pcat_extract)
-                    kw['catalogs'][f"{prefix}_CAT"] = pcat
+                    kw["catalogs"][f"{prefix}_CAT"] = pcat
 
-        author = self.conf['author']
+        author = self.conf["author"]
 
         # build the list of sources to compute
         to_compute = []
@@ -630,23 +669,33 @@ class MuseX:
             row = dict(zip(res.colnames, tuple(res)))
 
             # dataset for masks
-            if 'mask_dataset' in row:
-                maskds = self.datasets[row['mask_dataset']]
+            if "mask_dataset" in row:
+                maskds = self.datasets[row["mask_dataset"]]
             elif masks_dataset is not None:
                 maskds = self.datasets[masks_dataset]
             else:
                 maskds = None
 
             if history:
-                hist_items = [(o['msg'], author, o['date'])
-                              for o in cat.get_log(row[cat.idname])]
-                hist_items.append(('source created', author,
-                                   datetime.datetime.now().isoformat()))
+                hist_items = [
+                    (o["msg"], author, o["date"]) for o in cat.get_log(row[cat.idname])
+                ]
+                date = datetime.datetime.now().isoformat()
+                hist_items.append(("source created", author, date))
             else:
                 hist_items = None
 
-            to_compute.append(((row, cat.idname, cat.raname, cat.decname,
-                                src_size, refspec, hist_items, maskds), kw))
+            args = (
+                row,
+                cat.idname,
+                cat.raname,
+                cat.decname,
+                src_size,
+                refspec,
+                hist_items,
+                maskds,
+            )
+            to_compute.append((args, kw))
 
         # create the sources, either with multiprocessing or directly with
         # create_source
@@ -654,16 +703,17 @@ class MuseX:
             # multiprocessing.log_to_stderr('DEBUG')
             pool = multiprocessing.Pool(n_jobs, maxtasksperchild=50)
             chunksize = min(20, nrows // n_jobs + 1)
-            sources = pool.imap_unordered(_worker_export, to_compute,
-                                          chunksize=chunksize)
+            sources = pool.imap_unordered(
+                _worker_export, to_compute, chunksize=chunksize
+            )
         else:
             sources = (create_source(*args, **kw) for args, kw in to_compute)
 
         try:
             if not verbose:
-                logger = logging.getLogger('')
+                logger = logging.getLogger("")
                 oldlevel = logging.getLevelName(logger.getEffectiveLevel())
-                self.set_loglevel('WARNING')
+                self.set_loglevel("WARNING")
                 sources = progressbar(sources, total=nrows)
 
             for src in sources:
@@ -679,8 +729,9 @@ class MuseX:
             if not verbose:
                 self.set_loglevel(oldlevel)
 
-    def export_sources(self, res_or_cat, outdir=None,
-                       outname='source-{src.ID:05d}', **kwargs):
+    def export_sources(
+        self, res_or_cat, outdir=None, outname="source-{src.ID:05d}", **kwargs
+    ):
         """Save a catalog or selection to sources (SourceX).
 
         See `MuseX.to_sources` for the additional arguments.
@@ -698,14 +749,23 @@ class MuseX:
         """
         if outdir is None:
             catname = get_cat_name(res_or_cat)
-            outdir = f'{self.exportdir}/{catname}/sources'
-        return list(self.to_sources(res_or_cat, outdir=outdir,
-                                    outname=outname, **kwargs))
+            outdir = f"{self.exportdir}/{catname}/sources"
+        return list(
+            self.to_sources(res_or_cat, outdir=outdir, outname=outname, **kwargs)
+        )
 
-    def export_marz(self, res_or_cat, outfile=None, export_sources=False,
-                    datasets=None, sources_dataset=None, outdir=None,
-                    srcname='source-{src.ID:05d}', skyspec='MUSE_SKY',
-                    **kwargs):
+    def export_marz(
+        self,
+        res_or_cat,
+        outfile=None,
+        export_sources=False,
+        datasets=None,
+        sources_dataset=None,
+        outdir=None,
+        srcname="source-{src.ID:05d}",
+        skyspec="MUSE_SKY",
+        **kwargs,
+    ):
         """Export a catalog or selection for MarZ.
 
         Pre-generated sources may be used by specifying the related dataset.
@@ -741,13 +801,13 @@ class MuseX:
         cname = cat.catalog.name
         parent_cat = self.find_parent_cat(cat.catalog)
         if outdir is None:
-            outdir = f'{self.exportdir}/{cname}/marz'
+            outdir = f"{self.exportdir}/{cname}/marz"
         os.makedirs(outdir, exist_ok=True)
         if outfile is None:
-            outfile = f'{outdir}/marz-{cname}-{self.muse_dataset.name}.fits'
+            outfile = f"{outdir}/marz-{cname}-{self.muse_dataset.name}.fits"
 
         # Keyword to check in the sources for ORIGIN.
-        version_meta = parent_cat.meta.get('version_meta', None)
+        version_meta = parent_cat.meta.get("version_meta", None)
         if version_meta is not None:
             check_keyword = (version_meta, parent_cat.meta[version_meta])
         else:
@@ -757,25 +817,26 @@ class MuseX:
             ds = self.datasets[sources_dataset]
 
             def _src_func():
-                for id_ in cat[cat.meta['idname']]:
+                for id_ in cat[cat.meta["idname"]]:
                     yield ds.get_source(id_, check_keyword=check_keyword)
+
             src_iter = _src_func()
         else:
             if export_sources:
                 # If sources must be exported, we need to tell .to_sources
                 # what to put inside the sources (all datasets by default
                 # and the segmap)
-                kwargs.setdefault('segmap', True)
-                kwargs['outdir'] = outdir
-                kwargs['outname'] = srcname
+                kwargs.setdefault("segmap", True)
+                kwargs["outdir"] = outdir
+                kwargs["outname"] = srcname
             else:
                 if datasets is None:
                     # skip using additional datasets. In this case the
                     # muse_dataset will be used, with spectra extracted
                     # from the cube.
                     datasets = []
-                    kwargs['history'] = False
-                    kwargs['segmap'] = False
+                    kwargs["history"] = False
+                    kwargs["segmap"] = False
 
             src_iter = self.to_sources(cat, datasets=datasets, **kwargs)
 
@@ -795,25 +856,26 @@ class MuseX:
         if isinstance(catalog, Catalog):
             catalog = catalog.name
         if catalog not in self.catalogs:
-            raise ValueError('catalog must be a valid user catalog')
+            raise ValueError("catalog must be a valid user catalog")
 
-        cat = Table.read(catfile, format='ascii', delimiter=',',
-                         header_start=2, encoding='utf8')
+        cat = Table.read(
+            catfile, format="ascii", delimiter=",", header_start=2, encoding="utf8"
+        )
         # The real ID column in Marz is "Name"
-        cat.remove_column('ID')
-        cat.rename_column('Name', 'ID')
-        cat['catalog'] = catalog
-        keys = ['ID', 'version', 'catalog']
+        cat.remove_column("ID")
+        cat.rename_column("Name", "ID")
+        cat["catalog"] = catalog
+        keys = ["ID", "version", "catalog"]
         self.marzcat.ingest_input_catalog(catalog=cat, keys=keys, **kwargs)
 
     def delete_user_cat(self, name):
         """Delete a user catalog."""
         if name not in self.db.tables or name not in self.catalogs:
-            raise ValueError('not a valid catalog name')
+            raise ValueError("not a valid catalog name")
         self.catalogs[name].drop()
         del self.catalogs[name]
 
-    def cross_match(self, name, cat1, cat2, radius=1.):
+    def cross_match(self, name, cat1, cat2, radius=1.0):
         """Cross-match two catalogs and creates a CrossMatch catalog.
 
         Parameters

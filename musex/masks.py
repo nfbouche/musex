@@ -20,10 +20,10 @@ def _same_origin(m1, m2):
     w1, w2 = WCS(m1), WCS(m2)
 
     return (
-        w1.wcs.ctype[0] == w2.wcs.ctype[0] and
-        w1.wcs.ctype[1] == w2.wcs.ctype[1] and
-        np.all(w1.wcs.crval == w2.wcs.crval) and
-        np.all(w1.pixel_scale_matrix == w2.pixel_scale_matrix)
+        w1.wcs.ctype[0] == w2.wcs.ctype[0]
+        and w1.wcs.ctype[1] == w2.wcs.ctype[1]
+        and np.all(w1.wcs.crval == w2.wcs.crval)
+        and np.all(w1.pixel_scale_matrix == w2.pixel_scale_matrix)
     )
 
 
@@ -93,27 +93,28 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
         combine = np.logical_or
 
     for mask in mask_list:
-        if (result_wcs is not None and
-                not _same_origin(mask, result_wcs.to_header())):
-            raise ValueError("Not all the masks used in merge_masks_on_area "
-                             "were extracted on the same image.")
+        if result_wcs is not None and not _same_origin(mask, result_wcs.to_header()):
+            raise ValueError(
+                "Not all the masks used in merge_masks_on_area "
+                "were extracted on the same image."
+            )
 
         mask_size = mask.data.shape
         result_center = WCS(mask).all_world2pix(ra, dec, 0)[::-1]  # (y, x)
         try:
-            mask_slice, result_slice = overlap_slices(
-                mask_size, size, result_center)
+            mask_slice, result_slice = overlap_slices(mask_size, size, result_center)
 
             if result_wcs is None:
                 result_wcs = WCS(mask).copy()
                 offset = (
                     mask_slice[1].start - result_slice[1].start,
-                    mask_slice[0].start - result_slice[0].start)
+                    mask_slice[0].start - result_slice[0].start,
+                )
                 result_wcs.wcs.crpix -= offset
 
             result_data[result_slice] = combine(
-                result_data[result_slice],
-                mask.data[mask_slice].astype(bool))
+                result_data[result_slice], mask.data[mask_slice].astype(bool)
+            )
 
         except NoOverlapError:
             # TODO: Add better warning.
@@ -122,11 +123,11 @@ def merge_masks_on_area(ra, dec, size, mask_list, *, is_sky=False):
     # If result_wcs is still None, that means that none of the merged masks
     # were overlapping the region.
     if result_wcs is None:
-        raise ValueError("None of the provided mask was overlapping the "
-                         "given position.")
+        raise ValueError(
+            "None of the provided mask was overlapping the given position."
+        )
 
     if is_sky:
         result_data = (result_data == len(mask_list)).astype(np.uint8)
 
-    return ImageHDU(header=result_wcs.to_header(),
-                    data=result_data.astype(np.uint8))
+    return ImageHDU(header=result_wcs.to_header(), data=result_data.astype(np.uint8))

@@ -14,16 +14,16 @@ from mpdaf.sdetect import Source
 from .utils import extract_subimage
 from .version import __version__
 
-__all__ = ('SourceX', 'create_source', 'sources_to_marz')
+__all__ = ("SourceX", "create_source", "sources_to_marz")
 
 # Default comments for FITS keywords
 HEADER_COMMENTS = dict(
-    CONFID='Z Confidence Flag',
-    BLEND='Blending flag',
-    DEFECT='Defect flag',
-    REVISIT='Reconciliation Revisit Flag',
-    TYPE='Object classification',
-    REFSPEC='Name of reference spectra',
+    CONFID="Z Confidence Flag",
+    BLEND="Blending flag",
+    DEFECT="Defect flag",
+    REVISIT="Reconciliation Revisit Flag",
+    TYPE="Object classification",
+    REFSPEC="Name of reference spectra",
 )
 
 
@@ -34,25 +34,28 @@ class SourceX(Source):
 
     def get_zmuse(self):
         """Return the MUSE redshift if available."""
-        sel = self.z[self.z['Z_DESC'] == 'MUSE']
+        sel = self.z[self.z["Z_DESC"] == "MUSE"]
         if len(sel) > 0:
-            return sel['Z'][0]
+            return sel["Z"][0]
 
     def extract_all_spectra(self, cube=None, apertures=None):
-        cube = cube or self.cubes['MUSE_CUBE']
-        kw = dict(obj_mask='MASK_OBJ', sky_mask='MASK_SKY',
-                  apertures=apertures, unit_wave=None)
+        cube = cube or self.cubes["MUSE_CUBE"]
+        kw = dict(
+            obj_mask="MASK_OBJ",
+            sky_mask="MASK_SKY",
+            apertures=apertures,
+            unit_wave=None,
+        )
         if apertures:
-            self._logger.debug('Extract spectra with apertures %s', apertures)
+            self._logger.debug("Extract spectra with apertures %s", apertures)
         else:
-            self._logger.debug('Extract spectra')
+            self._logger.debug("Extract spectra")
 
-        if 'FSFMODE' in self.header:
+        if "FSFMODE" in self.header:
             a, b, beta, field = self.get_FSF()
-            kw['beta'] = beta
+            kw["beta"] = beta
             psf = b * cube.wave.coord() + a
-            kw['psf'] = create_psf_cube(cube.shape, psf, beta=beta,
-                                        wcs=cube.wcs)
+            kw["psf"] = create_psf_cube(cube.shape, psf, beta=beta, wcs=cube.wcs)
 
         self.extract_spectra(cube, skysub=False, **kw)
         self.extract_spectra(cube, skysub=True, **kw)
@@ -76,8 +79,7 @@ class SourceX(Source):
                 continue
 
             if z is not None and 0 <= z < 50:
-                self._logger.debug('Add redshift %s=%.2f (err=%r)',
-                                   name, z, errz)
+                self._logger.debug("Add redshift %s=%.2f (err=%r)", name, z, errz)
                 self.add_z(name, z, errz=errz)
 
     def add_mag_from_settings(self, mags, row):
@@ -92,8 +94,7 @@ class SourceX(Source):
                 continue
 
             if mag is not None and 0 <= mag < 50:
-                self._logger.debug('Add mag %s=%.2f (err=%r)',
-                                   name, mag, magerr)
+                self._logger.debug("Add mag %s=%.2f (err=%r)", name, mag, magerr)
                 self.add_mag(name, mag, magerr)
 
     def add_header_from_settings(self, header_columns, row):
@@ -103,96 +104,119 @@ class SourceX(Source):
                 if np.ma.is_masked(row[colname]):
                     continue
 
-                if key == 'COMMENT':
+                if key == "COMMENT":
                     # truncate comment if too long
-                    com = re.sub(r'[^\s!-~]', '', row[colname])
+                    com = re.sub(r"[^\s!-~]", "", row[colname])
                     for txt in textwrap.wrap(com, 50):
-                        self.add_comment(txt, '')
+                        self.add_comment(txt, "")
                 else:
-                    self._logger.debug('Add %s=%r', key, row[colname])
+                    self._logger.debug("Add %s=%r", key, row[colname])
                     comment = HEADER_COMMENTS.get(key)
                     self.header[key] = (row[colname], comment)
 
-    def add_masks_from_dataset(self, maskds, center, size, minsize=0,
-                               nskywarn=(50, 5), srcid=None):
+    def add_masks_from_dataset(
+        self, maskds, center, size, minsize=0, nskywarn=(50, 5), srcid=None
+    ):
         skyim = maskds.get_skymask_file(srcid or self.ID)
         maskim = maskds.get_objmask_file(srcid or self.ID)
 
         # FIXME: use Source.add_image instead ?
-        self.images['MASK_SKY'] = extract_subimage(
-            skyim, center, (size, size), minsize=minsize)
+        self.images["MASK_SKY"] = extract_subimage(
+            skyim, center, (size, size), minsize=minsize
+        )
 
         # FIXME: check that center is inside mask
         # centerpix = maskim.wcs.sky2pix(center)[0]
         # debug('center: (%.5f, %.5f) -> (%.2f, %.2f)', *center,
         #       *centerpix.tolist())
-        self.images['MASK_OBJ'] = extract_subimage(
-            maskim, center, (size, size), minsize=minsize)
+        self.images["MASK_OBJ"] = extract_subimage(
+            maskim, center, (size, size), minsize=minsize
+        )
 
         # compute surface of each masks and compare to field of view, save
         # values in header
-        nsky = np.count_nonzero(self.images['MASK_SKY']._data)
-        nobj = np.count_nonzero(self.images['MASK_OBJ']._data)
-        fracsky = 100.0 * nsky / np.prod(self.images['MASK_OBJ'].shape)
-        fracobj = 100.0 * nobj / np.prod(self.images['MASK_OBJ'].shape)
+        nsky = np.count_nonzero(self.images["MASK_SKY"]._data)
+        nobj = np.count_nonzero(self.images["MASK_OBJ"]._data)
+        fracsky = 100.0 * nsky / np.prod(self.images["MASK_OBJ"].shape)
+        fracobj = 100.0 * nobj / np.prod(self.images["MASK_OBJ"].shape)
         min_nsky_abs, min_nsky_rel = nskywarn
         if nsky < min_nsky_abs or fracsky < min_nsky_rel:
-            self._logger.warning('sky mask is too small. Size is %d spaxel '
-                                 'or %.1f %% of total area', nsky, fracsky)
+            msg = "sky mask is too small. Size is %d spaxel or %.1f %% of total area"
+            self._logger.warning(msg, nsky, fracsky)
 
-        self.add_attr('NSKYMSK', nsky, 'Size of MASK_SKY in spaxels')
-        self.add_attr('FSKYMSK', fracsky, 'Relative Size of MASK_SKY in %')
-        self.add_attr('NOBJMSK', nobj, 'Size of MASK_OBJ in spaxels')
-        self.add_attr('FOBJMSK', fracobj, 'Relative Size of MASK_OBJ in %')
-        self._logger.debug('MASKS: SKY: %.1f%%, OBJ: %.1f%%', fracsky, fracobj)
+        self.add_attr("NSKYMSK", nsky, "Size of MASK_SKY in spaxels")
+        self.add_attr("FSKYMSK", fracsky, "Relative Size of MASK_SKY in %")
+        self.add_attr("NOBJMSK", nobj, "Size of MASK_OBJ in spaxels")
+        self.add_attr("FOBJMSK", fracobj, "Relative Size of MASK_OBJ in %")
+        self._logger.debug("MASKS: SKY: %.1f%%, OBJ: %.1f%%", fracsky, fracobj)
 
 
-def create_source(row, idname, raname, decname, size, refspec, history, maskds,
-                  segmap=None, datasets=None, apertures=None, header=None,
-                  header_columns=None, redshifts=None, mags=None, outdir=None,
-                  outname=None, catalogs=None, user_func=None,
-                  user_func_kw=None, **kwargs):
+def create_source(
+    row,
+    idname,
+    raname,
+    decname,
+    size,
+    refspec,
+    history,
+    maskds,
+    segmap=None,
+    datasets=None,
+    apertures=None,
+    header=None,
+    header_columns=None,
+    redshifts=None,
+    mags=None,
+    outdir=None,
+    outname=None,
+    catalogs=None,
+    user_func=None,
+    user_func_kw=None,
+    **kwargs,
+):
     """This is the main function to create a Source.
 
     It takes all the possible input data as arguments, add to the source, and
     call the user function at the end if provided.
 
     """
-    origin = ('MuseX', __version__, '', '')
-    src = SourceX.from_data(row[idname], row[raname], row[decname], origin,
-                            default_size=size)
+    origin = ("MuseX", __version__, "", "")
+    src = SourceX.from_data(
+        row[idname], row[raname], row[decname], origin, default_size=size
+    )
 
     logger = logging.getLogger(__name__)
-    logger.debug('Creating source %05d (%.5f, %.5f)', src.ID, src.DEC, src.RA)
+    logger.debug("Creating source %05d (%.5f, %.5f)", src.ID, src.DEC, src.RA)
     src.SIZE = size
     if header:
-        logger.debug('Add extra header %r', header)
+        logger.debug("Add extra header %r", header)
         src.header.update(header)
 
     if datasets:
         for ds, names in datasets.items():
-            if f'{ds.name}_id' in row:
+            if f"{ds.name}_id" in row:
                 # Use the id given by the [dataset]_id column
-                srcid = row[f'{ds.name}_id']
+                srcid = row[f"{ds.name}_id"]
                 if srcid is not None and srcid is not np.ma.masked:
                     srcid = int(srcid)
-                    logger.debug('Add dataset %s with id=%s', ds.name, srcid)
+                    logger.debug("Add dataset %s with id=%s", ds.name, srcid)
                     ds.add_to_source(src, names=names, srcid=srcid)
             else:
-                logger.debug('Add dataset %s', ds.name)
+                logger.debug("Add dataset %s", ds.name)
                 ds.add_to_source(src, names=names)
 
     # Add keywords from columns
     if header_columns:
         src.add_header_from_settings(header_columns, row)
 
-    if src.header.get('REFSPEC') is None:
+    if src.header.get("REFSPEC") is None:
         if refspec is not None:
-            logger.debug('REFSPEC column not found, using the %s argument '
-                         'instead', refspec)
-            src.add_attr('REFSPEC', refspec, desc=HEADER_COMMENTS['REFSPEC'])
+            logger.debug(
+                "REFSPEC column not found, using the %s argument instead", refspec
+            )
+            src.add_attr("REFSPEC", refspec, desc=HEADER_COMMENTS["REFSPEC"])
         else:
-            logger.debug(r'/!\ no value for REFSPEC')
+            logger.debug(r"/!\ no value for REFSPEC")
 
     # Add redshifts
     if redshifts:
@@ -203,7 +227,7 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
         src.add_mag_from_settings(mags, row)
 
     if segmap:
-        logger.debug('Add segmap %s', segmap[0])
+        logger.debug("Add segmap %s", segmap[0])
         src.SEGMAP = segmap[0]
         src.add_image(segmap[1], segmap[0], rotate=True, order=0)
 
@@ -214,73 +238,83 @@ def create_source(row, idname, raname, decname, size, refspec, history, maskds,
     if catalogs:
         sig = inspect.signature(Source.add_table)
         for name, cat in catalogs.items():
-            logger.debug('Add catalog %s', name)
-            kw = {k: v for k, v in cat.meta.items()
-                  if k in sig.parameters and k != 'name'}
+            logger.debug("Add catalog %s", name)
+            kw = {
+                k: v for k, v in cat.meta.items() if k in sig.parameters and k != "name"
+            }
             catsrc = cat.copy()
             for k, v in list(catsrc.meta.items()):
                 # delete meta items that cannot be stored in a FITS header
                 if isinstance(v, (list, dict)):
                     del catsrc.meta[k]
 
-            if catsrc.meta.get('raname') and catsrc.meta.get('decname'):
+            if catsrc.meta.get("raname") and catsrc.meta.get("decname"):
                 # set defaut value for select_in if not defined
-                if 'MUSE_WHITE' in src.images:
-                    kw.setdefault('select_in', 'MUSE_WHITE')
+                if "MUSE_WHITE" in src.images:
+                    kw.setdefault("select_in", "MUSE_WHITE")
 
-                kw.setdefault('col_dist', 'DIST')
+                kw.setdefault("col_dist", "DIST")
 
             src.add_table(catsrc, name, **kw)
 
-            if 'redshifts' in cat.meta:
-                crow = cat[cat[cat.meta['idname']] == src.ID]
-                src.add_z_from_settings(cat.meta['redshifts'], crow)
+            if "redshifts" in cat.meta:
+                crow = cat[cat[cat.meta["idname"]] == src.ID]
+                src.add_z_from_settings(cat.meta["redshifts"], crow)
 
-            if 'mags' in cat.meta:
-                crow = cat[cat[cat.meta['idname']] == src.ID]
-                src.add_mag_from_settings(cat.meta['mags'], crow)
+            if "mags" in cat.meta:
+                crow = cat[cat[cat.meta["idname"]] == src.ID]
+                src.add_mag_from_settings(cat.meta["mags"], crow)
 
     if maskds is not None:
-        srcid = row.get(f'{maskds.name}_id')
+        srcid = row.get(f"{maskds.name}_id")
         if srcid is not None and srcid is not np.ma.masked:
             srcid = int(srcid)
-            logger.debug('Add mask from dataset %s with id=%s', maskds.name,
-                         srcid)
+            logger.debug("Add mask from dataset %s with id=%s", maskds.name, srcid)
         else:
-            logger.debug('Add mask from dataset %s', maskds.name)
-        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size,
-                                   srcid=srcid)
+            logger.debug("Add mask from dataset %s", maskds.name)
+        src.add_masks_from_dataset(maskds, (src.DEC, src.RA), size, srcid=srcid)
         src.extract_all_spectra(apertures=apertures)
     else:
-        logger.debug('no masks specified, spectra will not be extracted')
+        logger.debug("no masks specified, spectra will not be extracted")
 
     if user_func is not None:
-        logger.debug('Calling user function')
-        user_func(src, row, datasets=datasets, catalogs=catalogs,
-                  outdir=outdir, outname=outname, kw=user_func_kw)
+        logger.debug("Calling user function")
+        user_func(
+            src,
+            row,
+            datasets=datasets,
+            catalogs=catalogs,
+            outdir=outdir,
+            outname=outname,
+            kw=user_func_kw,
+        )
 
-    logger.info('Source %05d (%.5f, %.5f) done, %d images, %d spectra',
-                src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
-    logger.debug('IMAGES: %s', ', '.join(sorted(src.images.keys())))
-    logger.debug('SPECTRA: %s', ', '.join(sorted(src.spectra.keys())))
+    msg = "Source %05d (%.5f, %.5f) done, %d images, %d spectra"
+    logger.info(msg, src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
+    logger.debug("IMAGES: %s", ", ".join(sorted(src.images.keys())))
+    logger.debug("SPECTRA: %s", ", ".join(sorted(src.spectra.keys())))
     if src.tables:
-        logger.debug('TABLES: %s', ', '.join(sorted(src.tables.keys())))
+        logger.debug("TABLES: %s", ", ".join(sorted(src.tables.keys())))
 
     if outdir is not None and outname is not None:
         outn = outname.format(src=src)
-        fname = f'{outdir}/{outn}.fits'
+        fname = f"{outdir}/{outn}.fits"
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message='.*greater than 8.*',
-                                    category=fits.verify.VerifyWarning)
+            warnings.filterwarnings(
+                "ignore",
+                message=".*greater than 8.*",
+                category=fits.verify.VerifyWarning,
+            )
             src.write(fname)
-        logger.info('FITS written to %s', fname)
+        logger.info("FITS written to %s", fname)
         return fname
     else:
         return src
 
 
-def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
-                    check_keyword=None):
+def sources_to_marz(
+    src_list, outfile, refspec=None, skyspec="MUSE_SKY", check_keyword=None
+):
     """Export a list of source to a MarZ input file.
 
     Parameters
@@ -312,8 +346,10 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
             key, val = check_keyword
             try:
                 if src.header[key] != val:
-                    raise ValueError("The source was not made from the good "
-                                     f"catalog: {key} = {val}")
+                    raise ValueError(
+                        "The source was not made from the good "
+                        f"catalog: {key} = {val}"
+                    )
             except KeyError:
                 raise KeyError(f"The source has no {key} keyword.")
 
@@ -336,20 +372,34 @@ def sources_to_marz(src_list, outfile, refspec=None, skyspec='MUSE_SKY',
         z = 0
         mag1 = -99
         mag2 = -99
-        meta.append(('%05d' % src.ID, src.RA, src.DEC, z,
-                     src.header.get('CONFID', 0),
-                     src.header.get('TYPE', 0), mag1, mag2, refsp))
+        meta.append(
+            (
+                "%05d" % src.ID,
+                src.RA,
+                src.DEC,
+                z,
+                src.header.get("CONFID", 0),
+                src.header.get("TYPE", 0),
+                mag1,
+                mag2,
+                refsp,
+            )
+        )
 
-    t = Table(rows=meta, names=['NAME', 'RA', 'DEC', 'Z', 'CONFID', 'TYPE',
-                                'F775W', 'F125W', 'REFSPEC'],
-              meta={'CUBE_V': src.CUBE_V, 'SRC_V': src.SRC_V})
-    hdulist = fits.HDUList([
-        fits.PrimaryHDU(),
-        fits.ImageHDU(name='WAVE', data=np.vstack(wave)),
-        fits.ImageHDU(name='DATA', data=np.vstack(data)),
-        fits.ImageHDU(name='STAT', data=np.vstack(stat)),
-        fits.ImageHDU(name='SKY', data=np.vstack(sky)),
-        fits.BinTableHDU(name='DETAILS', data=t)
-    ])
-    logger.info('Writing %s', outfile)
-    hdulist.writeto(outfile, overwrite=True, output_verify='silentfix')
+    t = Table(
+        rows=meta,
+        names=["NAME", "RA", "DEC", "Z", "CONFID", "TYPE", "F775W", "F125W", "REFSPEC"],
+        meta={"CUBE_V": src.CUBE_V, "SRC_V": src.SRC_V},
+    )
+    hdulist = fits.HDUList(
+        [
+            fits.PrimaryHDU(),
+            fits.ImageHDU(name="WAVE", data=np.vstack(wave)),
+            fits.ImageHDU(name="DATA", data=np.vstack(data)),
+            fits.ImageHDU(name="STAT", data=np.vstack(stat)),
+            fits.ImageHDU(name="SKY", data=np.vstack(sky)),
+            fits.BinTableHDU(name="DETAILS", data=t),
+        ]
+    )
+    logger.info("Writing %s", outfile)
+    hdulist.writeto(outfile, overwrite=True, output_verify="silentfix")

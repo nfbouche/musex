@@ -15,14 +15,15 @@ __all__ = ['DataSet', 'MuseDataSet']
 
 def load_datasets(settings):
     """Load all datasets defined in the settings."""
-    return {name: DataSet(name, settings=conf)
-            for name, conf in settings['datasets'].items()}
+    return {
+        name: DataSet(name, settings=conf)
+        for name, conf in settings['datasets'].items()
+    }
 
 
 def filter_tagnames(names, patterns):
     """Return elements of names that match a pattern in patterns."""
-    return itertools.chain.from_iterable(
-        fnmatch.filter(names, pat) for pat in patterns)
+    return itertools.chain.from_iterable(fnmatch.filter(names, pat) for pat in patterns)
 
 
 class DataSet:
@@ -74,7 +75,7 @@ class DataSet:
             tbl = Table.read(conf['catalog'])
             group_mapping = Table(
                 [tbl[conf['idname']], tbl[conf['group_idname']]],
-                names=('id', 'group_id')
+                names=('id', 'group_id'),
             )
             group_mapping.add_index('id')
             return group_mapping
@@ -170,8 +171,11 @@ class DataSet:
                     return None
                 gid = self.group_mapping.loc[id_]['group_id']
                 if not np.isscalar(gid):
-                    self.logger.error('Duplicate source %s found in '
-                                      'group_mapping table, return first found', id_)
+                    self.logger.error(
+                        'Duplicate source %s found in '
+                        'group_mapping table, return first found',
+                        id_,
+                    )
                     gid = gid[0]
                 return src_path % gid
             else:
@@ -207,8 +211,10 @@ class DataSet:
                 key, val = check_keyword
                 try:
                     if src.header[key] != val:
-                        raise ValueError("The source was not made from the "
-                                         f"good catalog: {key} = {val}")
+                        raise ValueError(
+                            "The source was not made from the "
+                            f"good catalog: {key} = {val}"
+                        )
                 except KeyError:
                     raise KeyError(f"The source has no {key} keyword.")
             return src
@@ -272,8 +278,9 @@ class DataSet:
                 sdata = getattr(s, ext)
                 srcdata = getattr(src, ext)
                 for name in filter_tagnames(sdata, names[ext]):
-                    if ((default_tags and name not in default_tags) or
-                            (excluded_tags and name in excluded_tags)):
+                    if (default_tags and name not in default_tags) or (
+                        excluded_tags and name in excluded_tags
+                    ):
                         continue
 
                     if name in srcdata:
@@ -320,13 +327,18 @@ class MuseDataSet(DataSet):
         # set PA: FIXME - useful ?
         # src.set_pa(self.cube)
 
-        src.add_cube(self.cube, f'{self.prefix}_CUBE',
-                     size=src.SIZE, unit_wave=None, add_white=True)
+        src.add_cube(
+            self.cube,
+            f'{self.prefix}_CUBE',
+            size=src.SIZE,
+            unit_wave=None,
+            add_white=True,
+        )
         src.CUBE = os.path.basename(self.settings['datacube'])
         src.CUBE_V = self.version
 
         # add expmap image + average and dispersion value of expmap
-        src.add_image(self.expima, f'{self.prefix}_EXPMAP', minsize=0.)
+        src.add_image(self.expima, f'{self.prefix}_EXPMAP', minsize=0.0)
         ima = src.images[f'{self.prefix}_EXPMAP']
         src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
         src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
