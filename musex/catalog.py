@@ -21,17 +21,17 @@ from .utils import table_to_odict
 DIRNAME = os.path.abspath(os.path.dirname(__file__))
 
 __all__ = (
-    'ResultSet',
-    'Catalog',
-    'BaseCatalog',
-    'InputCatalog',
-    'MarzCatalog',
-    'IdMapping',
+    "ResultSet",
+    "Catalog",
+    "BaseCatalog",
+    "InputCatalog",
+    "MarzCatalog",
+    "IdMapping",
 )
 
-FILL_VALUES = {int: -9999, float: np.nan, str: ''}
+FILL_VALUES = {int: -9999, float: np.nan, str: ""}
 
-RESERVED_COLNAMES = ['active', 'merged_in', 'merged']
+RESERVED_COLNAMES = ["active", "merged_in", "merged"]
 
 
 def get_cat_name(res_or_cat):
@@ -43,7 +43,7 @@ def get_cat_name(res_or_cat):
     elif isinstance(res_or_cat, (Table, ResultSet)):
         return res_or_cat.catalog.name
     else:
-        raise ValueError('cat must be a Catalog instance or name')
+        raise ValueError("cat must be a Catalog instance or name")
 
 
 def get_result_table(res_or_cat, filter_active=False):
@@ -55,10 +55,10 @@ def get_result_table(res_or_cat, filter_active=False):
     elif isinstance(res_or_cat, Table):
         tbl = res_or_cat
     else:
-        raise ValueError('invalid input for res_or_cat')
+        raise ValueError("invalid input for res_or_cat")
 
-    if filter_active and 'active' in tbl.colnames:
-        tbl = tbl[tbl['active']]
+    if filter_active and "active" in tbl.colnames:
+        tbl = tbl[tbl["active"]]
 
     return tbl
 
@@ -79,8 +79,8 @@ class ResultSet(Sequence):
             )
 
     def __repr__(self):
-        wherecl = self.whereclause or ''
-        return f'<{self.__class__.__name__}({wherecl})>, {len(self)} results'
+        wherecl = self.whereclause or ""
+        return f"<{self.__class__.__name__}({wherecl})>, {len(self)} results"
 
     def __len__(self):
         return len(self.results)
@@ -106,13 +106,13 @@ class ResultSet(Sequence):
             val = [fill_value if v is None else v for v in val]
             tbl[col.name] = ma.array(val, mask=mask, dtype=dtype, fill_value=fill_value)
 
-        tbl.meta['name'] = self.catalog.name
-        tbl.meta['idname'] = self.catalog.idname
+        tbl.meta["name"] = self.catalog.name
+        tbl.meta["idname"] = self.catalog.idname
         try:
-            tbl.meta['raname'] = self.catalog.raname
-            tbl.meta['decname'] = self.catalog.decname
-            tbl.meta['zname'] = self.catalog.zname
-            tbl.meta['zconfname'] = self.catalog.zconfname
+            tbl.meta["raname"] = self.catalog.raname
+            tbl.meta["decname"] = self.catalog.decname
+            tbl.meta["zname"] = self.catalog.zname
+            tbl.meta["zconfname"] = self.catalog.zconfname
         except AttributeError:
             pass
 
@@ -140,26 +140,26 @@ class BaseCatalog:
 
     """
 
-    catalog_type = ''
+    catalog_type = ""
 
-    def __init__(self, name, db, idname='ID', primary_id=None, author=None):
+    def __init__(self, name, db, idname="ID", primary_id=None, author=None):
         self.name = name
         self.db = db
         self.idname = idname
         self.author = author
         self.logger = logging.getLogger(__name__)
 
-        if not re.match(r'[0-9a-zA-Z_]+$', self.name):
+        if not re.match(r"[0-9a-zA-Z_]+$", self.name):
             warnings.warn(
-                'catalog name should contain only ascii letters '
-                '(a-zA-Z), digits (0-9) and underscore, otherwise '
-                'using it in a column name will fail',
+                "catalog name should contain only ascii letters "
+                "(a-zA-Z), digits (0-9) and underscore, otherwise "
+                "using it in a column name will fail",
                 UserWarning,
             )
 
         if self.name not in self.db:
             self.logger.debug(
-                'create table %s (primary key: %s)', self.name, self.idname
+                "create table %s (primary key: %s)", self.name, self.idname
             )
 
         # Get the reference to the db table, which is created if needed
@@ -187,11 +187,11 @@ class BaseCatalog:
     @lazyproperty
     def history(self):
         # Create the history table and its columns
-        tbl = self.db.create_table('history', primary_id='_id')
+        tbl = self.db.create_table("history", primary_id="_id")
         assert tbl.table is not None
         date = datetime.utcnow()
         tbl._sync_columns(
-            dict(catalog='', id=0, date=date, msg='', data='', author=''), True
+            dict(catalog="", id=0, date=date, msg="", data="", author=""), True
         )
         return tbl
 
@@ -200,7 +200,7 @@ class BaseCatalog:
             try:
                 row = json.dumps(row)
             except TypeError as e:
-                self.logger.debug('log error: %s', e)
+                self.logger.debug("log error: %s", e)
                 row = None
 
         # Force the columns creation if additional columns are passed.
@@ -237,11 +237,11 @@ class BaseCatalog:
     @lazyproperty
     def meta(self):
         """Return metadata associated with the catalog."""
-        return self.db['catalogs'].find_one(name=self.name)
+        return self.db["catalogs"].find_one(name=self.name)
 
     def update_meta(self, **kwargs):
         """Update metadata associated with the catalog."""
-        self.db['catalogs'].upsert({'name': self.name, **kwargs}, ['name'])
+        self.db["catalogs"].upsert({"name": self.name, **kwargs}, ["name"])
         del self.meta
 
     def info(self):
@@ -249,15 +249,15 @@ class BaseCatalog:
         print(f"{self.__class__.__name__} '{self.name}' - {len(self)} rows.")
         if self.meta:
             maxlen = max(len(k) for k in self.meta.keys()) + 1
-            meta = '\n'.join(
-                f'- {k:{maxlen}s}: {v}'
+            meta = "\n".join(
+                f"- {k:{maxlen}s}: {v}"
                 for k, v in self.meta.items()
-                if k not in ('id', 'name')
+                if k not in ("id", "name")
             )
             print(f"\nMetadata:\n{meta}")
 
         maxlen = max(len(k) for k in self.table.table.columns.keys()) + 1
-        columns = '\n'.join(
+        columns = "\n".join(
             f"- {k:{maxlen}s}: {v.type} {v.default or ''}"
             for k, v in self.table.table.columns.items()
         )
@@ -266,7 +266,7 @@ class BaseCatalog:
     def drop(self):
         """Drop the SQL table and its metadata."""
         self.table.drop()
-        self.db['catalogs'].delete(name=self.name)
+        self.db["catalogs"].delete(name=self.name)
         del self.table
 
     def _prepare_rows_for_insert(self, rows, version=None, show_progress=True):
@@ -277,8 +277,8 @@ class BaseCatalog:
             # because passing a dictionary to the function will generally
             # happen when the dictionary comes from Musex.
             for colname in rows.colnames:
-                if '-' in colname:
-                    new_colname = colname.replace('-', '_')
+                if "-" in colname:
+                    new_colname = colname.replace("-", "_")
                     rows.rename_column(colname, new_colname)
                     self.logger.warning(
                         "The column %s was renamed to %s.", colname, new_colname
@@ -288,7 +288,7 @@ class BaseCatalog:
         if version is not None:
             rows = [row.copy() for row in rows]
             for row in rows:
-                row.setdefault('version', version)
+                row.setdefault("version", version)
 
         # Create missing columns
         self.table._sync_columns(rows[0], True)
@@ -321,14 +321,14 @@ class BaseCatalog:
             tbl = tx[self.name]
             for row in rows:
                 ids.append(tbl.insert(row, ensure=False))
-                self.log(ids[-1], f'inserted from input catalog', row=row)
+                self.log(ids[-1], f"inserted from input catalog", row=row)
 
         if ids and self.idname in self.table.columns:
             self.update_meta(maxid=self.max(self.idname))
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
-        self.logger.info('%d rows inserted', len(ids))
+        self.logger.info("%d rows inserted", len(ids))
         return ids
 
     def upsert(self, rows, version=None, show_progress=True, keys=None):
@@ -357,7 +357,7 @@ class BaseCatalog:
         if keys is None:
             keys = [self.idname]
             if version is not None:
-                keys.append('version')
+                keys.append("version")
 
         # Check that all the rows contain the keys.
         try:
@@ -378,22 +378,22 @@ class BaseCatalog:
             tbl = tx[self.name]
             for row in rows:
                 res = tbl.upsert(row, keys)
-                op = 'updated' if res is True else 'inserted'
+                op = "updated" if res is True else "inserted"
                 count[op] += 1
                 if res is True:
                     # if row was updated we need to get its ID
                     res = row.get(self.idname)
                 if res is not None:
                     # log operation if we have an ID
-                    self.log(res, f'{op} from input catalog', row=row)
+                    self.log(res, f"{op} from input catalog", row=row)
 
-        if count['inserted']:
+        if count["inserted"]:
             self.update_meta(maxid=self.max(self.idname))
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
         self.logger.info(
-            '%d rows inserted, %s updated', count['inserted'], count['updated']
+            "%d rows inserted, %s updated", count["inserted"], count["updated"]
         )
 
     def select(self, whereclause=None, columns=None, **params):
@@ -453,8 +453,8 @@ class BaseCatalog:
         if idcolumn is None:
             idcolumn = self.idname
 
-        if len(idlist) > 999 and self.db.engine.driver == 'pysqlite':
-            warnings.warn('Selecting too many ids will fail with SQLite', UserWarning)
+        if len(idlist) > 999 and self.db.engine.driver == "pysqlite":
+            warnings.warn("Selecting too many ids will fail with SQLite", UserWarning)
 
         whereclause = self.c[idcolumn].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
@@ -569,13 +569,13 @@ class Catalog(BaseCatalog):
 
     """
 
-    catalog_type = 'user'
+    catalog_type = "user"
 
     def __init__(
         self,
         name,
         db,
-        idname='ID',
+        idname="ID",
         raname=None,
         decname=None,
         zname=None,
@@ -616,19 +616,19 @@ class Catalog(BaseCatalog):
             parent_cat.db,
             primary_id=primary_id,
             idname=parent_cat.idname,
-            raname=getattr(parent_cat, 'raname', None),
-            decname=getattr(parent_cat, 'decname', None),
-            zname=getattr(parent_cat, 'zname', None),
-            zconfname=getattr(parent_cat, 'zconfname', None),
+            raname=getattr(parent_cat, "raname", None),
+            decname=getattr(parent_cat, "decname", None),
+            zname=getattr(parent_cat, "zname", None),
+            zconfname=getattr(parent_cat, "zconfname", None),
             author=parent_cat.author,
             prefix=parent_cat.prefix,
         )
-        if parent_cat.meta.get('query'):
+        if parent_cat.meta.get("query"):
             # Combine query string with the parent cat's one
             whereclause = f"{parent_cat.meta['query']} AND {whereclause}"
         cat.update_meta(
             parent_cat=parent_cat.name,
-            maxid=parent_cat.meta['maxid'],
+            maxid=parent_cat.meta["maxid"],
             query=whereclause,
         )
         return cat
@@ -712,11 +712,11 @@ class Catalog(BaseCatalog):
         # compute minimum id for "custom" sources
         # TODO: add a setting for this ("customid_start") ?
         maxid = self.max(self.idname)
-        cat_maxid = self.meta['maxid']
+        cat_maxid = self.meta["maxid"]
 
         sources = self.select_ids(idlist)
         if len(sources) == 0:
-            raise ValueError('no sources found')
+            raise ValueError("no sources found")
 
         tbl = sources.as_table()
         coords = np.stack([tbl[self.decname].data, tbl[self.raname].data])
@@ -724,14 +724,14 @@ class Catalog(BaseCatalog):
         dec, ra = np.ma.average(coords, weights=weights, axis=1)
 
         # version
-        versions = set(s.get('version') for s in sources)
+        versions = set(s.get("version") for s in sources)
         if len(versions) == 1:
             version = versions.pop()
         else:
-            self.logger.warning('sources have different version')
+            self.logger.warning("sources have different version")
             version = None
 
-        row = {'merged': True, self.raname: ra, self.decname: dec, 'version': version}
+        row = {"merged": True, self.raname: ra, self.decname: dec, "version": version}
 
         if id_ is not None:
             row[self.idname] = id_
@@ -739,26 +739,26 @@ class Catalog(BaseCatalog):
             row[self.idname] = 10 ** (len(str(cat_maxid)))
 
         # Create missing columns
-        self.table._sync_columns({'active': False, 'merged_in': 0, **row}, True)
+        self.table._sync_columns({"active": False, "merged_in": 0, **row}, True)
 
         with self.db as tx:
             tbl = tx[self.name]
             # create new (merged) source
             newid = tbl.insert(row)
             if id_ is not None:
-                assert newid == id_, 'this should never happen!'
+                assert newid == id_, "this should never happen!"
             # deactivate the other sources
             idname = self.idname
             for s in sources:
-                if s.get('merged_in') is not None:
-                    raise ValueError(f'source {s[idname]} is already merged')
+                if s.get("merged_in") is not None:
+                    raise ValueError(f"source {s[idname]} is already merged")
                 tbl.upsert(
-                    {idname: s[idname], 'active': False, 'merged_in': newid},
+                    {idname: s[idname], "active": False, "merged_in": newid},
                     [idname],
                     ensure=False,
                 )
 
-        self.logger.info('sources %s have been merged in %s', idlist, newid)
+        self.logger.info("sources %s have been merged in %s", idlist, newid)
         return newid
 
     def get_ids_merged_in(self, id_):
@@ -777,9 +777,9 @@ class Catalog(BaseCatalog):
 
         merged = defaultdict(list)
         for o in self.select(
-            self.c.merged_in.isnot(None), columns=[self.idname, 'merged_in']
+            self.c.merged_in.isnot(None), columns=[self.idname, "merged_in"]
         ):
-            merged[o['merged_in']].append(o[self.idname])
+            merged[o["merged_in"]].append(o[self.idname])
 
         merged = {k: ",".join(str(x) for x in sorted(v)) for k, v in merged.items()}
         val = [
@@ -792,7 +792,7 @@ class Catalog(BaseCatalog):
 class InputCatalog(Catalog):
     """Handles catalogs imported from an existing file."""
 
-    catalog_type = 'input'
+    catalog_type = "input"
 
     def __init__(self, name, db, **kwargs):
         super().__init__(name, db, **kwargs)
@@ -801,17 +801,17 @@ class InputCatalog(Catalog):
     @classmethod
     def from_settings(cls, name, db, **kwargs):
         """Create an InputCatalog from the settings file."""
-        init_keys = ('idname', 'raname', 'decname', 'zname', 'zconfname', 'author')
+        init_keys = ("idname", "raname", "decname", "zname", "zconfname", "author")
         kw = {k: v for k, v in kwargs.items() if k in init_keys}
         cat = cls(name, db, **kw)
 
-        for key in ('catalog', 'version'):
+        for key in ("catalog", "version"):
             if kwargs.get(key) is None:
-                raise ValueError(f'an input {key} is required')
+                raise ValueError(f"an input {key} is required")
             setattr(cat, key, kwargs[key])
 
         cat.params = kwargs.copy()
-        cat.version_meta = kwargs.get('version_meta')
+        cat.version_meta = kwargs.get("version_meta")
         return cat
 
     def ingest_input_catalog(
@@ -858,38 +858,38 @@ class InputCatalog(Catalog):
 
         # Catalog
         if isinstance(catalog, str):
-            self.logger.info('ingesting catalog %s', catalog)
+            self.logger.info("ingesting catalog %s", catalog)
             catalog = Table.read(catalog)
         else:
-            self.logger.info('ingesting catalog')
+            self.logger.info("ingesting catalog")
 
         if limit:
-            self.logger.info('keeping only %d rows', limit)
+            self.logger.info("keeping only %d rows", limit)
             catalog = catalog[:limit]
 
         if upsert:
-            status = 'updated'
+            status = "updated"
             self.upsert(
                 catalog, version=self.version, keys=keys, show_progress=show_progress
             )
         else:
-            if self.meta.get('status') is not None:
+            if self.meta.get("status") is not None:
                 self.logger.warning(
-                    'catalogue already ingested, use upsert=True to update'
+                    "catalogue already ingested, use upsert=True to update"
                 )
                 return
 
-            status = 'inserted'
+            status = "inserted"
             self.insert(catalog, version=self.version, show_progress=show_progress)
 
         meta = {
-            'creation_date': datetime.utcnow().isoformat(),
-            'type': self.catalog_type,
-            'status': status,
+            "creation_date": datetime.utcnow().isoformat(),
+            "type": self.catalog_type,
+            "status": status,
         }
         if version_meta is not None:
             meta.update(
-                {'version_meta': version_meta, version_meta: catalog.meta[version_meta]}
+                {"version_meta": version_meta, version_meta: catalog.meta[version_meta]}
             )
         self.update_meta(**meta)
 
@@ -897,7 +897,7 @@ class InputCatalog(Catalog):
 class MarzCatalog(InputCatalog):
     """Handles catalogs imported from MarZ."""
 
-    catalog_type = 'marz'
+    catalog_type = "marz"
 
     def select_flat(self, *, limit_to_cat=None, max_order=5, columns=None):
         """Creates a ResultSet with one MarZ solution per row.
@@ -939,7 +939,7 @@ class MarzCatalog(InputCatalog):
         marz_sol = []
         for sol_order in ["", "2", "3", "4", "5"][:max_order]:
             sub_table = marz_table[
-                ['catalog', 'ID', 'RA', 'DEC', 'QOP']
+                ["catalog", "ID", "RA", "DEC", "QOP"]
                 + [col + sol_order for col in columns]
             ]
             for col in columns:
@@ -950,7 +950,7 @@ class MarzCatalog(InputCatalog):
             marz_sol.append(sub_table)
 
         marz_sol = vstack(marz_sol)
-        marz_sol.sort(['catalog', 'ID', 'marz_sol'])
+        marz_sol.sort(["catalog", "ID", "marz_sol"])
         # We must add a new unique identifier column as the ID columns contains
         # duplicates by definition.
         marz_sol["_id"] = np.arange(len(marz_sol)) + 1
@@ -963,16 +963,16 @@ class MarzCatalog(InputCatalog):
 class IdMapping(BaseCatalog):
     """Handles Id mapping."""
 
-    catalog_type = 'id'
+    catalog_type = "id"
 
     def insert(self, rows, cat, allow_upsert=True):
         """Insert new ids which references other ids from `cat`."""
         catname = get_cat_name(cat)
         rows = np.atleast_2d(rows)
         if rows.shape[1] != 2:
-            raise ValueError('rows must be a tuple of ids or a list of tuple')
+            raise ValueError("rows must be a tuple of ids or a list of tuple")
 
-        keys = (self.idname, f'{catname}_id')
+        keys = (self.idname, f"{catname}_id")
         rows = [dict(zip(keys, (int(x) for x in row))) for row in rows]
         if allow_upsert:
             super().upsert(rows, show_progress=False, keys=[self.idname])
@@ -982,6 +982,6 @@ class IdMapping(BaseCatalog):
     def add_ids(self, idlist, cat):
         """Insert new ids which references other ids from `cat`."""
         idlist = np.atleast_1d(idlist)
-        key = '{}_id'.format(get_cat_name(cat))
+        key = "{}_id".format(get_cat_name(cat))
         rows = [{key: int(id_)} for id_ in idlist]
         super().insert(rows, show_progress=False)

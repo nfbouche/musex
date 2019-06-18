@@ -11,7 +11,7 @@ def _setup_logging():
     import sys
     from mpdaf.log import setup_logging, clear_loggers
 
-    logging.getLogger('alembic').setLevel('WARNING')
+    logging.getLogger("alembic").setLevel("WARNING")
 
     # Avoid duplicate messages from pyplatefit
     try:
@@ -19,15 +19,15 @@ def _setup_logging():
     except ImportError:
         pass
     else:
-        clear_loggers('pyplatefit')
+        clear_loggers("pyplatefit")
 
-    clear_loggers('mpdaf')
+    clear_loggers("mpdaf")
     setup_logging(
-        name='',
-        level='INFO',
+        name="",
+        level="INFO",
         color=True,
         stream=sys.stdout,
-        fmt='%(levelname)s %(message)s',
+        fmt="%(levelname)s %(message)s",
     )
 
 

@@ -10,14 +10,14 @@ from astropy.utils.decorators import lazyproperty
 from mpdaf.obj import Cube, Image
 from mpdaf.sdetect import Source
 
-__all__ = ['DataSet', 'MuseDataSet']
+__all__ = ["DataSet", "MuseDataSet"]
 
 
 def load_datasets(settings):
     """Load all datasets defined in the settings."""
     return {
         name: DataSet(name, settings=conf)
-        for name, conf in settings['datasets'].items()
+        for name, conf in settings["datasets"].items()
     }
 
 
@@ -33,34 +33,34 @@ class DataSet:
         self.name = name
         self.settings = settings
         self.logger = logging.getLogger(__name__)
-        for key in ('prefix', 'version', 'detector', 'description'):
+        for key in ("prefix", "version", "detector", "description"):
             setattr(self, key, self.settings.get(key))
 
     def __repr__(self):
-        out = f'<{self.__class__.__name__}('
+        out = f"<{self.__class__.__name__}("
         if self.prefix:
-            out += f'prefix={self.prefix}, '
+            out += f"prefix={self.prefix}, "
         if self.version:
-            out += f'version={self.version}, '
+            out += f"version={self.version}, "
         if self.detector:
-            out += f'detector={self.detector}, '
+            out += f"detector={self.detector}, "
         if self.linked_cat:
-            out += f'linked_cat={self.linked_cat}, '
+            out += f"linked_cat={self.linked_cat}, "
         for k, v in self.settings.items():
-            if k not in ('version', 'prefix', 'linked_catalog', 'description'):
+            if k not in ("version", "prefix", "linked_catalog", "description"):
                 if isinstance(v, dict):
                     if len(v) > 0:
-                        out += f'{len(v)} {k}, '
+                        out += f"{len(v)} {k}, "
                 else:
-                    out += f'1 {k}, '
-        if out.endswith(', '):
+                    out += f"1 {k}, "
+        if out.endswith(", "):
             out = out[:-2]
-        return out + ')>'
+        return out + ")>"
 
     def __getstate__(self):
         state = self.__dict__.copy()
         # remove un-pickable objects
-        state['logger'] = None
+        state["logger"] = None
         return state
 
     def __setstate__(self, state):
@@ -70,25 +70,25 @@ class DataSet:
 
     @lazyproperty
     def group_mapping(self):
-        if 'group_mapping' in self._src_conf:
-            conf = self._src_conf['group_mapping']
-            tbl = Table.read(conf['catalog'])
+        if "group_mapping" in self._src_conf:
+            conf = self._src_conf["group_mapping"]
+            tbl = Table.read(conf["catalog"])
             group_mapping = Table(
-                [tbl[conf['idname']], tbl[conf['group_idname']]],
-                names=('id', 'group_id'),
+                [tbl[conf["idname"]], tbl[conf["group_idname"]]],
+                names=("id", "group_id"),
             )
-            group_mapping.add_index('id')
+            group_mapping.add_index("id")
             return group_mapping
 
     @lazyproperty
     def linked_cat(self):
         """Return the linked catalog, if any."""
-        return self.settings.get('linked_catalog')
+        return self.settings.get("linked_catalog")
 
     @lazyproperty
     def _src_conf(self):
         """Return the source settings."""
-        return self.settings.get('sources', {})
+        return self.settings.get("sources", {})
 
     @lazyproperty
     def images(self):
@@ -96,13 +96,13 @@ class DataSet:
         # with warnings.catch_warnings():
         #     warnings.simplefilter('ignore', AstropyWarning)
         # TODO ? strip header
-        conf = self.settings.get('images', {})
+        conf = self.settings.get("images", {})
         return {k: Image(v) for k, v in conf.items()}
 
     @lazyproperty
     def cubes(self):
         """Return a dictionary with the cubes."""
-        conf = self.settings.get('cubes', {})
+        conf = self.settings.get("cubes", {})
         return {k: Cube(v) for k, v in conf.items()}
 
     def get_skymask_file(self, id_):
@@ -124,14 +124,14 @@ class DataSet:
                 skymask_srctag: ORI_MASK_SKY
 
         """
-        masks = self.settings.get('masks', {})
-        if 'skymask_tpl' in masks:
-            return masks['skymask_tpl'] % id_
-        elif 'skymask' in masks:
-            return masks['skymask']
-        elif 'skymask_srctag' in masks:
+        masks = self.settings.get("masks", {})
+        if "skymask_tpl" in masks:
+            return masks["skymask_tpl"] % id_
+        elif "skymask" in masks:
+            return masks["skymask"]
+        elif "skymask_srctag" in masks:
             src = self.get_source(id_)
-            return src.images[masks['skymask_srctag']]
+            return src.images[masks["skymask_srctag"]]
 
     def get_objmask_file(self, id_):
         """Return the source mask for a given ID.
@@ -147,12 +147,12 @@ class DataSet:
                 mask_srctag: ORI_MASK_OBJ
 
         """
-        masks = self.settings.get('masks', {})
-        if 'mask_tpl' in masks:
-            return masks['mask_tpl'] % id_
-        elif 'mask_srctag' in masks:
+        masks = self.settings.get("masks", {})
+        if "mask_tpl" in masks:
+            return masks["mask_tpl"] % id_
+        elif "mask_srctag" in masks:
             src = self.get_source(id_)
-            return src.images[masks['mask_srctag']]
+            return src.images[masks["mask_srctag"]]
 
     def get_source_file(self, id_):
         """Return a source filename.
@@ -163,17 +163,17 @@ class DataSet:
             The ID of the source.
 
         """
-        src_path = self._src_conf.get('source_tpl')
+        src_path = self._src_conf.get("source_tpl")
         if src_path:
             if self.group_mapping is not None:
-                if id_ not in self.group_mapping['id']:
-                    self.logger.error('Source %s not found in group_mapping table', id_)
+                if id_ not in self.group_mapping["id"]:
+                    self.logger.error("Source %s not found in group_mapping table", id_)
                     return None
-                gid = self.group_mapping.loc[id_]['group_id']
+                gid = self.group_mapping.loc[id_]["group_id"]
                 if not np.isscalar(gid):
                     self.logger.error(
-                        'Duplicate source %s found in '
-                        'group_mapping table, return first found',
+                        "Duplicate source %s found in "
+                        "group_mapping table, return first found",
                         id_,
                     )
                     gid = gid[0]
@@ -199,7 +199,7 @@ class DataSet:
         src_path = self.get_source_file(id_)
         if src_path:
             if not os.path.exists(src_path):
-                self.logger.debug('source not found in %s', src_path)
+                self.logger.debug("source not found in %s", src_path)
                 return
 
             src = Source.from_file(src_path)
@@ -251,30 +251,30 @@ class DataSet:
         """
         debug = self.logger.debug
         if names is None:
-            names = ['*']
+            names = ["*"]
         if isinstance(names, (list, tuple)):
-            names = {k: names for k in ('images', 'spectra', 'cubes', 'tables')}
+            names = {k: names for k in ("images", "spectra", "cubes", "tables")}
 
         # Images
-        for name in filter_tagnames(self.images, names['images']):
-            order = 0 if name == 'SEGMAP' else 1
-            tagname = f'{self.prefix}_{name}' if self.prefix else name
-            debug('Adding image: %s', tagname)
+        for name in filter_tagnames(self.images, names["images"]):
+            order = 0 if name == "SEGMAP" else 1
+            tagname = f"{self.prefix}_{name}" if self.prefix else name
+            debug("Adding image: %s", tagname)
             src.add_image(self.images[name], tagname, rotate=True, order=order)
 
         # Cubes
-        for name in filter_tagnames(self.cubes, names['cubes']):
-            tagname = f'{self.prefix}_{name}' if self.prefix else name
-            debug('Adding cube: %s', tagname)
+        for name in filter_tagnames(self.cubes, names["cubes"]):
+            tagname = f"{self.prefix}_{name}" if self.prefix else name
+            debug("Adding cube: %s", tagname)
             src.add_cube(self.cubes[name], tagname)
 
         # Sources
         s = self.get_source(srcid or src.ID)
         if s is not None:
-            default_tags = self._src_conf.get('default_tags')
-            excluded_tags = self._src_conf.get('excluded_tags')
+            default_tags = self._src_conf.get("default_tags")
+            excluded_tags = self._src_conf.get("excluded_tags")
 
-            for ext in ('images', 'spectra', 'cubes', 'tables'):
+            for ext in ("images", "spectra", "cubes", "tables"):
                 sdata = getattr(s, ext)
                 srcdata = getattr(src, ext)
                 for name in filter_tagnames(sdata, names[ext]):
@@ -284,10 +284,10 @@ class DataSet:
                         continue
 
                     if name in srcdata:
-                        debug('Not overriding %s from source %s', name, ext)
+                        debug("Not overriding %s from source %s", name, ext)
                     else:
-                        tagname = f'{self.prefix}_{name}' if self.prefix else name
-                        debug('Adding source %s: %s', ext, tagname)
+                        tagname = f"{self.prefix}_{name}" if self.prefix else name
+                        debug("Adding source %s: %s", ext, tagname)
                         srcdata[tagname] = sdata[name]
 
 
@@ -301,17 +301,17 @@ class MuseDataSet(DataSet):
 
     def __init__(self, name, settings):
         super().__init__(name, settings)
-        self.margin = self.settings.get('margin', 0)
+        self.margin = self.settings.get("margin", 0)
 
     @lazyproperty
     def cube(self):
         """The datacube."""
-        return Cube(self.settings['datacube'], copy=False)
+        return Cube(self.settings["datacube"], copy=False)
 
     @lazyproperty
     def white(self):
         """The white-light image."""
-        return Image(self.settings['white'], copy=False)
+        return Image(self.settings["white"], copy=False)
 
     # @lazyproperty
     # def expcube(self):
@@ -320,7 +320,7 @@ class MuseDataSet(DataSet):
     @lazyproperty
     def expima(self):
         """The exposure map image."""
-        return Image(self.settings['expima'], copy=False)
+        return Image(self.settings["expima"], copy=False)
 
     def add_to_source(self, src, names=None, **kwargs):
         """Add subcube and images to a source."""
@@ -329,28 +329,28 @@ class MuseDataSet(DataSet):
 
         src.add_cube(
             self.cube,
-            f'{self.prefix}_CUBE',
+            f"{self.prefix}_CUBE",
             size=src.SIZE,
             unit_wave=None,
             add_white=True,
         )
-        src.CUBE = os.path.basename(self.settings['datacube'])
+        src.CUBE = os.path.basename(self.settings["datacube"])
         src.CUBE_V = self.version
 
         # add expmap image + average and dispersion value of expmap
-        src.add_image(self.expima, f'{self.prefix}_EXPMAP', minsize=0.0)
-        ima = src.images[f'{self.prefix}_EXPMAP']
-        src.EXPMEAN = (np.ma.mean(ima.data), 'Mean value of EXPMAP')
-        src.EXPMIN = (np.ma.min(ima.data), 'Minimum value of EXPMAP')
-        src.EXPMAX = (np.ma.max(ima.data), 'Maximum value of EXPMAP')
+        src.add_image(self.expima, f"{self.prefix}_EXPMAP", minsize=0.0)
+        ima = src.images[f"{self.prefix}_EXPMAP"]
+        src.EXPMEAN = (np.ma.mean(ima.data), "Mean value of EXPMAP")
+        src.EXPMIN = (np.ma.min(ima.data), "Minimum value of EXPMAP")
+        src.EXPMAX = (np.ma.max(ima.data), "Maximum value of EXPMAP")
 
         # add fsf info
-        if self.cube.primary_header.get('FSFMODE') == 'MOFFAT1':
-            self.logger.debug('Adding FSF info from the MUSE datacube')
+        if self.cube.primary_header.get("FSFMODE") == "MOFFAT1":
+            self.logger.debug("Adding FSF info from the MUSE datacube")
             try:
-                src.add_FSF(self.cube, fieldmap=self.settings.get('fieldmap'))
+                src.add_FSF(self.cube, fieldmap=self.settings.get("fieldmap"))
             except TypeError:
-                self.logger.warning('Could not use fieldmap with MPDAF')
+                self.logger.warning("Could not use fieldmap with MPDAF")
                 # fieldmap arg not available in MPDAF 2.4
                 src.add_FSF(self.cube)
 
