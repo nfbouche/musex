@@ -291,7 +291,7 @@ def create_source(
         )
 
     msg = "Source %05d (%.5f, %.5f) done, %d images, %d spectra"
-    logger.info(msg, src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
+    logger.debug(msg, src.ID, src.DEC, src.RA, len(src.images), len(src.spectra))
     logger.debug("IMAGES: %s", ", ".join(sorted(src.images.keys())))
     logger.debug("SPECTRA: %s", ", ".join(sorted(src.spectra.keys())))
     if src.tables:
@@ -307,7 +307,7 @@ def create_source(
                 category=fits.verify.VerifyWarning,
             )
             src.write(fname)
-        logger.info("FITS written to %s", fname)
+        logger.debug("FITS written to %s", fname)
         return fname
     else:
         return src
