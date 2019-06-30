@@ -112,7 +112,8 @@ class SourceX(Source):
                 else:
                     self._logger.debug("Add %s=%r", key, row[colname])
                     comment = HEADER_COMMENTS.get(key)
-                    self.header[key] = (row[colname], comment)
+                    val = 'nan' if np.isnan(row[colname]) else row[colname]
+                    self.header[key] = (val, comment)
 
     def add_masks_from_dataset(
         self, maskds, center, size, minsize=0, nskywarn=(50, 5), srcid=None
