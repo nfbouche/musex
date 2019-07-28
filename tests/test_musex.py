@@ -145,6 +145,9 @@ def test_catalog(mx):
     assert len(res) == 1
     assert res[0]["id"] == 1
 
+    res = phot.select_ids(1, columns=[phot.idname], invert=True)
+    assert len(res) == len(phot)-1
+
     res = phot.select_ids(np.array([1, 2]), columns=[phot.idname])
     assert len(res) == 2
     assert res[0]["id"] == 1

@@ -425,7 +425,7 @@ class BaseCatalog:
         """Return a dict with all keys for a given ID."""
         return self.table.find_one(**{self.idname: id_})
 
-    def select_ids(self, idlist, columns=None, idcolumn=None, **params):
+    def select_ids(self, idlist, columns=None, idcolumn=None, invert=False, **params):
         """Select rows with a list of IDs.
 
         If a column name is provided in `idcolumn`, this column will be used
@@ -441,6 +441,8 @@ class BaseCatalog:
         idcolumn : str
             Name of the column containing the IDs when not using the default
             column.
+        invert : bool
+            If true select rows which are not in the idlist
         params : dict
             Additional parameters are passed to `dataset.Database.query`.
 
@@ -456,7 +458,10 @@ class BaseCatalog:
         if len(idlist) > 999 and self.db.engine.driver == "pysqlite":
             warnings.warn("Selecting too many ids will fail with SQLite", UserWarning)
 
-        whereclause = self.c[idcolumn].in_(idlist)
+        if invert:
+            whereclause = self.c[idcolumn].notin_(idlist)                    
+        else:
+            whereclause = self.c[idcolumn].in_(idlist)
         return self.select(whereclause=whereclause, columns=columns, **params)
 
     def join(
