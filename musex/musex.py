@@ -4,6 +4,7 @@ import itertools
 import logging
 import multiprocessing
 import os
+import shutil
 import sys
 import textwrap
 from collections import Iterable, Sized
@@ -491,6 +492,7 @@ class MuseX:
         user_func=None,
         user_func_kw=None,
         verbose=False,
+        delete_dir=False,
     ):
         """Export a catalog or selection to sources (SourceX).
 
@@ -547,6 +549,8 @@ class MuseX:
             Dict with additional keywords/values to pass to the user_func
         verbose : bool
             Verbose flag.
+        delete_dir : bool
+            If True delete source directory if it exist
 
         """
         resultset = get_result_table(res_or_cat, filter_active=only_active)
@@ -569,6 +573,9 @@ class MuseX:
                 parent_prefix = parent_extract.get("prefix")
 
         if outdir is not None:
+            if delete_dir:
+                info("Delete existing source directory %s", outdir)
+                shutil.rmtree(outdir, ignore_errors=True)  
             os.makedirs(outdir, exist_ok=True)
 
         # make sure that size is a list with the same length as the catalog

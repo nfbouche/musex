@@ -392,9 +392,14 @@ class BaseCatalog:
 
         if not tbl.has_index(self.idname):
             tbl.create_index(self.idname)
-        self.logger.info(
-            "%d rows inserted, %s updated", count["inserted"], count["updated"]
-        )
+        if show_progress:    
+            self.logger.info(
+                "%d rows inserted, %s updated", count["inserted"], count["updated"]
+            )
+        else:
+            self.logger.debug(
+                "%d rows inserted, %s updated", count["inserted"], count["updated"]
+            )            
 
     def select(self, whereclause=None, columns=None, **params):
         """Select rows in the catalog.
