@@ -376,6 +376,20 @@ class BaseCatalog:
         assert self.history is not None  # create table to avoid schema warning
         with self.db as tx:
             tbl = tx[self.name]
+            # create the columns if they dont exist
+            # dataset upsert create bad column type is first item is None
+            ncol = 0
+            for col in rows[0].keys():
+                if col not in tbl.columns:
+                    # find the first non null value
+                    for row in rows:
+                        if row[col] is not None:
+                            break
+                    tbl.create_column_by_example(col, row[col])
+                    ncol += 1
+            if ncol > 0:
+                self.logger.debug('%d columns created in table %s',tbl.name)
+            
             for row in rows:
                 res = tbl.upsert(row, keys)
                 op = "updated" if res is True else "inserted"
