@@ -350,8 +350,9 @@ class BaseCatalog:
 
         """
         count = defaultdict(int)
+        # WIP this does not work later if show_progress is True
         rows = self._prepare_rows_for_insert(
-            rows, version=version, show_progress=show_progress
+            rows, version=version, show_progress=False #show_progress=show_progress
         )
 
         if keys is None:
@@ -379,6 +380,7 @@ class BaseCatalog:
             # create the columns if they dont exist
             # dataset upsert create bad column type is first item is None
             ncol = 0
+            # WIP this create an exception if show_progress is True
             for col in rows[0].keys():
                 if col not in tbl.columns:
                     # find the first non null value
