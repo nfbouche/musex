@@ -672,7 +672,9 @@ class MuseX:
 
         # build the list of sources to compute
         to_compute = []
-        for res, src_size in zip(resultset, size):
+        self.logger.info('Building the list of sources')
+        loop = progressbar(zip(resultset, size), total=len(resultset)) if not verbose else zip(resultset, size)
+        for res, src_size in loop:
             row = dict(zip(res.colnames, tuple(res)))
 
             # dataset for masks
@@ -706,6 +708,7 @@ class MuseX:
 
         # create the sources, either with multiprocessing or directly with
         # create_source
+        self.logger.info("Creating sources")
         if n_jobs > 1:
             # multiprocessing.log_to_stderr('DEBUG')
             pool = multiprocessing.Pool(n_jobs, maxtasksperchild=50)
@@ -882,7 +885,7 @@ class MuseX:
         self.catalogs[name].drop()
         del self.catalogs[name]
 
-    def cross_match(self, name, cat1, cat2, radius=1.0):
+    def cross_match(self, name, cat1, cat2, radius=1.0, drop_if_exists=False, no_dbcat=False, col1_names=None, col2_names=None, show_progress=True):
         """Cross-match two catalogs and creates a CrossMatch catalog.
 
         Parameters
@@ -895,8 +898,35 @@ class MuseX:
             The second catalog.
         radius : float
             The cross-match radius in arc-seconds.
+        drop_if_exists : bool
+            Delete the catalog from the db if it exists
+        no_dbcat : bool
+            If True return only an astropy table and do not create a catalog in db
+        col1_names : tuple of str
+            cat1 columns (idname,raname,decname) if None use catalog meta 
+        col2_names : tuple of str
+            cat2 columns (idname,raname,decname) if None use catalog meta 
+        show_progress : bool
+            if True show progress when inserting data in catalog
 
+        Returns
+        -------
+        `musex.crossmatching.CrossMatch`
+        or astropy table
         """
-        if name in self.catalogs:
-            raise ValueError("A catalog with this name already exists.")
-        return gen_crossmatch(name, self.db, cat1, cat2, radius)
+        if name in self.db.tables:
+            if name in self.input_catalogs or name not in self.catalogs:
+                raise ValueError(
+                    "a table with the same name already exists, "
+                    "and cannot be dropped since it is not a "
+                    "user catalog. Please choose another name."
+                )
+            if drop_if_exists:
+                self.db[name].drop()
+            else:
+                raise ValueError("table already exists")        
+
+        res = gen_crossmatch(name, self.db, cat1, cat2, radius, no_dbcat, col1_names, col2_names, show_progress)
+        if not no_dbcat:
+            self.catalogs[name] = res
+        return res

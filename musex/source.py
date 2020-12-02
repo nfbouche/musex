@@ -259,8 +259,11 @@ def create_source(
             src.add_table(catsrc, name, **kw)
 
             if "redshifts" in cat.meta:
+                #crow = cat[cat[cat.meta["idname"]] == src.ID] BUGGY ?
                 crow = cat[cat[cat.meta["idname"]] == src.ID]
-                src.add_z_from_settings(cat.meta["redshifts"], crow)
+                if len(crow) > 0:
+                    crow = crow[0]
+                    src.add_z_from_settings(cat.meta["redshifts"], crow)
 
             if "mags" in cat.meta:
                 crow = cat[cat[cat.meta["idname"]] == src.ID]

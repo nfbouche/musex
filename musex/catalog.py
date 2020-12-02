@@ -117,6 +117,18 @@ class ResultSet(Sequence):
             pass
 
         return tbl
+    
+    def skycoord(self, skycols=None):
+        """Return an `astropy.coordinates.SkyCoord` object.
+            
+            Parameters
+            ----------
+            skycols : tuple of str
+            column names (raname,decname) if None, use catalog information
+        """
+        tbl = self.as_table()
+        raname,decname = (self.catalog.raname,self.catalog.decname) if skycols is None else skycols
+        return tbl.to_skycoord(ra=raname, dec=decname)    
 
 
 class BaseCatalog:
@@ -350,9 +362,8 @@ class BaseCatalog:
 
         """
         count = defaultdict(int)
-        # WIP this does not work later if show_progress is True
         rows = self._prepare_rows_for_insert(
-            rows, version=version, show_progress=False #show_progress=show_progress
+            rows, version=version, show_progress=False
         )
 
         if keys is None:
@@ -380,7 +391,6 @@ class BaseCatalog:
             # create the columns if they dont exist
             # dataset upsert create bad column type is first item is None
             ncol = 0
-            # WIP this create an exception if show_progress is True
             for col in rows[0].keys():
                 if col not in tbl.columns:
                     # find the first non null value
@@ -392,6 +402,9 @@ class BaseCatalog:
             if ncol > 0:
                 self.logger.debug('%d columns created in table %s',tbl.name)
             
+            if show_progress:
+                rows = progressbar(rows)
+                
             for row in rows:
                 res = tbl.upsert(row, keys)
                 op = "updated" if res is True else "inserted"
@@ -707,11 +720,22 @@ class Catalog(BaseCatalog):
 
         return res
 
-    def skycoord(self):
-        """Return an `astropy.coordinates.SkyCoord` object."""
-        columns = [self.idname, self.raname, self.decname]
+    def skycoord(self, idname=None, skycols=None):
+        """Return an `astropy.coordinates.SkyCoord` object.
+            
+            Parameters
+            ----------
+            idname: str
+                column ID name if None, use catalog meta
+            skycols : tuple of str
+                column names (raname,decname) if None, use catalog meta
+        """
+        cidname = self.idname if idname is None else idname
+        raname,decname = (self.raname,self.decname) if skycols is None else skycols
+        columns = [cidname, raname, decname]
         tbl = self.select(columns=columns).as_table()
-        return tbl.to_skycoord(ra=self.raname, dec=self.decname)
+        return tbl.to_skycoord(ra=raname, dec=decname)
+    
 
     def merge_sources(self, idlist, id_=None, dataset=None, weights_colname=None):
         """Merge sources into one.
