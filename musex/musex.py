@@ -9,6 +9,7 @@ import sys
 import textwrap
 from collections import Iterable, Sized
 from contextlib import contextmanager
+import re
 
 import numpy as np
 
@@ -930,3 +931,27 @@ class MuseX:
         if not no_dbcat:
             self.catalogs[name] = res
         return res
+    
+    def search(self, reg, objlist=['catalogs','input_catalogs','datasets']):
+        """ Search all object names which match a pattern
+        Parameters
+        ----------
+        reg : str
+          regular experssion string (eg ".*mxdf.*')
+        oblist : list of mx objects
+        
+        Returns
+        -------
+        a dictionary of all match
+        """
+        prog = re.compile(reg) 
+        klist = {}
+        for name in objlist:
+            obj = getattr(self, name)
+            klist[name] = []
+            for key in obj.keys():
+                if prog.match(key) is not None: 
+                    klist[name].append(key)
+        return klist
+
+            
