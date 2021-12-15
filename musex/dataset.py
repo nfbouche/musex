@@ -154,7 +154,7 @@ class DataSet:
             src = self.get_source(id_)
             return src.images[masks["mask_srctag"]]
 
-    def get_source_file(self, id_):
+    def get_source_file(self, id_, silent_error=True):
         """Return a source filename.
 
         Parameters
@@ -167,7 +167,10 @@ class DataSet:
         if src_path:
             if self.group_mapping is not None:
                 if id_ not in self.group_mapping["id"]:
-                    self.logger.error("Source %s not found in group_mapping table", id_)
+                    if silent_error:
+                        self.logger.debug("Source %s not found in group_mapping table", id_)
+                    else:
+                        self.logger.error("Source %s not found in group_mapping table", id_)
                     return None
                 gid = self.group_mapping.loc[id_]["group_id"]
                 if not np.isscalar(gid):
@@ -181,7 +184,7 @@ class DataSet:
             else:
                 return src_path % id_
 
-    def get_source(self, id_, check_keyword=None):
+    def get_source(self, id_, check_keyword=None, silent_error=True):
         """Return a source.
 
         Parameters
@@ -196,7 +199,7 @@ class DataSet:
 
         """
         # TODO: use @functools.lru_cache
-        src_path = self.get_source_file(id_)
+        src_path = self.get_source_file(id_, silent_error)
         if src_path:
             if not os.path.exists(src_path):
                 self.logger.debug("source not found in %s", src_path)
@@ -345,7 +348,7 @@ class MuseDataSet(DataSet):
         src.EXPMAX = (np.ma.max(ima.data), "Maximum value of EXPMAP")
 
         # add fsf info
-        if self.cube.primary_header.get("FSFMODE") == "MOFFAT1":
+        if self.cube.primary_header.get("FSFMODE") is not None:
             self.logger.debug("Adding FSF info from the MUSE datacube")
             try:
                 src.add_FSF(self.cube, fieldmap=self.settings.get("fieldmap"))
