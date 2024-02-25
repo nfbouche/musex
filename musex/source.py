@@ -29,7 +29,7 @@ HEADER_COMMENTS = dict(
 
 class SourceX(Source):
     """A Source class inherited from `mpdaf.sdetect.Source`, and customized
-    with a few additional methods.
+    with a few additional methods
     """
 
     def get_zmuse(self):
@@ -54,11 +54,13 @@ class SourceX(Source):
         if "FSFMODE" in self.header:
             fsfmodel = self.get_FSF()
             if fsfmodel == 'Moffat1':
+                self._logger.info("Extract spectra with FSF MoffatModel=Moffat1")
                 a, b, beta, field = fsfmodel.a, fsfmodel.b, fsfmodel.beta, fsfmodel.field
                 kw["beta"] = beta
                 psf = b * cube.wave.coord() + a
                 kw["psf"] = create_psf_cube(cube.shape, psf, beta=beta, wcs=cube.wcs)
             elif ifsmodel == 2:
+                self._logger.info("Extract spectra with FSF MoffatModel=2")
                 kw["psf"] = fsfmodel.get_cube(wave=cube.wave, wcs=cube.wcs)
 
         self.extract_spectra(cube, skysub=False, **kw)
