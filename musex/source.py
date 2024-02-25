@@ -52,10 +52,14 @@ class SourceX(Source):
             self._logger.debug("Extract spectra")
 
         if "FSFMODE" in self.header:
-            a, b, beta, field = self.get_FSF()
-            kw["beta"] = beta
-            psf = b * cube.wave.coord() + a
-            kw["psf"] = create_psf_cube(cube.shape, psf, beta=beta, wcs=cube.wcs)
+            fsfmodel = self.get_FSF()
+            if fsfmodel == 'Moffat1':
+                a, b, beta, field = fsfmodel.a, fsfmodel.b, fsfmodel.beta, fsfmodel.field
+                kw["beta"] = beta
+                psf = b * cube.wave.coord() + a
+                kw["psf"] = create_psf_cube(cube.shape, psf, beta=beta, wcs=cube.wcs)
+            elif ifsmodel == 2:
+                kw["psf"] = fsfmodel.get_cube(wave=cube.wave, wcs=cube.wcs)
 
         self.extract_spectra(cube, skysub=False, **kw)
         self.extract_spectra(cube, skysub=True, **kw)
